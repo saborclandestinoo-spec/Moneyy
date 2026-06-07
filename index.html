@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vulpin ERP</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body,#root{height:100%;font-family:'Poppins',sans-serif;background:#0a0a0a}
+:root{
+  --bg:#0a0a0a;
+  --bg2:#111111;
+  --bg3:#181818;
+  --bg4:#202020;
+  --red:#e8293a;
+  --red2:#c41f2e;
+  --red3:#ff4d5e;
+  --red-glow:rgba(232,41,58,0.18);
+  --red-border:rgba(232,41,58,0.28);
+  --text:#f0f0f0;
+  --muted:#888;
+  --border:#252525;
+  --r:16px;--r-sm:10px;--r-lg:22px;--r-xl:28px;
+}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#252525;border-radius:4px}
+button{cursor:pointer;font-family:'Poppins',sans-serif;border:none;background:none}
+input,select,textarea{font-family:'Poppins',sans-serif;outline:none}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideIn{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:translateX(0)}}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(232,41,58,0.4)}50%{box-shadow:0 0 0 6px rgba(232,41,58,0)}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useRef,useCallback}=React;
+
+const FMT=v=>`R$ ${Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+const FP=v=>`${Number(v).toFixed(1)}%`;
+const FD=d=>{if(!d)return'—';const[y,m,day]=d.split('-');return`${day}/${m}/${y}`};
+const TODAY=()=>new Date().toISOString().split('T')[0];
+
+// ── DB ──
+const dbGet=k=>{try{const v=localStorage.getItem('vp:'+k);return v?JSON.parse(v):null}catch{return null}};
+const dbSet=(k,v)=>{try{localStorage.setItem('vp:'+k,JSON.stringify(v))}catch{}};
+
+const SEED={
+  pedidos:[
+    {id:'PED001',cliente:'Maria Silva',itens:[{produto:'Cookie Nutella',qty:6,preco:18.90}],pagamento:'Cartão',status:'Entregue',data:'2025-05-04',obs:''},
+    {id:'PED002',cliente:'João Santos',itens:[{produto:'Cookie Pistache',qty:12,preco:26.90}],pagamento:'PIX',status:'Em preparo',data:'2025-05-05',obs:''},
+    {id:'PED003',cliente:'Ana Costa',itens:[{produto:'Cookie Tradicional',qty:24,preco:12.90}],pagamento:'Dinheiro',status:'Aguardando',data:'2025-05-05',obs:''},
+    {id:'PED004',cliente:'Carlos Lima',itens:[{produto:'Cookie Nutella',qty:3,preco:18.90}],pagamento:'PIX',status:'Entregue',data:'2025-05-03',obs:'Entregar no trabalho'},
+    {id:'PED005',cliente:'Fernanda Rocha',itens:[{produto:'Cookie Tradicional',qty:12,preco:12.90}],pagamento:'PIX',status:'Cancelado',data:'2025-05-02',obs:''},
+  ],
+  estoque:[
+    {id:1,nome:'Farinha de Trigo',categoria:'Matéria-Prima',unidade:'kg',qtd:45,minimo:20,custo:4.50,fornecedor:'Moinho São João',validade:'2025-12-01'},
+    {id:2,nome:'Chocolate ao Leite',categoria:'Matéria-Prima',unidade:'kg',qtd:8,minimo:10,custo:32.00,fornecedor:'Harald',validade:'2025-10-01'},
+    {id:3,nome:'Nutella',categoria:'Matéria-Prima',unidade:'kg',qtd:3,minimo:5,custo:48.00,fornecedor:'Ferrero',validade:'2025-08-01'},
+    {id:4,nome:'Manteiga',categoria:'Matéria-Prima',unidade:'kg',qtd:22,minimo:10,custo:28.00,fornecedor:'Aviação',validade:'2025-07-15'},
+    {id:5,nome:'Cookie Nutella',categoria:'Produto Acabado',unidade:'und',qtd:148,minimo:50,custo:4.80,fornecedor:'Produção interna',validade:'2025-07-01'},
+    {id:6,nome:'Cookie Pistache',categoria:'Produto Acabado',unidade:'und',qtd:92,minimo:30,custo:8.20,fornecedor:'Produção interna',validade:'2025-07-02'},
+    {id:7,nome:'Cookie Tradicional',categoria:'Produto Acabado',unidade:'und',qtd:215,minimo:80,custo:3.20,fornecedor:'Produção interna',validade:'2025-06-28'},
+    {id:8,nome:'Caixa Individual',categoria:'Embalagem',unidade:'und',qtd:500,minimo:200,custo:1.20,fornecedor:'PackBrasil',validade:''},
+    {id:9,nome:'Sacola Kraft',categoria:'Embalagem',unidade:'und',qtd:42,minimo:80,custo:0.85,fornecedor:'PackBrasil',validade:''},
+    {id:10,nome:'Açúcar Refinado',categoria:'Matéria-Prima',unidade:'kg',qtd:60,minimo:25,custo:3.20,fornecedor:'Cristal',validade:'2026-06-01'},
+  ],
+  contas:[
+    {id:1,nome:'Nubank PJ',tipo:'Digital',saldo:18420.50,cor:'#8B5CF6'},
+    {id:2,nome:'Mercado Pago',tipo:'Digital',saldo:4230.75,cor:'#00B4D8'},
+    {id:3,nome:'Caixa Físico',tipo:'Caixa',saldo:850.00,cor:'#22C55E'},
+    {id:4,nome:'Stone',tipo:'Maquininha',saldo:3100.00,cor:'#F59E0B'},
+  ],
+  movs:[
+    {id:1,desc:'Venda PED001',cat:'Vendas',tipo:'entrada',valor:113.40,data:'2025-05-04',conta:'Nubank PJ'},
+    {id:2,desc:'Compra Nutella',cat:'Matéria-Prima',tipo:'saida',valor:384.00,data:'2025-05-03',conta:'Nubank PJ'},
+    {id:3,desc:'Aluguel Maio',cat:'Aluguel',tipo:'saida',valor:3200.00,data:'2025-05-04',conta:'Nubank PJ'},
+    {id:4,desc:'Venda PED004',cat:'Vendas',tipo:'entrada',valor:56.70,data:'2025-05-03',conta:'Stone'},
+    {id:5,desc:'Salários',cat:'Salários',tipo:'saida',valor:8400.00,data:'2025-05-05',conta:'Nubank PJ'},
+    {id:6,desc:'Energia',cat:'Energia',tipo:'saida',valor:680.00,data:'2025-05-04',conta:'Nubank PJ'},
+    {id:7,desc:'Marketing',cat:'Marketing',tipo:'saida',valor:500.00,data:'2025-05-05',conta:'Nubank PJ'},
+    {id:8,desc:'Venda PED002',cat:'Vendas',tipo:'entrada',valor:322.80,data:'2025-05-05',conta:'Nubank PJ'},
+  ],
+};
+
+// ── TOAST ──
+let _setToasts=null;
+function Toasts(){
+  const[t,st]=useState([]);_setToasts=st;
+  return React.createElement('div',{style:{position:'fixed',bottom:24,right:24,zIndex:9999,display:'flex',flexDirection:'column',gap:8,pointerEvents:'none'}},
+    t.map(x=>React.createElement('div',{key:x.id,style:{
+      background:x.type==='error'?'#e8293a':x.type==='success'?'#16a34a':'#e8293a',
+      color:'#fff',padding:'11px 18px',borderRadius:12,fontSize:13,fontWeight:500,
+      boxShadow:'0 8px 32px rgba(0,0,0,0.5)',minWidth:240,animation:'slideIn 0.25s ease',
+    }},x.msg))
+  );
+}
+const toast=(msg,type='info')=>{
+  if(!_setToasts)return;
+  const id=Date.now();
+  _setToasts(p=>[...p,{id,msg,type}]);
+  setTimeout(()=>_setToasts(p=>p.filter(x=>x.id!==id)),3000);
+};
+
+// ── MODAL ──
+function Modal({m,onClose}){
+  if(!m)return null;
+  return React.createElement('div',{
+    onClick:e=>e.target===e.currentTarget&&onClose(),
+    style:{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',backdropFilter:'blur(6px)',zIndex:500,display:'flex',alignItems:'center',justifyContent:'center',padding:16}
+  },
+    React.createElement('div',{style:{background:'#111',border:'1px solid #252525',borderRadius:22,width:'100%',maxWidth:500,maxHeight:'88vh',overflow:'auto',boxShadow:'0 32px 80px rgba(0,0,0,0.8)',animation:'fadeUp 0.25s ease'}},
+      React.createElement('div',{style:{padding:'20px 24px',borderBottom:'1px solid #1a1a1a',display:'flex',alignItems:'center',justifyContent:'space-between'}},
+        React.createElement('h3',{style:{fontSize:16,fontWeight:700,color:'#f0f0f0'}},m.title),
+        React.createElement('button',{onClick:onClose,style:{width:30,height:30,borderRadius:10,background:'#1a1a1a',color:'#888',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center'}},'×')
+      ),
+      React.createElement('div',{style:{padding:'22px 24px'}},m.content)
+    )
+  );
+}
+
+// ── AUTH ──
+function Auth({onLogin}){
+  const[mode,setMode]=useState('login');
+  const[name,setName]=useState('');const[email,setEmail]=useState('');const[pass,setPass]=useState('');
+  const[err,setErr]=useState('');const[loading,setLoading]=useState(false);
+
+  const submit=()=>{
+    setErr('');setLoading(true);
+    if(!email||!pass){setErr('Preencha todos os campos');setLoading(false);return;}
+    let users=dbGet('users')||[];
+    if(mode==='register'){
+      if(!name){setErr('Informe seu nome');setLoading(false);return;}
+      if(users.find(u=>u.email===email)){setErr('E-mail já cadastrado');setLoading(false);return;}
+      const u={id:Date.now()+'',name,email,pass,at:new Date().toISOString()};
+      dbSet('users',[...users,u]);dbSet('d:'+u.id,SEED);
+      toast('Conta criada!','success');onLogin(u);
+    }else{
+      const u=users.find(x=>x.email===email&&x.pass===pass);
+      if(!u){setErr('E-mail ou senha inválidos');setLoading(false);return;}
+      toast('Bem-vindo, '+u.name+'!','success');onLogin(u);
+    }
+    setLoading(false);
+  };
+
+  const inp={
+    width:'100%',background:'#181818',border:'1px solid #252525',borderRadius:12,
+    padding:'12px 15px',fontSize:14,color:'#f0f0f0',marginBottom:14,
+    transition:'border-color 0.2s',
+  };
+
+  return React.createElement('div',{style:{minHeight:'100vh',background:'#0a0a0a',display:'flex',alignItems:'center',justifyContent:'center',padding:16,position:'relative',overflow:'hidden'}},
+    // bg glow
+    React.createElement('div',{style:{position:'absolute',width:600,height:600,borderRadius:'50%',background:'radial-gradient(circle,rgba(232,41,58,0.08) 0%,transparent 70%)',top:'50%',left:'50%',transform:'translate(-50%,-50%)',pointerEvents:'none'}}),
+    // card
+    React.createElement('div',{style:{position:'relative',zIndex:2,background:'#111',border:'1px solid #252525',borderRadius:28,padding:'44px 40px',width:'100%',maxWidth:400,boxShadow:'0 40px 100px rgba(0,0,0,0.8)',animation:'fadeUp 0.4s ease'}},
+      // logo
+      React.createElement('div',{style:{textAlign:'center',marginBottom:36}},
+        React.createElement('div',{style:{width:60,height:60,background:'linear-gradient(135deg,#e8293a,#c41f2e)',borderRadius:20,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 16px',fontSize:26,boxShadow:'0 8px 30px rgba(232,41,58,0.4)',animation:'pulse 2s infinite'}},'🍪'),
+        React.createElement('div',{style:{fontSize:26,fontWeight:800,color:'#f0f0f0',letterSpacing:'-0.5px'}},'Vulpin'),
+        React.createElement('div',{style:{fontSize:11,color:'#555',marginTop:4,letterSpacing:'2px',textTransform:'uppercase'}})
+      ),
+      // tabs
+      React.createElement('div',{style:{display:'flex',background:'#181818',borderRadius:12,padding:3,marginBottom:26}},
+        ['login','register'].map(m=>React.createElement('button',{key:m,onClick:()=>{setMode(m);setErr('');},style:{flex:1,padding:'9px',borderRadius:10,fontSize:13,fontWeight:600,transition:'all 0.2s',background:mode===m?'#e8293a':'transparent',color:mode===m?'#fff':'#555',boxShadow:mode===m?'0 4px 16px rgba(232,41,58,0.3)':'none'}},m==='login'?'Entrar':'Criar conta'))
+      ),
+      err&&React.createElement('div',{style:{background:'rgba(232,41,58,0.1)',border:'1px solid rgba(232,41,58,0.3)',borderRadius:10,padding:'10px 14px',fontSize:13,color:'#e8293a',marginBottom:14}},err),
+      mode==='register'&&React.createElement('div',null,
+        React.createElement('div',{style:{fontSize:10,color:'#555',fontWeight:600,letterSpacing:'1.5px',textTransform:'uppercase',marginBottom:6}},'Nome'),
+        React.createElement('input',{style:inp,type:'text',placeholder:'Seu nome',value:name,onChange:e=>setName(e.target.value)})
+      ),
+      React.createElement('div',{style:{fontSize:10,color:'#555',fontWeight:600,letterSpacing:'1.5px',textTransform:'uppercase',marginBottom:6}},'E-mail'),
+      React.createElement('input',{style:inp,type:'email',placeholder:'seu@email.com',value:email,onChange:e=>setEmail(e.target.value)}),
+      React.createElement('div',{style:{fontSize:10,color:'#555',fontWeight:600,letterSpacing:'1.5px',textTransform:'uppercase',marginBottom:6}},'Senha'),
+      React.createElement('input',{style:{...inp,marginBottom:22},type:'password',placeholder:'••••••••',value:pass,onChange:e=>setPass(e.target.value),onKeyDown:e=>e.key==='Enter'&&submit()}),
+      React.createElement('button',{
+        style:{width:'100%',padding:'13px',background:'linear-gradient(135deg,#e8293a,#c41f2e)',borderRadius:12,color:'#fff',fontSize:14,fontWeight:700,boxShadow:'0 4px 20px rgba(232,41,58,0.35)',transition:'all 0.2s'},
+        onClick:submit
+      },loading?'Aguarde...':(mode==='login'?'Entrar na plataforma':'Criar minha conta'))
+    )
+  );
+}
+
+// ── SHARED UI ──
+const C={
+  card:{background:'#111',border:'1px solid #1e1e1e',borderRadius:20,padding:'22px'},
+  stat:{background:'#111',border:'1px solid #1e1e1e',borderRadius:20,padding:'20px'},
+  btn:{background:'linear-gradient(135deg,#e8293a,#c41f2e)',color:'#fff',padding:'10px 20px',borderRadius:12,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',boxShadow:'0 4px 16px rgba(232,41,58,0.25)'},
+  btnSm:{background:'linear-gradient(135deg,#e8293a,#c41f2e)',color:'#fff',padding:'7px 14px',borderRadius:10,fontSize:12,fontWeight:600,border:'none',cursor:'pointer'},
+  ghost:{background:'#181818',color:'#888',padding:'9px 18px',borderRadius:12,fontSize:13,fontWeight:500,border:'1px solid #252525',cursor:'pointer'},
+  ghostSm:{background:'#181818',color:'#888',padding:'6px 12px',borderRadius:9,fontSize:12,border:'1px solid #1e1e1e',cursor:'pointer'},
+  label:{fontSize:10,color:'#555',fontWeight:600,letterSpacing:'1.5px',textTransform:'uppercase',display:'block',marginBottom:7},
+  inp:{width:'100%',background:'#181818',border:'1px solid #252525',borderRadius:12,padding:'11px 14px',fontSize:13,color:'#f0f0f0',marginBottom:14},
+  sel:{width:'100%',background:'#181818',border:'1px solid #252525',borderRadius:12,padding:'11px 14px',fontSize:13,color:'#f0f0f0',marginBottom:14},
+  th:{padding:'10px 16px',textAlign:'left',fontSize:10,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'1px',background:'#0d0d0d',borderBottom:'1px solid #1a1a1a',whiteSpace:'nowrap'},
+  td:{padding:'13px 16px',fontSize:13,color:'#e0e0e0',borderBottom:'1px solid #141414',verticalAlign:'middle'},
+};
+
+const BMAP={
+  red:{bg:'rgba(232,41,58,0.12)',c:'#ff4d5e',b:'rgba(232,41,58,0.25)'},
+  green:{bg:'rgba(34,197,94,0.1)',c:'#4ade80',b:'rgba(34,197,94,0.25)'},
+  amber:{bg:'rgba(245,158,11,0.1)',c:'#fbbf24',b:'rgba(245,158,11,0.25)'},
+  blue:{bg:'rgba(59,130,246,0.1)',c:'#60a5fa',b:'rgba(59,130,246,0.25)'},
+  gray:{bg:'rgba(255,255,255,0.06)',c:'#888',b:'rgba(255,255,255,0.12)'},
+};
+const SMAP={'Entregue':'green','Concluído':'green','OK':'green','Em preparo':'blue','Em andamento':'blue','Aguardando':'amber','Pendente':'amber','Cancelado':'red','Crítico':'red','Vencido':'red','Vencendo':'amber'};
+
+function Badge({text,color}){
+  const bc=BMAP[color||SMAP[text]||'gray'];
+  return React.createElement('span',{style:{display:'inline-flex',alignItems:'center',padding:'4px 10px',borderRadius:20,fontSize:11,fontWeight:700,background:bc.bg,color:bc.c,border:`1px solid ${bc.b}`,whiteSpace:'nowrap'}},text);
+}
+
+function Stat({label,val,sub,color,change}){
+  return React.createElement('div',{style:C.stat},
+    React.createElement('div',{style:{fontSize:10,color:'#444',fontWeight:600,letterSpacing:'1.5px',textTransform:'uppercase',marginBottom:10}},label),
+    React.createElement('div',{style:{fontSize:22,fontWeight:800,color:color||'#f0f0f0',letterSpacing:'-0.5px',lineHeight:1}},val),
+    (sub||change)&&React.createElement('div',{style:{marginTop:8,fontSize:12,color:change?(change.startsWith('+')?'#4ade80':'#f87171'):'#555'}},change||sub)
+  );
+}
+
+function Table({cols,rows,empty}){
+  return React.createElement('div',{style:{borderRadius:16,border:'1px solid #1a1a1a',overflow:'hidden'}},
+    React.createElement('table',{style:{width:'100%',borderCollapse:'collapse'}},
+      React.createElement('thead',null,React.createElement('tr',null,cols.map(c=>React.createElement('th',{key:c,style:C.th},c)))),
+      React.createElement('tbody',null,
+        !rows||rows.length===0
+          ?React.createElement('tr',null,React.createElement('td',{colSpan:cols.length,style:{...C.td,textAlign:'center',color:'#333',padding:'36px'}},empty||'Nenhum registro'))
+          :rows
+      )
+    )
+  );
+}
+function TR({cells}){
+  return React.createElement('tr',{style:{background:'#111',transition:'background 0.15s'}},
+    cells.map((c,i)=>React.createElement('td',{key:i,style:C.td},c))
+  );
+}
+
+function PW({title,sub,actions,children}){
+  return React.createElement('div',{style:{padding:'28px',animation:'fadeUp 0.25s ease'}},
+    React.createElement('div',{style:{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:24,flexWrap:'wrap',gap:12}},
+      React.createElement('div',null,
+        React.createElement('h1',{style:{fontSize:24,fontWeight:800,color:'#f0f0f0',letterSpacing:'-0.5px',lineHeight:1.2}},title),
+        sub&&React.createElement('p',{style:{fontSize:12,color:'#555',marginTop:5}},sub)
+      ),
+      actions&&React.createElement('div',{style:{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}},actions)
+    ),
+    children
+  );
+}
+
+// ── PEDIDOS ──
+function pedTotal(p){return p.itens.reduce((s,i)=>s+(i.preco*i.qty),0);}
+
+function Pedidos({data,save,setM}){
+  const[filtro,setFiltro]=useState('Todos');
+  const statuses=['Todos','Aguardando','Em preparo','Entregue','Cancelado'];
+  const filtered=filtro==='Todos'?data.pedidos:data.pedidos.filter(p=>p.status===filtro);
+
+  const openNovo=()=>{
+    let cli='',pag='PIX',obs='',itens=[{produto:'Cookie Nutella',qty:1,preco:18.90}];
+    setM({title:'Novo Pedido',content:React.createElement(PedidoForm,{data,save,setM,initial:{cli,pag,obs,itens}})});
+  };
+
+  const openVer=(p)=>setM({title:'Pedido '+p.id,content:
+    React.createElement('div',null,
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:16}},
+        [['Cliente',p.cliente],['Data',FD(p.data)],['Pagamento',p.pagamento],['Status',p.status]].map(([l,v])=>
+          React.createElement('div',{key:l,style:{background:'#181818',borderRadius:12,padding:'12px 14px'}},
+            React.createElement('div',{style:{fontSize:10,color:'#444',fontWeight:600,letterSpacing:'1px',textTransform:'uppercase',marginBottom:4}},l),
+            React.createElement('div',{style:{fontSize:14,fontWeight:600,color:'#f0f0f0'}},l==='Status'?React.createElement(Badge,{text:v}):v)
+          )
+        )
+      ),
+      React.createElement('div',{style:{background:'#181818',borderRadius:14,padding:'14px',marginBottom:14}},
+        React.createElement('div',{style:{fontSize:11,color:'#e8293a',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:10}},'Itens do Pedido'),
+        p.itens.map((it,i)=>React.createElement('div',{key:i,style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:i<p.itens.length-1?'1px solid #222':'none'}},
+          React.createElement('span',{style:{fontSize:13,color:'#ccc'}},it.produto+' × '+it.qty),
+          React.createElement('span',{style:{fontSize:13,fontWeight:700,color:'#f0f0f0'}},FMT(it.preco*it.qty))
+        )),
+        React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginTop:12,paddingTop:12,borderTop:'1px solid #222'}},
+          React.createElement('span',{style:{fontWeight:700,color:'#f0f0f0'}},'Total'),
+          React.createElement('span',{style:{fontWeight:800,fontSize:17,color:'#e8293a'}},FMT(pedTotal(p)))
+        )
+      ),
+      p.obs&&React.createElement('div',{style:{background:'#181818',borderRadius:12,padding:'12px 14px',marginBottom:14,fontSize:13,color:'#888'}},'📝 '+p.obs),
+      React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',flexWrap:'wrap'}},
+        p.status==='Aguardando'&&React.createElement('button',{style:{...C.btnSm,background:'#16a34a',boxShadow:'none'},onClick:()=>{
+          const np=data.pedidos.map(x=>x.id===p.id?{...x,status:'Em preparo'}:x);
+          save({...data,pedidos:np});toast('Status atualizado!','success');setM(null);
+        }},'Iniciar preparo'),
+        p.status==='Em preparo'&&React.createElement('button',{style:{...C.btnSm,background:'#16a34a',boxShadow:'none'},onClick:()=>{
+          // baixar estoque
+          const itensNomes=p.itens.map(i=>i.produto);
+          const newEst=data.estoque.map(e=>{
+            const match=itensNomes.find(n=>e.nome.toLowerCase().includes(n.toLowerCase())||n.toLowerCase().includes(e.nome.toLowerCase()));
+            if(match&&e.categoria==='Produto Acabado'){
+              const it=p.itens.find(i=>e.nome.toLowerCase().includes(i.produto.toLowerCase())||i.produto.toLowerCase().includes(e.nome.toLowerCase()));
+              return{...e,qtd:Math.max(0,e.qtd-(it?it.qty:0))};
+            }
+            return e;
+          });
+          const np=data.pedidos.map(x=>x.id===p.id?{...x,status:'Entregue'}:x);
+          const newMov={id:Date.now(),desc:'Venda '+p.id,cat:'Vendas',tipo:'entrada',valor:pedTotal(p),data:p.data,conta:'Nubank PJ'};
+          save({...data,pedidos:np,estoque:newEst,movs:[...data.movs,newMov]});
+          toast('✓ Pedido entregue! Estoque atualizado.','success');setM(null);
+        }},'Marcar como entregue'),
+        p.status!=='Cancelado'&&p.status!=='Entregue'&&React.createElement('button',{style:{...C.ghostSm,color:'#e8293a'},onClick:()=>{
+          const np=data.pedidos.map(x=>x.id===p.id?{...x,status:'Cancelado'}:x);
+          save({...data,pedidos:np});toast('Pedido cancelado','error');setM(null);
+        }},'Cancelar'),
+        React.createElement('button',{style:C.ghost,onClick:()=>setM(null)},'Fechar')
+      )
+    )
+  });
+
+  const total=data.pedidos.reduce((s,p)=>s+(p.status!=='Cancelado'?pedTotal(p):0),0);
+  const entregues=data.pedidos.filter(p=>p.status==='Entregue').length;
+  const aguardando=data.pedidos.filter(p=>p.status==='Aguardando'||p.status==='Em preparo').length;
+
+  return React.createElement(PW,{
+    title:'Gestão de Pedidos',sub:'Controle completo de vendas e entregas',
+    actions:[React.createElement('button',{key:'n',style:C.btn,onClick:openNovo},'+ Novo Pedido')]
+  },
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,marginBottom:24}},
+      React.createElement(Stat,{label:'Total de Pedidos',val:data.pedidos.length}),
+      React.createElement(Stat,{label:'Entregues',val:entregues,color:'#4ade80'}),
+      React.createElement(Stat,{label:'Em aberto',val:aguardando,color:'#fbbf24'}),
+      React.createElement(Stat,{label:'Faturamento',val:FMT(total),color:'#e8293a'})
+    ),
+    // filtros
+    React.createElement('div',{style:{display:'flex',gap:6,marginBottom:18,flexWrap:'wrap'}},
+      statuses.map(s=>React.createElement('button',{key:s,onClick:()=>setFiltro(s),style:{
+        padding:'7px 16px',borderRadius:20,fontSize:12,fontWeight:600,transition:'all 0.15s',
+        background:filtro===s?'#e8293a':'#181818',
+        color:filtro===s?'#fff':'#555',
+        border:filtro===s?'1px solid #e8293a':'1px solid #252525',
+      }},s+(s==='Todos'?'':(': '+data.pedidos.filter(p=>p.status===s).length))))
+    ),
+    React.createElement('div',{style:C.card},
+      React.createElement(Table,{
+        cols:['Pedido','Cliente','Itens','Pagamento','Total','Data','Status',''],
+        rows:filtered.map(p=>React.createElement(TR,{key:p.id,cells:[
+          React.createElement('span',{style:{fontWeight:700,color:'#e8293a',fontSize:12}},p.id),
+          React.createElement('span',{style:{fontWeight:600}},p.cliente),
+          React.createElement('span',{style:{fontSize:12,color:'#555'}},p.itens.map(i=>i.produto).join(', ')),
+          p.pagamento,
+          React.createElement('span',{style:{fontWeight:700,color:'#f0f0f0'}},FMT(pedTotal(p))),
+          FD(p.data),
+          React.createElement(Badge,{text:p.status}),
+          React.createElement('button',{style:C.ghostSm,onClick:()=>openVer(p)},'Ver'),
+        ]})),
+        empty:'Nenhum pedido com esse status'
+      })
+    )
+  );
+}
+
+function PedidoForm({data,save,setM,initial}){
+  const[cli,setCli]=useState(initial.cli||'');
+  const[pag,setPag]=useState(initial.pag||'PIX');
+  const[obs,setObs]=useState(initial.obs||'');
+  const[itens,setItens]=useState(initial.itens||[{produto:'',qty:1,preco:0}]);
+
+  const total=itens.reduce((s,i)=>s+(parseFloat(i.preco||0)*parseInt(i.qty||0)),0);
+
+  const addItem=()=>setItens(p=>[...p,{produto:'',qty:1,preco:0}]);
+  const updItem=(i,k,v)=>setItens(p=>p.map((it,idx)=>idx===i?{...it,[k]:v}:it));
+  const delItem=(i)=>setItens(p=>p.filter((_,idx)=>idx!==i));
+
+  return React.createElement('div',null,
+    React.createElement('label',{style:C.label},'Cliente'),
+    React.createElement('input',{style:C.inp,placeholder:'Nome do cliente',value:cli,onChange:e=>setCli(e.target.value)}),
+    React.createElement('label',{style:C.label},'Itens do Pedido'),
+    itens.map((it,i)=>React.createElement('div',{key:i,style:{display:'grid',gridTemplateColumns:'1fr 60px 90px 30px',gap:8,marginBottom:8,alignItems:'center'}},
+      React.createElement('input',{style:{...C.inp,marginBottom:0},placeholder:'Produto',value:it.produto,onChange:e=>updItem(i,'produto',e.target.value)}),
+      React.createElement('input',{style:{...C.inp,marginBottom:0,textAlign:'center'},type:'number',min:1,placeholder:'Qtd',value:it.qty,onChange:e=>updItem(i,'qty',e.target.value)}),
+      React.createElement('input',{style:{...C.inp,marginBottom:0},type:'number',step:'0.01',placeholder:'Preço',value:it.preco,onChange:e=>updItem(i,'preco',e.target.value)}),
+      itens.length>1&&React.createElement('button',{style:{color:'#e8293a',fontSize:18,background:'none',border:'none',cursor:'pointer',lineHeight:1},onClick:()=>delItem(i)},'×')
+    )),
+    React.createElement('button',{style:{...C.ghostSm,marginBottom:14,fontSize:12},onClick:addItem},'+ Item'),
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}},
+      React.createElement('div',null,
+        React.createElement('label',{style:C.label},'Pagamento'),
+        React.createElement('select',{style:C.sel,value:pag,onChange:e=>setPag(e.target.value)},['PIX','Cartão','Dinheiro','Transferência'].map(x=>React.createElement('option',{key:x,value:x},x)))
+      ),
+      React.createElement('div',null,
+        React.createElement('label',{style:C.label},'Total'),
+        React.createElement('div',{style:{background:'#181818',border:'1px solid #252525',borderRadius:12,padding:'11px 14px',fontSize:16,fontWeight:800,color:'#e8293a'}},FMT(total))
+      )
+    ),
+    React.createElement('label',{style:C.label},'Observações'),
+    React.createElement('textarea',{style:{...C.inp,minHeight:60,resize:'vertical'},placeholder:'Observações (opcional)',value:obs,onChange:e=>setObs(e.target.value)}),
+    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',marginTop:4}},
+      React.createElement('button',{style:C.ghost,onClick:()=>setM(null)},'Cancelar'),
+      React.createElement('button',{style:C.btn,onClick:()=>{
+        if(!cli){toast('Informe o cliente','error');return;}
+        if(itens.some(i=>!i.produto)){toast('Preencha todos os produtos','error');return;}
+        const novo={
+          id:'PED'+String(Date.now()).slice(-5),
+          cliente:cli,
+          itens:itens.map(i=>({produto:i.produto,qty:parseInt(i.qty)||1,preco:parseFloat(i.preco)||0})),
+          pagamento:pag,obs,status:'Aguardando',data:TODAY()
+        };
+        save({...data,pedidos:[novo,...data.pedidos]});
+        toast('Pedido '+novo.id+' criado!','success');setM(null);
+      }},'Criar Pedido')
+    )
+  );
+}
+
+// ── ESTOQUE ──
+function Estoque({data,save,setM}){
+  const[tab,setTab]=useState('Todos');
+  const cats=['Todos','Matéria-Prima','Produto Acabado','Embalagem'];
+  const criticos=data.estoque.filter(e=>e.qtd<=e.minimo);
+  const list=tab==='Todos'?data.estoque:data.estoque.filter(e=>e.categoria===tab);
+
+  const openMov=(id)=>{
+    setM({title:'Movimentar Estoque',content:React.createElement(MovEstoqueForm,{id,data,save,setM})});
+  };
+  const openNovo=()=>{
+    setM({title:'Novo Item de Estoque',content:React.createElement(NovoEstoqueForm,{data,save,setM})});
+  };
+
+  return React.createElement(PW,{
+    title:'Estoque',sub:'Controle de matérias-primas, produtos e embalagens',
+    actions:[
+      criticos.length>0&&React.createElement('span',{key:'crit',style:{...BMAP.red,display:'inline-flex',padding:'7px 14px',borderRadius:20,fontSize:12,fontWeight:700,background:BMAP.red.bg,color:BMAP.red.c,border:`1px solid ${BMAP.red.b}`}},`⚠ ${criticos.length} críticos`),
+      React.createElement('button',{key:'n',style:C.btn,onClick:openNovo},'+ Adicionar')
+    ].filter(Boolean)
+  },
+    // resumo
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,marginBottom:24}},
+      React.createElement(Stat,{label:'Total de Itens',val:data.estoque.length}),
+      React.createElement(Stat,{label:'Estoque Crítico',val:criticos.length,color:criticos.length>0?'#f87171':'#4ade80'}),
+      React.createElement(Stat,{label:'Produtos Acabados',val:data.estoque.filter(e=>e.categoria==='Produto Acabado').reduce((s,e)=>s+e.qtd,0)+' un',color:'#60a5fa'}),
+      React.createElement(Stat,{label:'Val. em Estoque',val:FMT(data.estoque.reduce((s,e)=>s+(e.qtd*e.custo),0)),color:'#e8293a'})
+    ),
+    // abas categoria
+    React.createElement('div',{style:{display:'flex',gap:6,marginBottom:18,flexWrap:'wrap'}},
+      cats.map(c=>React.createElement('button',{key:c,onClick:()=>setTab(c),style:{padding:'7px 16px',borderRadius:20,fontSize:12,fontWeight:600,transition:'all 0.15s',background:tab===c?'#e8293a':'#181818',color:tab===c?'#fff':'#555',border:tab===c?'1px solid #e8293a':'1px solid #252525'}},c))
+    ),
+    React.createElement('div',{style:C.card},
+      React.createElement(Table,{
+        cols:['Nome','Categoria','Qtd','Mínimo','Status','Custo Unit.','Val. Total','Fornecedor','',''],
+        rows:list.map(e=>{
+          const diff=e.validade?Math.ceil((new Date(e.validade)-new Date())/86400000):999;
+          const st=e.qtd<=e.minimo?'Crítico':diff<0?'Vencido':diff<30?'Vencendo':'OK';
+          return React.createElement(TR,{key:e.id,cells:[
+            React.createElement('span',{style:{fontWeight:600}},e.nome),
+            React.createElement('span',{style:{fontSize:11,color:'#555'}},e.categoria),
+            React.createElement('span',{style:{fontWeight:700,color:e.qtd<=e.minimo?'#f87171':'#f0f0f0'}},e.qtd+' '+e.unidade),
+            e.minimo+' '+e.unidade,
+            React.createElement(Badge,{text:st,color:st==='Crítico'||st==='Vencido'?'red':st==='Vencendo'?'amber':'green'}),
+            FMT(e.custo),
+            FMT(e.qtd*e.custo),
+            React.createElement('span',{style:{fontSize:11,color:'#555'}},e.fornecedor),
+            e.validade?React.createElement('span',{style:{fontSize:11,color:diff<30?'#fbbf24':'#555'}},FD(e.validade)):React.createElement('span',{style:{color:'#333'}},'—'),
+            React.createElement('button',{style:C.ghostSm,onClick:()=>openMov(e.id)},'Mov.'),
+          ]});
+        })
+      })
+    )
+  );
+}
+
+function MovEstoqueForm({id,data,save,setM}){
+  const[tipo,setTipo]=useState('entrada');const[qtd,setQtd]=useState('');const[obs,setObs]=useState('');
+  const e=data.estoque.find(x=>x.id===id);
+  return React.createElement('div',null,
+    React.createElement('div',{style:{background:'#181818',borderRadius:12,padding:'12px 16px',marginBottom:16}},
+      React.createElement('div',{style:{fontSize:12,fontWeight:700,color:'#f0f0f0'}},e?.nome),
+      React.createElement('div',{style:{fontSize:12,color:'#555',marginTop:4}},'Estoque atual: '+e?.qtd+' '+e?.unidade+' · Mínimo: '+e?.minimo)
+    ),
+    React.createElement('label',{style:C.label},'Tipo de Movimentação'),
+    React.createElement('select',{style:C.sel,value:tipo,onChange:x=>setTipo(x.target.value)},
+      React.createElement('option',{value:'entrada'},'Entrada (compra / recebimento)'),
+      React.createElement('option',{value:'saida'},'Saída (uso / ajuste)')
+    ),
+    React.createElement('label',{style:C.label},'Quantidade'),
+    React.createElement('input',{style:C.inp,type:'number',placeholder:'0',value:qtd,onChange:x=>setQtd(x.target.value)}),
+    React.createElement('label',{style:C.label},'Observação'),
+    React.createElement('input',{style:C.inp,placeholder:'Motivo...',value:obs,onChange:x=>setObs(x.target.value)}),
+    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
+      React.createElement('button',{style:C.ghost,onClick:()=>setM(null)},'Cancelar'),
+      React.createElement('button',{style:C.btn,onClick:()=>{
+        const q=parseFloat(qtd);if(!q){toast('Informe a quantidade','error');return;}
+        const ne=data.estoque.map(x=>x.id===id?{...x,qtd:tipo==='entrada'?x.qtd+q:Math.max(0,x.qtd-q)}:x);
+        save({...data,estoque:ne});toast('Estoque atualizado!','success');setM(null);
+      }},'Confirmar')
+    )
+  );
+}
+
+function NovoEstoqueForm({data,save,setM}){
+  const[nome,setNome]=useState('');const[cat,setCat]=useState('Matéria-Prima');const[und,setUnd]=useState('kg');
+  const[qtd,setQtd]=useState('');const[min,setMin]=useState('');const[custo,setCusto]=useState('');const[forn,setForn]=useState('');const[val,setVal]=useState('');
+  return React.createElement('div',null,
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 12px'}},
+      React.createElement('div',{style:{gridColumn:'1/-1'}},React.createElement('label',{style:C.label},'Nome'),React.createElement('input',{style:C.inp,placeholder:'Nome do item',value:nome,onChange:e=>setNome(e.target.value)})),
+      React.createElement('div',null,
+        React.createElement('label',{style:C.label},'Categoria'),
+        React.createElement('select',{style:C.sel,value:cat,onChange:e=>setCat(e.target.value)},['Matéria-Prima','Produto Acabado','Embalagem'].map(x=>React.createElement('option',{key:x,value:x},x)))
+      ),
+      React.createElement('div',null,
+        React.createElement('label',{style:C.label},'Unidade'),
+        React.createElement('select',{style:C.sel,value:und,onChange:e=>setUnd(e.target.value)},['kg','l','und','rolo','pct','g','ml'].map(x=>React.createElement('option',{key:x,value:x},x)))
+      ),
+      React.createElement('div',null,React.createElement('label',{style:C.label},'Qtd. Inicial'),React.createElement('input',{style:C.inp,type:'number',placeholder:'0',value:qtd,onChange:e=>setQtd(e.target.value)})),
+      React.createElement('div',null,React.createElement('label',{style:C.label},'Estoque Mínimo'),React.createElement('input',{style:C.inp,type:'number',placeholder:'0',value:min,onChange:e=>setMin(e.target.value)})),
+      React.createElement('div',null,React.createElement('label',{style:C.label},'Custo Unit. (R$)'),React.createElement('input',{style:C.inp,type:'number',step:'0.01',placeholder:'0.00',value:custo,onChange:e=>setCusto(e.target.value)})),
+      React.createElement('div',null,React.createElement('label',{style:C.label},'Fornecedor'),React.createElement('input',{style:C.inp,placeholder:'Nome do fornecedor',value:forn,onChange:e=>setForn(e.target.value)})),
+      React.createElement('div',null,React.createElement('label',{style:C.label},'Validade'),React.createElement('input',{style:C.inp,type:'date',value:val,onChange:e=>setVal(e.target.value)})),
+    ),
+    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',marginTop:4}},
+      React.createElement('button',{style:C.ghost,onClick:()=>setM(null)},'Cancelar'),
+      React.createElement('button',{style:C.btn,onClick:()=>{
+        if(!nome){toast('Informe o nome','error');return;}
+        const novo={id:Date.now(),nome,categoria:cat,unidade:und,qtd:parseFloat(qtd)||0,minimo:parseFloat(min)||0,custo:parseFloat(custo)||0,fornecedor:forn,validade:val};
+        save({...data,estoque:[...data.estoque,novo]});toast(nome+' adicionado!','success');setM(null);
+      }},'Adicionar')
+    )
+  );
+}
+
+// ── FINANCEIRO ──
+function Financeiro({data,save,setM}){
+  const[tabF,setTabF]=useState('visao');
+  const saldo=data.contas.reduce((s,c)=>s+c.saldo,0);
+  const entradas=data.movs.filter(m=>m.tipo==='entrada').reduce((s,m)=>s+m.valor,0);
+  const saidas=data.movs.filter(m=>m.tipo==='saida').reduce((s,m)=>s+m.valor,0);
+  const lucro=entradas-saidas;
+
+  const chartRef=useRef(null);
+  const donutRef=useRef(null);
+  useEffect(()=>{
+    if(tabF!=='visao')return;
+    let c1=null,c2=null;
+    setTimeout(()=>{
+      try{
+        if(chartRef.current){
+          c1=new Chart(chartRef.current,{type:'bar',
+            data:{labels:['Jan','Fev','Mar','Abr','Mai'],
+              datasets:[
+                {label:'Entradas',data:[12000,18000,15000,22000,entradas],backgroundColor:'rgba(232,41,58,0.7)',borderRadius:8},
+                {label:'Saídas',data:[9000,14000,11000,16000,saidas],backgroundColor:'rgba(255,255,255,0.08)',borderRadius:8},
+              ]},
+            options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#555',font:{size:10,family:'Poppins'},boxWidth:8}}},
+              scales:{x:{grid:{display:false},ticks:{color:'#444',font:{size:10}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#444',font:{size:10}}}}}
+          });
+        }
+        if(donutRef.current){
+          const cats=['Salários','Aluguel','Mat.-Prima','Marketing','Energia','Outros'];
+          const vals=[8400,3200,384,500,680,saidas-(8400+3200+384+500+680)];
+          c2=new Chart(donutRef.current,{type:'doughnut',
+            data:{labels:cats,datasets:[{data:vals.map(v=>Math.max(v,0)),backgroundColor:['#e8293a','#c41f2e','#ff6b7a','#ff9aa2','#882020','#333'],borderWidth:0}]},
+            options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{position:'right',labels:{color:'#555',font:{size:10,family:'Poppins'},padding:8,boxWidth:8}}}}
+          });
+        }
+      }catch{}
+    },50);
+    return()=>{try{c1&&c1.destroy();c2&&c2.destroy()}catch{}};
+  },[tabF,entradas,saidas]);
+
+  const openMov=(tipo)=>{
+    setM({title:tipo==='entrada'?'+ Nova Receita':'+ Nova Despesa',content:React.createElement(MovFinForm,{tipo,data,save,setM})});
+  };
+
+  const tabs=[{id:'visao',l:'Visão Geral'},{id:'movs',l:'Movimentações'},{id:'contas',l:'Contas'}];
+
+  return React.createElement(PW,{
+    title:'Financeiro',sub:'Fluxo de caixa, contas e movimentações',
+    actions:[
+      React.createElement('button',{key:'d',style:C.ghost,onClick:()=>openMov('saida')},'+ Despesa'),
+      React.createElement('button',{key:'e',style:C.btn,onClick:()=>openMov('entrada')},'+ Receita'),
+    ]
+  },
+    // resumo
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,marginBottom:24}},
+      React.createElement(Stat,{label:'Saldo Total',val:FMT(saldo),color:'#f0f0f0'}),
+      React.createElement(Stat,{label:'Entradas',val:FMT(entradas),color:'#4ade80',change:'+8.2%'}),
+      React.createElement(Stat,{label:'Saídas',val:FMT(saidas),color:'#f87171'}),
+      React.createElement(Stat,{label:'Resultado',val:FMT(lucro),color:lucro>=0?'#4ade80':'#f87171',change:lucro>=0?'Positivo':'Negativo'})
+    ),
+    // tabs
+    React.createElement('div',{style:{display:'flex',gap:6,marginBottom:20}},
+      tabs.map(t=>React.createElement('button',{key:t.id,onClick:()=>setTabF(t.id),style:{padding:'8px 18px',borderRadius:20,fontSize:12,fontWeight:600,transition:'all 0.15s',background:tabF===t.id?'#e8293a':'#181818',color:tabF===t.id?'#fff':'#555',border:tabF===t.id?'1px solid #e8293a':'1px solid #252525'}},t.l))
+    ),
+
+    tabF==='visao'&&React.createElement('div',null,
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1.4fr 1fr',gap:14}},
+        React.createElement('div',{style:C.card},
+          React.createElement('div',{style:{fontSize:13,fontWeight:700,color:'#f0f0f0',marginBottom:14}},'Fluxo Mensal'),
+          React.createElement('div',{style:{height:220}},React.createElement('canvas',{ref:chartRef}))
+        ),
+        React.createElement('div',{style:C.card},
+          React.createElement('div',{style:{fontSize:13,fontWeight:700,color:'#f0f0f0',marginBottom:14}},'Despesas por Categoria'),
+          React.createElement('div',{style:{height:220}},React.createElement('canvas',{ref:donutRef}))
+        )
+      )
+    ),
+
+    tabF==='movs'&&React.createElement('div',{style:C.card},
+      React.createElement(Table,{
+        cols:['Data','Descrição','Categoria','Conta','Tipo','Valor'],
+        rows:[...data.movs].reverse().map(m=>React.createElement(TR,{key:m.id,cells:[
+          FD(m.data),
+          React.createElement('span',{style:{fontWeight:600}},m.desc),
+          React.createElement(Badge,{text:m.cat,color:m.tipo==='entrada'?'green':'amber'}),
+          React.createElement('span',{style:{fontSize:12,color:'#555'}},m.conta),
+          React.createElement(Badge,{text:m.tipo==='entrada'?'Entrada':'Saída',color:m.tipo==='entrada'?'green':'red'}),
+          React.createElement('span',{style:{fontWeight:700,color:m.tipo==='entrada'?'#4ade80':'#f87171'}},(m.tipo==='entrada'?'+':'-')+FMT(m.valor)),
+        ]}))
+      })
+    ),
+
+    tabF==='contas'&&React.createElement('div',null,
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:14}},
+        data.contas.map(c=>React.createElement('div',{key:c.id,style:{...C.card,borderTop:`3px solid ${c.cor}`}},
+          React.createElement('div',{style:{fontSize:12,color:'#555',marginBottom:6}},c.nome+' · '+c.tipo),
+          React.createElement('div',{style:{fontSize:26,fontWeight:800,color:'#f0f0f0',letterSpacing:'-0.5px'}},FMT(c.saldo)),
+          React.createElement('div',{style:{display:'flex',gap:8,marginTop:14}},
+            React.createElement('button',{style:{...C.ghostSm,fontSize:11},onClick:()=>{
+              const v=prompt('Valor para depositar (R$):');
+              if(!v)return;
+              const nc=data.contas.map(x=>x.id===c.id?{...x,saldo:x.saldo+parseFloat(v)}:x);
+              save({...data,contas:nc});toast('Depósito registrado!','success');
+            }},'+ Depósito'),
+            React.createElement('button',{style:{...C.ghostSm,fontSize:11,color:'#e8293a'},onClick:()=>{
+              const v=prompt('Valor para retirar (R$):');
+              if(!v)return;
+              const nc=data.contas.map(x=>x.id===c.id?{...x,saldo:Math.max(0,x.saldo-parseFloat(v))}:x);
+              save({...data,contas:nc});toast('Retirada registrada!','success');
+            }},'− Retirada')
+          )
+        ))
+      )
+    )
+  );
+}
+
+function MovFinForm({tipo,data,save,setM}){
+  const[desc,setDesc]=useState('');const[cat,setCat]=useState(tipo==='entrada'?'Vendas':'Aluguel');
+  const[conta,setConta]=useState(data.contas[0]?.nome||'');const[val,setVal]=useState('');const[dt,setDt]=useState(TODAY());
+  return React.createElement('div',null,
+    React.createElement('label',{style:C.label},'Descrição'),
+    React.createElement('input',{style:C.inp,placeholder:'Descrição...',value:desc,onChange:e=>setDesc(e.target.value)}),
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 12px'}},
+      React.createElement('div',null,
+        React.createElement('label',{style:C.label},'Categoria'),
+        React.createElement('select',{style:C.sel,value:cat,onChange:e=>setCat(e.target.value)},
+          (tipo==='entrada'?['Vendas','Outros']:['Aluguel','Salários','Energia','Marketing','Matéria-Prima','Manutenção','Contador','Internet']).map(x=>React.createElement('option',{key:x,value:x},x))
+        )
+      ),
+      React.createElement('div',null,
+        React.createElement('label',{style:C.label},'Conta'),
+        React.createElement('select',{style:C.sel,value:conta,onChange:e=>setConta(e.target.value)},data.contas.map(c=>React.createElement('option',{key:c.nome,value:c.nome},c.nome)))
+      ),
+      React.createElement('div',null,React.createElement('label',{style:C.label},'Valor (R$)'),React.createElement('input',{style:C.inp,type:'number',step:'0.01',placeholder:'0.00',value:val,onChange:e=>setVal(e.target.value)})),
+      React.createElement('div',null,React.createElement('label',{style:C.label},'Data'),React.createElement('input',{style:C.inp,type:'date',value:dt,onChange:e=>setDt(e.target.value)})),
+    ),
+    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',marginTop:4}},
+      React.createElement('button',{style:C.ghost,onClick:()=>setM(null)},'Cancelar'),
+      React.createElement('button',{style:C.btn,onClick:()=>{
+        if(!desc||!val){toast('Preencha todos os campos','error');return;}
+        const v=parseFloat(val);
+        const nm={id:Date.now(),desc,cat,tipo,valor:v,data:dt,conta};
+        const nc=data.contas.map(c=>c.nome===conta?{...c,saldo:tipo==='entrada'?c.saldo+v:c.saldo-v}:c);
+        save({...data,movs:[...data.movs,nm],contas:nc});
+        toast((tipo==='entrada'?'Receita':'Despesa')+' registrada!','success');setM(null);
+      }},'Salvar')
+    )
+  );
+}
+
+// ── SIDEBAR ──
+const MODULOS=[
+  {id:'pedidos',label:'Gestão de Pedidos',icon:'🛍',desc:'Pedidos e entregas'},
+  {id:'estoque',label:'Estoque',icon:'📦',desc:'Inventário e insumos'},
+  {id:'financeiro',label:'Financeiro',icon:'💰',desc:'Caixa e movimentações'},
+];
+
+function Sidebar({page,setPage,user,setUser,collapsed,setCollapsed}){
+  const W=collapsed?70:240;
+  return React.createElement('aside',{style:{
+    width:W,minWidth:W,background:'#0d0d0d',
+    borderRight:'1px solid #1a1a1a',
+    display:'flex',flexDirection:'column',height:'100vh',
+    transition:'width 0.3s cubic-bezier(0.4,0,0.2,1)',
+    overflow:'hidden',flexShrink:0,position:'relative',zIndex:10,
+    borderRadius:'0 20px 20px 0',
+  }},
+    // logo
+    React.createElement('div',{style:{padding:'20px 16px 18px',borderBottom:'1px solid #1a1a1a',display:'flex',alignItems:'center',gap:10,justifyContent:collapsed?'center':'flex-start'}},
+      React.createElement('div',{style:{width:36,height:36,background:'linear-gradient(135deg,#e8293a,#c41f2e)',borderRadius:12,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0,boxShadow:'0 4px 16px rgba(232,41,58,0.35)'}},'🍪'),
+      !collapsed&&React.createElement('span',{style:{fontSize:18,fontWeight:800,color:'#f0f0f0',letterSpacing:'-0.3px',whiteSpace:'nowrap'}},'Vulpin')
+    ),
+    // módulos
+    React.createElement('nav',{style:{flex:1,padding:'16px 10px',display:'flex',flexDirection:'column',gap:4,overflowY:'auto'}},
+      !collapsed&&React.createElement('div',{style:{fontSize:9,color:'#333',fontWeight:700,letterSpacing:'2px',textTransform:'uppercase',padding:'0 6px 10px'}},'Módulos'),
+      MODULOS.map(m=>React.createElement('button',{
+        key:m.id,onClick:()=>setPage(m.id),
+        title:collapsed?m.label:'',
+        style:{
+          display:'flex',alignItems:'center',gap:collapsed?0:10,
+          padding:collapsed?'12px':'11px 12px',
+          borderRadius:14,
+          justifyContent:collapsed?'center':'flex-start',
+          color:page===m.id?'#fff':'#555',
+          background:page===m.id?'linear-gradient(135deg,rgba(232,41,58,0.9),rgba(196,31,46,0.9))':'transparent',
+          border:page===m.id?'1px solid rgba(232,41,58,0.5)':'1px solid transparent',
+          transition:'all 0.15s',
+          boxShadow:page===m.id?'0 4px 20px rgba(232,41,58,0.25)':'none',
+          width:'100%',
+        }
+      },
+        React.createElement('span',{style:{fontSize:collapsed?20:16,lineHeight:1,flexShrink:0}},m.icon),
+        !collapsed&&React.createElement('div',{style:{textAlign:'left',minWidth:0}},
+          React.createElement('div',{style:{fontSize:13,fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},m.label),
+          React.createElement('div',{style:{fontSize:10,color:page===m.id?'rgba(255,255,255,0.6)':'#333',marginTop:1}},m.desc)
+        )
+      ))
+    ),
+    // collapse button
+    React.createElement('div',{style:{padding:'12px 10px',borderTop:'1px solid #1a1a1a',display:'flex',justifyContent:collapsed?'center':'space-between',alignItems:'center'}},
+      !collapsed&&React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,minWidth:0}},
+        React.createElement('div',{style:{width:30,height:30,borderRadius:10,background:'rgba(232,41,58,0.15)',border:'1px solid rgba(232,41,58,0.25)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800,color:'#e8293a',flexShrink:0}},user.name.slice(0,2).toUpperCase()),
+        React.createElement('div',{style:{minWidth:0}},
+          React.createElement('div',{style:{fontSize:12,fontWeight:600,color:'#f0f0f0',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:130}},user.name),
+          React.createElement('button',{onClick:()=>setUser(null),style:{fontSize:10,color:'#555',padding:0,background:'none',border:'none',cursor:'pointer'}},'Sair')
+        )
+      ),
+      React.createElement('button',{
+        onClick:()=>setCollapsed(c=>!c),
+        title:collapsed?'Expandir':'Recolher',
+        style:{width:32,height:32,borderRadius:10,background:'#181818',border:'1px solid #252525',color:'#555',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,transition:'all 0.2s'}
+      },collapsed?'›':'‹')
+    )
+  );
+}
+
+// ── APP ──
+function App(){
+  const[user,setUser]=useState(null);
+  const[page,setPage]=useState('pedidos');
+  const[data,setData]=useState(null);
+  const[modal,setModal]=useState(null);
+  const[collapsed,setCollapsed]=useState(false);
+
+  useEffect(()=>{
+    if(!user)return;
+    let d=dbGet('d:'+user.id);
+    if(!d){d={...SEED};dbSet('d:'+user.id,d);}
+    setData(d);
+  },[user]);
+
+  const save=useCallback(nd=>{setData(nd);dbSet('d:'+user.id,nd);},[user]);
+  const setU=u=>{setUser(u);setData(null);};
+
+  if(!user)return React.createElement(React.Fragment,null,React.createElement(Auth,{onLogin:setU}),React.createElement(Toasts));
+  if(!data)return React.createElement('div',{style:{height:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#0a0a0a',color:'#e8293a',fontSize:16,fontWeight:600}},'Carregando...');
+
+  const PAGES={pedidos:Pedidos,estoque:Estoque,financeiro:Financeiro};
+  const PC=PAGES[page]||Pedidos;
+
+  return React.createElement(React.Fragment,null,
+    React.createElement('div',{style:{display:'flex',height:'100vh',background:'#0a0a0a',overflow:'hidden'}},
+      React.createElement(Sidebar,{page,setPage,user,setUser:setU,collapsed,setCollapsed}),
+      React.createElement('main',{style:{flex:1,overflow:'auto',background:'#0d0d0d'}},
+        React.createElement(PC,{data,save,setM:setModal,user})
+      )
+    ),
+    React.createElement(Modal,{m:modal,onClose:()=>setModal(null)}),
+    React.createElement(Toasts)
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+</script>
+</body>
+</html>
