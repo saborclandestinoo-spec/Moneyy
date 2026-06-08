@@ -12,107 +12,78 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html,body,#root{height:100%;font-family:'Poppins',sans-serif;background:#f5f5f7;color:#111}
-::-webkit-scrollbar{width:4px;height:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#d1d1d6;border-radius:4px}
+html,body,#root{height:100%;font-family:'Poppins',sans-serif;background:#f5f5f7;color:#111111}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#d1d1d6;border-radius:4px}
 button{cursor:pointer;font-family:'Poppins',sans-serif;border:none;background:none;color:inherit}
-input,select,textarea{font-family:'Poppins',sans-serif;outline:none;color:#111}
-select option{background:#fff;color:#111}
+input,select,textarea{font-family:'Poppins',sans-serif;outline:none;color:#111111}
+select option{background:#f5f5f7}
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body><div id="root"></div>
 <script type="text/babel">
-const {useState,useEffect,useRef,useCallback,useMemo}=React;
+const {useState,useEffect,useRef,useCallback}=React;
 
 const sb=supabase.createClient(
   'https://yjhuyquvnqgwxuyqcxll.supabase.co',
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqaHV5cXV2bnFnd3h1eXFjeGxsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NjM1MjYsImV4cCI6MjA5NjQzOTUyNn0.iwCVdDrGcpEVS7qs8qth2muUGBSSJhqRve9yFPJVDdw'
 );
 
-// ── HELPERS ──
 const F=v=>`R$ ${Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
-const FD=d=>{if(!d)return'—';try{const s=d.split('T')[0].split('-');return`${s[2]}/${s[1]}/${s[0]}`}catch{return d}};
+const FD=d=>{if(!d)return'—';const[y,m,day]=(d.split('T')[0]).split('-');return`${day}/${m}/${y}`};
 const TODAY=()=>new Date().toISOString().split('T')[0];
-const uid=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
+const TAXA={PIX:0,Dinheiro:0,Cartão:3.5,Transferência:0};
+const CATS=['Aluguel','Salários','Energia','Água','Internet','Marketing','Combustível','Contador','Manutenção','Fornecedores','Outros'];
 
-// advance date by months/weeks
-function advanceDate(base,freq,i){
-  const p=base.split('-').map(Number);
-  let [yr,mo,dy]=[p[0],p[1]-1,p[2]];
-  if(freq==='mensal')mo+=i;
-  else if(freq==='bimestral')mo+=i*2;
-  else if(freq==='trimestral')mo+=i*3;
-  else if(freq==='semestral')mo+=i*6;
-  else if(freq==='anual')yr+=i;
-  else if(freq==='quinzenal'){const t=new Date(yr,mo,dy+i*15);yr=t.getFullYear();mo=t.getMonth();dy=t.getDate();}
-  else if(freq==='semanal'){const t=new Date(yr,mo,dy+i*7);yr=t.getFullYear();mo=t.getMonth();dy=t.getDate();}
-  const n=new Date(yr,mo,dy);
-  return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0');
-}
-
-const PM_MAP={money:'Dinheiro',cash:'Dinheiro',dinheiro:'Dinheiro',pix:'PIX',pix_auto:'PIX',credit_card:'Cartão Crédito',debit_card:'Cartão Débito',online_credit_card:'Cartão Online',ifood:'iFood'};
-const CW_STATUS_MAP={PENDING:'Pendente',CONFIRMED:'Confirmado',DELIVERED:'Entregue',CANCELLED:'Cancelado',READY:'Pronto',DISPATCHED:'Em entrega'};
-
-// ── TOAST ──
+// TOAST
 let _st=null;
-function Toasts(){const[ts,set]=useState([]);_st=set;return React.createElement('div',{style:{position:'fixed',bottom:20,right:20,zIndex:9999,display:'flex',flexDirection:'column',gap:8}},ts.map(t=>React.createElement('div',{key:t.id,style:{background:t.e?'#dc2626':t.s?'#16a34a':'#1d4ed8',color:'#fff',padding:'11px 16px',borderRadius:12,fontSize:13,fontWeight:500,boxShadow:'0 8px 24px rgba(0,0,0,0.15)',minWidth:240,animation:'fadeUp 0.25s ease'}},t.msg)));}
-const toast=(msg,e,s)=>{if(!_st)return;const id=Date.now();_st(p=>[...p,{id,msg,e,s}]);setTimeout(()=>_st(p=>p.filter(x=>x.id!==id)),3500);};
-const Spin=()=>React.createElement('div',{style:{width:14,height:14,border:'2px solid rgba(255,255,255,0.3)',borderTopColor:'#fff',borderRadius:'50%',animation:'spin 0.7s linear infinite',display:'inline-block'}});
+function Toasts(){const[ts,set]=useState([]);_st=set;return React.createElement('div',{style:{position:'fixed',bottom:20,right:20,zIndex:9999,display:'flex',flexDirection:'column',gap:8}},ts.map(t=>React.createElement('div',{key:t.id,style:{background:t.e?'#7f1d1d':t.s?'#14532d':'#1e3a5f',color:'#fff',padding:'11px 16px',borderRadius:12,fontSize:13,fontWeight:500,boxShadow:'0 8px 24px rgba(0,0,0,0.5)',minWidth:240}},t.msg)));}
+const toast=(msg,e,s)=>{if(!_st)return;const id=Date.now();_st(p=>[...p,{id,msg,e,s}]);setTimeout(()=>_st(p=>p.filter(x=>x.id!==id)),3000);};
+const Spin=()=>React.createElement('div',{style:{width:14,height:14,border:'2px solid rgba(255,255,255,0.2)',borderTopColor:'#fff',borderRadius:'50%',animation:'spin 0.7s linear infinite',display:'inline-block'}});
 
-// ── STYLES ──
+// STYLES
 const C={
-  card:{background:'#fff',borderRadius:18,padding:'20px',boxShadow:'0 2px 12px rgba(0,0,0,0.06),0 1px 3px rgba(0,0,0,0.04)'},
-  inp:{width:'100%',background:'#f4f6fa',border:'none',borderRadius:11,padding:'10px 13px',fontSize:13,marginBottom:13,color:'#111'},
-  sel:{width:'100%',background:'#f4f6fa',border:'none',borderRadius:11,padding:'10px 13px',fontSize:13,marginBottom:13,color:'#111'},
-  lbl:{fontSize:10,color:'#999',fontWeight:600,letterSpacing:'1.5px',textTransform:'uppercase',display:'block',marginBottom:6},
+  card:{background:'#ffffff',border:'1px solid #1e1e1e',borderRadius:18,padding:'20px'},
+  inp:{width:'100%',background:'#f5f5f7',border:'1px solid #252525',borderRadius:11,padding:'10px 13px',fontSize:13,marginBottom:13,color:'#111111'},
+  sel:{width:'100%',background:'#f5f5f7',border:'1px solid #252525',borderRadius:11,padding:'10px 13px',fontSize:13,marginBottom:13,color:'#111111'},
+  lbl:{fontSize:10,color:'#999999',fontWeight:600,letterSpacing:'1.5px',textTransform:'uppercase',display:'block',marginBottom:6},
   btn:{background:'linear-gradient(135deg,#2563eb,#1d4ed8)',color:'#fff',padding:'10px 18px',borderRadius:11,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',boxShadow:'0 4px 14px rgba(37,99,235,0.22)'},
   bsm:{background:'linear-gradient(135deg,#2563eb,#1d4ed8)',color:'#fff',padding:'6px 13px',borderRadius:9,fontSize:12,fontWeight:600,border:'none',cursor:'pointer'},
-  bgrn:{background:'linear-gradient(135deg,#16a34a,#15803d)',color:'#fff',padding:'10px 18px',borderRadius:11,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',boxShadow:'0 4px 14px rgba(22,163,74,0.20)'},
-  bred:{background:'linear-gradient(135deg,#dc2626,#b91c1c)',color:'#fff',padding:'10px 18px',borderRadius:11,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},
-  ghost:{background:'#f4f6fa',color:'#666',padding:'9px 16px',borderRadius:11,fontSize:13,fontWeight:500,border:'none',cursor:'pointer'},
-  gsm:{background:'#f4f6fa',color:'#666',padding:'5px 11px',borderRadius:8,fontSize:12,border:'none',cursor:'pointer'},
-  th:{padding:'9px 14px',textAlign:'left',fontSize:10,fontWeight:700,color:'#aaa',textTransform:'uppercase',letterSpacing:'1px',background:'#f8f9fc',borderBottom:'1px solid #f0f0f5',whiteSpace:'nowrap'},
-  td:{padding:'11px 14px',fontSize:13,color:'#222',borderBottom:'1px solid #f4f5f8',verticalAlign:'middle'},
+  bgrn:{background:'linear-gradient(135deg,#16a34a,#15803d)',color:'#fff',padding:'10px 18px',borderRadius:11,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},
+  ghost:{background:'#f5f5f7',color:'#777777',padding:'9px 16px',borderRadius:11,fontSize:13,fontWeight:500,border:'1px solid #252525',cursor:'pointer'},
+  gsm:{background:'#f5f5f7',color:'#777777',padding:'5px 11px',borderRadius:8,fontSize:12,border:'1px solid #1e1e1e',cursor:'pointer'},
+  th:{padding:'9px 14px',textAlign:'left',fontSize:10,fontWeight:700,color:'#bbbbbb',textTransform:'uppercase',letterSpacing:'1px',background:'#f0f0f2',borderBottom:'1px solid #ebebef',whiteSpace:'nowrap'},
+  td:{padding:'11px 14px',fontSize:13,color:'#333333',borderBottom:'1px solid #f0f0f4',verticalAlign:'middle'},
 };
 
-const BM={
-  blue:{bg:'rgba(37,99,235,0.07)',c:'#1d4ed8',b:'none'},
-  green:{bg:'rgba(22,163,74,0.07)',c:'#15803d',b:'none'},
-  red:{bg:'rgba(220,38,38,0.07)',c:'#dc2626',b:'none'},
-  amber:{bg:'rgba(217,119,6,0.08)',c:'#b45309',b:'none'},
-  gray:{bg:'rgba(0,0,0,0.05)',c:'#555',b:'none'},
-  purple:{bg:'rgba(124,58,237,0.07)',c:'#7c3aed',b:'none'},
-};
-const SM={Entregue:'green',DELIVERED:'green',Pago:'green',Recebido:'green',OK:'green',Confirmado:'blue',CONFIRMED:'blue','Em preparo':'blue','Em andamento':'blue',Aguardando:'amber',PENDING:'amber',Pendente:'amber',Cancelado:'red',CANCELLED:'red',Crítico:'red',Vencido:'red',Pronto:'purple',READY:'purple'};
+const BM={red:{bg:'rgba(220,38,38,0.08)',c:'#dc2626',b:'rgba(220,38,38,0.2)'},green:{bg:'rgba(22,163,74,0.08)',c:'#16a34a',b:'rgba(22,163,74,0.2)'},amber:{bg:'rgba(217,119,6,0.08)',c:'#d97706',b:'rgba(217,119,6,0.2)'},blue:{bg:'rgba(37,99,235,0.08)',c:'#1d4ed8',b:'rgba(37,99,235,0.18)'},gray:{bg:'rgba(0,0,0,0.05)',c:'#666666',b:'rgba(0,0,0,0.08)'}};
+const SM={Entregue:'green',Pago:'green',Recebido:'green',OK:'green','Em preparo':'blue','Em andamento':'blue',Aguardando:'amber',Pendente:'amber',Cancelado:'red',Crítico:'red',Vencido:'red'};
+function Badge({t,c}){const b=BM[c||SM[t]||'gray'];return React.createElement('span',{style:{display:'inline-flex',padding:'3px 9px',borderRadius:20,fontSize:11,fontWeight:700,background:b.bg,color:b.c,border:`1px solid ${b.b}`,whiteSpace:'nowrap'}},t);}
 
-function Badge({t,c}){const b=BM[c||SM[t]||'gray'];return React.createElement('span',{style:{display:'inline-flex',padding:'3px 9px',borderRadius:20,fontSize:11,fontWeight:700,background:b.bg,color:b.c,whiteSpace:'nowrap'}},t);}
-
-function Tbl({cols,rows,empty}){return React.createElement('div',{style:{borderRadius:14,overflow:'hidden',boxShadow:'0 2px 10px rgba(0,0,0,0.05)'}},React.createElement('table',{style:{width:'100%',borderCollapse:'collapse',background:'#fff'}},React.createElement('thead',null,React.createElement('tr',null,cols.map(c=>React.createElement('th',{key:c,style:C.th},c)))),React.createElement('tbody',null,!rows||rows.length===0?React.createElement('tr',null,React.createElement('td',{colSpan:cols.length,style:{...C.td,textAlign:'center',color:'#bbb',padding:'40px'}},'Nenhum registro')):rows)));}
-function TR({cells,onClick}){const[h,sh]=useState(false);return React.createElement('tr',{onClick,onMouseEnter:()=>sh(true),onMouseLeave:()=>sh(false),style:{background:h?'#fafbff':'#fff',transition:'background 0.1s',cursor:onClick?'pointer':'default'}},cells.map((c,i)=>React.createElement('td',{key:i,style:C.td},c)));}
-function SC({label,val,color,sub,icon}){return React.createElement('div',{style:C.card},React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}},React.createElement('div',{style:{fontSize:10,color:'#999',fontWeight:600,letterSpacing:'1.5px',textTransform:'uppercase'}},label),icon&&React.createElement('span',{style:{fontSize:17}},icon)),React.createElement('div',{style:{fontSize:21,fontWeight:800,color:color||'#0f172a',letterSpacing:'-0.5px',lineHeight:1}},val),sub&&React.createElement('div',{style:{fontSize:12,color:'#aaa',marginTop:6}},sub));}
-function PW({title,sub,actions,children}){return React.createElement('div',{style:{padding:'24px',animation:'fadeUp 0.2s ease',minHeight:'100vh'}},React.createElement('div',{style:{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:22,flexWrap:'wrap',gap:12}},React.createElement('div',null,React.createElement('h1',{style:{fontSize:22,fontWeight:800,color:'#0f172a',letterSpacing:'-0.5px'}},title),sub&&React.createElement('p',{style:{fontSize:12,color:'#aaa',marginTop:4}},sub)),actions&&React.createElement('div',{style:{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}},actions)),children);}
+function Tbl({cols,rows}){return React.createElement('div',{style:{borderRadius:14,border:'1px solid #e8e8ec',overflow:'hidden',boxShadow:'0 2px 8px rgba(0,0,0,0.05)',overflow:'hidden'}},React.createElement('table',{style:{width:'100%',borderCollapse:'collapse'}},React.createElement('thead',null,React.createElement('tr',null,cols.map(c=>React.createElement('th',{key:c,style:C.th},c)))),React.createElement('tbody',null,rows.length===0?React.createElement('tr',null,React.createElement('td',{colSpan:cols.length,style:{...C.td,textAlign:'center',color:'#bbbbbb',padding:'36px'}},'Nenhum registro')):rows)));}
+function TR({cells,onClick}){const[h,sh]=useState(false);return React.createElement('tr',{onClick,onMouseEnter:()=>sh(true),onMouseLeave:()=>sh(false),style:{background:h?'#fafafa':'#ffffff',transition:'background 0.1s',cursor:onClick?'pointer':'default'}},cells.map((c,i)=>React.createElement('td',{key:i,style:C.td},c)));}
+function SC({label,val,color,sub}){return React.createElement('div',{style:C.card},React.createElement('div',{style:{fontSize:10,color:'#999999',fontWeight:600,letterSpacing:'1.5px',textTransform:'uppercase',marginBottom:10}},label),React.createElement('div',{style:{fontSize:21,fontWeight:800,color:color||'#0f172a',letterSpacing:'-0.5px',lineHeight:1}},val),sub&&React.createElement('div',{style:{fontSize:12,color:'#aaaaaa',marginTop:6}},sub));}
+function PW({title,sub,actions,children}){return React.createElement('div',{style:{padding:'24px',animation:'fadeUp 0.2s ease'}},React.createElement('div',{style:{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:22,flexWrap:'wrap',gap:12}},React.createElement('div',null,React.createElement('h1',{style:{fontSize:22,fontWeight:800,color:'#0f172a',letterSpacing:'-0.5px'}},title),sub&&React.createElement('p',{style:{fontSize:12,color:'#999999',marginTop:4}},sub)),actions&&React.createElement('div',{style:{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}},actions)),children);}
 function Lbl({c}){return React.createElement('label',{style:C.lbl},c);}
-function Inp({label,v,set,type,ph,ro,min,max,step,style:st}){return React.createElement('div',null,label&&React.createElement(Lbl,{c:label}),React.createElement('input',{style:{...C.inp,...(st||{})},type:type||'text',value:v??'',onChange:e=>set&&set(e.target.value),placeholder:ph,readOnly:ro,min,max,step}));}
-function Sel({label,v,set,opts}){return React.createElement('div',null,label&&React.createElement(Lbl,{c:label}),React.createElement('select',{style:C.sel,value:v??'',onChange:e=>set(e.target.value)},opts.map(o=>React.createElement('option',{key:o.v??o,value:o.v??o},o.l??o))));}
-function G2({children,gap}){return React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 '+(gap||12)+'px'}},children);}
-function G3({children}){return React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'0 12px'}},children);}
-function Divider(){return React.createElement('div',{style:{height:1,background:'#f0f1f5',margin:'12px 0'}});}
+function Inp({label,v,set,type,ph,ro}){return React.createElement('div',null,label&&React.createElement(Lbl,{c:label}),React.createElement('input',{style:C.inp,type:type||'text',value:v||'',onChange:e=>set&&set(e.target.value),placeholder:ph,readOnly:ro}));}
+function Sel({label,v,set,opts}){return React.createElement('div',null,label&&React.createElement(Lbl,{c:label}),React.createElement('select',{style:C.sel,value:v||'',onChange:e=>set(e.target.value)},opts.map(o=>React.createElement('option',{key:o.v||o,value:o.v||o},o.l||o))));}
+function G2({children}){return React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 12px'}},children);}
 
 function Modal({m,close}){
   if(!m)return null;
-  return React.createElement('div',{onClick:e=>e.target===e.currentTarget&&close(),style:{position:'fixed',inset:0,background:'rgba(0,0,0,0.3)',backdropFilter:'blur(6px)',zIndex:500,display:'flex',alignItems:'center',justifyContent:'center',padding:16}},
-    React.createElement('div',{style:{background:'#fff',borderRadius:20,width:'100%',maxWidth:m.wide?600:480,maxHeight:'90vh',overflow:'auto',boxShadow:'0 8px 40px rgba(0,0,0,0.12)',animation:'fadeUp 0.2s ease'}},
-      React.createElement('div',{style:{padding:'17px 20px',display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,background:'#fff',zIndex:1,borderBottom:'1px solid #f0f1f5'}},
-        React.createElement('h3',{style:{fontSize:15,fontWeight:700,color:'#0f172a'}},m.title),
-        React.createElement('button',{onClick:close,style:{width:27,height:27,borderRadius:8,background:'#f4f6fa',color:'#888',fontSize:17,display:'flex',alignItems:'center',justifyContent:'center'}},'×')
+  return React.createElement('div',{onClick:e=>e.target===e.currentTarget&&close(),style:{position:'fixed',inset:0,background:'rgba(0,0,0,0.35)',backdropFilter:'blur(8px)',zIndex:500,display:'flex',alignItems:'center',justifyContent:'center',padding:16}},
+    React.createElement('div',{style:{background:'#ffffff',border:'1px solid #252525',borderRadius:20,width:'100%',maxWidth:480,maxHeight:'90vh',overflow:'auto',boxShadow:'0 32px 80px rgba(0,0,0,0.8)',animation:'fadeUp 0.2s ease'}},
+      React.createElement('div',{style:{padding:'17px 20px',borderBottom:'1px solid #ebebef',display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,background:'#ffffff',zIndex:1,borderBottom:'1px solid #ebebef'}},
+        React.createElement('h3',{style:{fontSize:15,fontWeight:700}},m.title),
+        React.createElement('button',{onClick:close,style:{width:27,height:27,borderRadius:8,background:'#e8e8ec',color:'#888888',fontSize:17,display:'flex',alignItems:'center',justifyContent:'center'}},'×')
       ),
       React.createElement('div',{style:{padding:'18px 20px'}},m.body)
     )
   );
 }
 
-// ── AUTH ──
+// AUTH
 function Auth({onLogin}){
   const[mode,setMode]=useState('login');const[name,setName]=useState('');const[email,setEmail]=useState('');const[pass,setPass]=useState('');const[err,setErr]=useState('');const[ld,setLd]=useState(false);
   const go=async()=>{
@@ -124,7 +95,7 @@ function Auth({onLogin}){
       if(error){setErr(error.message);setLd(false);return;}
       const{data,error:e2}=await sb.auth.signInWithPassword({email,password:pass});
       if(!e2&&data.user)onLogin(data.user);
-      else setErr('Conta criada! Se necessário confirme o e-mail.');
+      else setErr('Conta criada! Confirme e-mail se necessário.');
     }else{
       const{data,error}=await sb.auth.signInWithPassword({email,password:pass});
       if(error){setErr('E-mail ou senha inválidos');setLd(false);return;}
@@ -132,17 +103,18 @@ function Auth({onLogin}){
     }
     setLd(false);
   };
-  return React.createElement('div',{style:{minHeight:'100vh',background:'linear-gradient(135deg,#eff6ff 0%,#f5f5f7 100%)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}},
-    React.createElement('div',{style:{background:'#fff',borderRadius:24,padding:'40px 36px',width:'100%',maxWidth:390,boxShadow:'0 8px 40px rgba(0,0,0,0.10)'}},
+  return React.createElement('div',{style:{minHeight:'100vh',background:'#f5f5f7',display:'flex',alignItems:'center',justifyContent:'center',padding:16}},
+    React.createElement('div',{style:{position:'absolute',width:500,height:500,borderRadius:'50%',background:'radial-gradient(circle,rgba(37,99,235,0.07) 0%,transparent 70%)',top:'50%',left:'50%',transform:'translate(-50%,-50%)',pointerEvents:'none'}}),
+    React.createElement('div',{style:{position:'relative',zIndex:2,background:'#ffffff',border:'1px solid #252525',borderRadius:24,padding:'40px 36px',width:'100%',maxWidth:390,boxShadow:'0 40px 100px rgba(0,0,0,0.8)',animation:'fadeUp 0.4s ease'}},
       React.createElement('div',{style:{textAlign:'center',marginBottom:32}},
         React.createElement('div',{style:{width:52,height:52,background:'linear-gradient(135deg,#2563eb,#1d4ed8)',borderRadius:16,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 14px',fontSize:22,boxShadow:'0 6px 20px rgba(37,99,235,0.30)'}},'💰'),
-        React.createElement('div',{style:{fontSize:24,fontWeight:800,color:'#0f172a',letterSpacing:'-0.5px'}},'Moneyy'),
-        React.createElement('div',{style:{fontSize:11,color:'#bbb',marginTop:3,letterSpacing:'1.5px',textTransform:'uppercase'}},'ERP para Confeitarias')
+        React.createElement('div',{style:{fontSize:24,fontWeight:800,color:'#111111',letterSpacing:'-0.5px'}},'Moneyy'),
+        React.createElement('div',{style:{fontSize:11,color:'#aaaaaa',marginTop:3,letterSpacing:'1.5px',textTransform:'uppercase'}},'ERP para Confeitarias')
       ),
-      React.createElement('div',{style:{display:'flex',background:'#f4f6fa',borderRadius:11,padding:3,marginBottom:22}},
-        ['login','register'].map(m=>React.createElement('button',{key:m,onClick:()=>{setMode(m);setErr('');},style:{flex:1,padding:'8px',borderRadius:9,fontSize:13,fontWeight:600,background:mode===m?'#2563eb':'transparent',color:mode===m?'#fff':'#999',transition:'all 0.2s'}},m==='login'?'Entrar':'Criar conta'))
+      React.createElement('div',{style:{display:'flex',background:'#f0f0f4',borderRadius:11,padding:3,marginBottom:22}},
+        ['login','register'].map(m=>React.createElement('button',{key:m,onClick:()=>{setMode(m);setErr('');},style:{flex:1,padding:'8px',borderRadius:9,fontSize:13,fontWeight:600,background:mode===m?'#2563eb':'transparent',color:mode===m?'#fff':'#555',transition:'all 0.2s'}},m==='login'?'Entrar':'Criar conta'))
       ),
-      err&&React.createElement('div',{style:{background:'rgba(220,38,38,0.07)',borderRadius:9,padding:'9px 13px',fontSize:13,color:'#dc2626',marginBottom:13}},err),
+      err&&React.createElement('div',{style:{background:'rgba(232,41,58,0.1)',border:'1px solid rgba(37,99,235,0.22)',borderRadius:9,padding:'9px 13px',fontSize:13,color:'#2563eb',marginBottom:13}},err),
       mode==='register'&&React.createElement('div',null,React.createElement(Lbl,{c:'Nome'}),React.createElement('input',{style:C.inp,type:'text',placeholder:'Seu nome',value:name,onChange:e=>setName(e.target.value)})),
       React.createElement(Lbl,{c:'E-mail'}),
       React.createElement('input',{style:C.inp,type:'email',placeholder:'seu@email.com',value:email,onChange:e=>setEmail(e.target.value)}),
@@ -153,7 +125,7 @@ function Auth({onLogin}){
   );
 }
 
-// ── SIDEBAR ──
+// SIDEBAR — 3 módulos
 const MODS=[
   {id:'pedidos',l:'Gestão de Pedidos',i:'🛍'},
   {id:'estoque',l:'Estoque',i:'📦'},
@@ -163,343 +135,138 @@ const MODS=[
 function Sidebar({page,setPage,user,logout,col,setCol}){
   const W=col?64:220;
   const nm=user?.user_metadata?.name||user?.email?.split('@')[0]||'Usuário';
-  return React.createElement('aside',{style:{width:W,minWidth:W,background:'#fff',boxShadow:'4px 0 24px rgba(0,0,0,0.06)',display:'flex',flexDirection:'column',height:'100vh',transition:'width 0.25s cubic-bezier(0.4,0,0.2,1)',overflow:'hidden',flexShrink:0,borderRadius:'0 16px 16px 0',position:'relative',zIndex:10}},
-    React.createElement('div',{style:{padding:'16px 12px',display:'flex',alignItems:'center',gap:9,justifyContent:col?'center':'flex-start',borderBottom:'1px solid #f0f1f5'}},
+  return React.createElement('aside',{style:{width:W,minWidth:W,background:'#f0f0f2',borderRight:'1px solid #1a1a1a',display:'flex',flexDirection:'column',height:'100vh',transition:'width 0.25s cubic-bezier(0.4,0,0.2,1)',overflow:'hidden',flexShrink:0,borderRadius:'0 16px 16px 0'}},
+    React.createElement('div',{style:{padding:'16px 12px',borderBottom:'1px solid #ebebef',background:'#ffffff',display:'flex',alignItems:'center',gap:9,justifyContent:col?'center':'flex-start'}},
       React.createElement('div',{style:{width:32,height:32,background:'linear-gradient(135deg,#2563eb,#1d4ed8)',borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,flexShrink:0,boxShadow:'0 4px 12px rgba(37,99,235,0.30)'}},'💰'),
-      !col&&React.createElement('span',{style:{fontSize:15,fontWeight:800,color:'#0f172a',letterSpacing:'-0.3px',whiteSpace:'nowrap'}},'Moneyy')
+      !col&&React.createElement('span',{style:{fontSize:15,fontWeight:800,color:'#111111',letterSpacing:'-0.3px',whiteSpace:'nowrap'}},'Moneyy')
     ),
     React.createElement('nav',{style:{flex:1,padding:'10px 7px',display:'flex',flexDirection:'column',gap:3}},
-      MODS.map(m=>React.createElement('button',{key:m.id,onClick:()=>setPage(m.id),title:col?m.l:'',style:{display:'flex',alignItems:'center',gap:col?0:9,padding:col?'11px':'9px 11px',borderRadius:12,justifyContent:col?'center':'flex-start',color:page===m.id?'#fff':'#888',background:page===m.id?'#2563eb':'transparent',transition:'all 0.12s',width:'100%',boxShadow:page===m.id?'0 4px 14px rgba(37,99,235,0.22)':'none'}},
+      MODS.map(m=>React.createElement('button',{key:m.id,onClick:()=>setPage(m.id),title:col?m.l:'',style:{display:'flex',alignItems:'center',gap:col?0:9,padding:col?'11px':'9px 11px',borderRadius:12,justifyContent:col?'center':'flex-start',color:page===m.id?'#fff':'#444',background:page===m.id?'#2563eb':'transparent',border:page===m.id?'1px solid rgba(37,99,235,0.30)':'1px solid transparent',transition:'all 0.12s',width:'100%',boxShadow:page===m.id?'0 4px 14px rgba(37,99,235,0.15)':'none'}},
         React.createElement('span',{style:{fontSize:col?17:14,lineHeight:1,flexShrink:0}},m.i),
         !col&&React.createElement('span',{style:{fontSize:13,fontWeight:600,whiteSpace:'nowrap'}},m.l)
       ))
     ),
-    React.createElement('div',{style:{padding:'10px 7px',borderTop:'1px solid #f0f1f5'}},
-      !col&&React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderRadius:10,background:'#f8f9fc',marginBottom:7}},
-        React.createElement('div',{style:{width:26,height:26,borderRadius:8,background:'rgba(37,99,235,0.10)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:800,color:'#2563eb',flexShrink:0}},nm.slice(0,2).toUpperCase()),
+    React.createElement('div',{style:{padding:'10px 7px',borderTop:'1px solid #1a1a1a'}},
+      !col&&React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderRadius:10,background:'#f5f5f7',marginBottom:7}},
+        React.createElement('div',{style:{width:26,height:26,borderRadius:8,background:'rgba(37,99,235,0.12)',border:'1px solid rgba(37,99,235,0.20)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:800,color:'#2563eb',flexShrink:0}},nm.slice(0,2).toUpperCase()),
         React.createElement('div',{style:{minWidth:0,flex:1}},
-          React.createElement('div',{style:{fontSize:11,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:'#111'}},nm),
-          React.createElement('button',{onClick:logout,style:{fontSize:10,color:'#bbb',padding:0}},'Sair')
+          React.createElement('div',{style:{fontSize:11,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},nm),
+          React.createElement('button',{onClick:logout,style:{fontSize:10,color:'#aaaaaa',padding:0}},'Sair')
         )
       ),
-      React.createElement('button',{onClick:()=>setCol(c=>!c),style:{width:'100%',padding:'7px',borderRadius:9,background:'#f4f6fa',color:'#bbb',fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',gap:4}},col?'›':'‹',!col&&' Recolher')
+      React.createElement('button',{onClick:()=>setCol(c=>!c),style:{width:'100%',padding:'7px',borderRadius:9,background:'#f5f5f7',border:'1px solid #252525',color:'#aaaaaa',fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',gap:4}},col?'›':'‹',!col&&' Recolher')
     )
   );
 }
 
-// ── PEDIDOS — API CARDÁPIO WEB ──
-function Pedidos({uid,db,reload,setM,cfg,setCfg}){
-  const{pedidos_cw,contas,formas_pagamento}=db;
-  const[fil,setFil]=useState('');
-  const[search,setSearch]=useState('');
-  const[syncing,setSyncing]=useState(false);
-  const[syncStatus,setSyncStatus]=useState('');
-  const[dateFilter,setDateFilter]=useState(TODAY());
+// ── PEDIDOS ──
+function Pedidos({uid,db,reload,setM}){
+  const{pedidos,contas,receber}=db;
+  const[fil,setFil]=useState('Todos');
+  const list=fil==='Todos'?pedidos:pedidos.filter(p=>p.status===fil);
+  const tot=p=>(p.itens||[]).reduce((s,i)=>s+(Number(i.preco||0)*Number(i.qty||1)),0)||Number(p.total||0);
 
-  // Sync from Cardápio Web API
-  const sync=async()=>{
-    if(!cfg.cw_token){toast('Configure o token do Cardápio Web primeiro','error');return;}
-    setSyncing(true);setSyncStatus('Sincronizando...');
-    try{
-      const url=`/api/pedidos?token=${encodeURIComponent(cfg.cw_token)}&date=${dateFilter}`;
-      const res=await fetch(url,{signal:AbortSignal.timeout(20000),cache:'no-store'});
-      if(!res.ok){setSyncStatus('Erro '+res.status);setSyncing(false);return;}
-      const list=await res.json();
-      const arr=Array.isArray(list)?list:[];
-      // Save to Supabase
-      if(arr.length>0){
-        const rows=arr.map(p=>({
-          user_id:uid,
-          pedido_id:String(p.display_id||p.displayId||p.id),
-          source_id:String(p.id),
-          cliente:(p.customer?.name||p.customer?.nome||p.clienteNome||'—'),
-          itens:p.items||p.itens||[],
-          pagamentos:p.payments||[],
-          total:Number(p.total||p.totalAmount||p.valor||0),
-          status:p.status||p.situacao||'',
-          canal:p.sales_channel||'',
-          data_pedido:(p.created_at||p.createdAt||'').split('T')[0]||TODAY(),
-          raw:p,
-        }));
-        await sb.from('pedidos_cw').upsert(rows,{onConflict:'user_id,source_id'});
-        // Auto-gerar lançamentos financeiros para pedidos entregues
-        await autoGerarLancamentos(uid,arr,contas,formas_pagamento);
-      }
-      const n=new Date();
-      setSyncStatus(`Atualizado ${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')} · ${arr.length} pedidos`);
-      reload();
-    }catch(e){
-      setSyncStatus('Erro de conexão (CORS)');
-      toast('CORS bloqueado. Use proxy ou extensão Allow CORS.','error');
-    }
-    setSyncing(false);
-  };
+  const novo=()=>setM({title:'Novo Pedido',body:React.createElement(PedForm,{uid,db,reload,close:()=>setM(null)})});
 
-  // Filter
-  const list=useMemo(()=>{
-    let r=pedidos_cw||[];
-    if(fil)r=r.filter(p=>(p.status||'')===fil);
-    if(search){const s=search.toLowerCase();r=r.filter(p=>(p.cliente||'').toLowerCase().includes(s)||(p.pedido_id||'').toLowerCase().includes(s));}
-    return r;
-  },[pedidos_cw,fil,search]);
-
-  const counts=useMemo(()=>{
-    const c={PENDING:0,CONFIRMED:0,DELIVERED:0,CANCELLED:0,total:0};
-    (pedidos_cw||[]).forEach(p=>{if(c[p.status]!==undefined)c[p.status]++;c.total++;});
-    return c;
-  },[pedidos_cw]);
-
-  const faturamento=(pedidos_cw||[]).filter(p=>p.status==='DELIVERED').reduce((s,p)=>s+Number(p.total||0),0);
-
-  const verPedido=p=>setM({title:'Pedido #'+p.pedido_id,wide:true,body:React.createElement(PedidoDetalhe,{p,contas,formas_pagamento,uid,reload,close:()=>setM(null)})});
-
-  return React.createElement(PW,{
-    title:'Gestão de Pedidos',
-    sub:'Cardápio Web · Pedido → Entregue → Lançamento Financeiro Automático',
-    actions:[
-      React.createElement('input',{key:'dt',type:'date',value:dateFilter,onChange:e=>setDateFilter(e.target.value),style:{background:'#f4f6fa',border:'none',borderRadius:9,padding:'7px 12px',fontSize:12,color:'#555',cursor:'pointer'}}),
-      React.createElement('button',{key:'cfg',style:C.ghost,onClick:()=>setM({title:'⚙ Configuração Cardápio Web',body:React.createElement(CWConfig,{cfg,setCfg,contas,db,close:()=>setM(null)})})},'⚙ Configurar'),
-      React.createElement('button',{key:'s',style:C.btn,onClick:sync,disabled:syncing},syncing?React.createElement(Spin):'↻ Sincronizar'),
-    ]
-  },
-    // Status bar
-    syncStatus&&React.createElement('div',{style:{fontSize:11,color:'#aaa',marginBottom:14,textAlign:'right'}},syncStatus),
-    !cfg.cw_token&&React.createElement('div',{style:{background:'rgba(37,99,235,0.06)',borderRadius:12,padding:'12px 16px',marginBottom:16,fontSize:13,color:'#2563eb'}},
-      '💡 Configure o token do Cardápio Web em ',React.createElement('strong',null,'⚙ Configurar'),' para sincronizar pedidos automaticamente.'
-    ),
-    // Stats
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:13,marginBottom:20}},
-      React.createElement(SC,{label:'Total',val:counts.total,icon:'📋'}),
-      React.createElement(SC,{label:'Pendentes',val:counts.PENDING,color:'#b45309',icon:'⏳'}),
-      React.createElement(SC,{label:'Confirmados',val:counts.CONFIRMED,color:'#1d4ed8',icon:'✓'}),
-      React.createElement(SC,{label:'Entregues',val:counts.DELIVERED,color:'#15803d',icon:'✅'}),
-      React.createElement(SC,{label:'Faturamento',val:F(faturamento),color:'#2563eb',icon:'💰'})
-    ),
-    // Filters
-    React.createElement('div',{style:{display:'flex',gap:5,marginBottom:14,flexWrap:'wrap',alignItems:'center',justifyContent:'space-between'}},
-      React.createElement('div',{style:{display:'flex',gap:5,flexWrap:'wrap'}},
-        [['','Todos'],['PENDING','Pendentes'],['CONFIRMED','Confirmados'],['DELIVERED','Entregues'],['CANCELLED','Cancelados']].map(([v,l])=>
-          React.createElement('button',{key:v,onClick:()=>setFil(v),style:{padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,background:fil===v?'#2563eb':'#f4f6fa',color:fil===v?'#fff':'#666'}},l)
+  const ver=p=>setM({title:'Pedido '+p.numero,body:
+    React.createElement('div',null,
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}},
+        [['Cliente',p.cliente],['Data',FD(p.data_pedido)],['Pagamento',p.pagamento],['Status',null]].map(([l,v])=>
+          React.createElement('div',{key:l,style:{background:'#f5f5f7',borderRadius:10,padding:'10px 13px'}},
+            React.createElement('div',{style:{fontSize:10,color:'#aaaaaa',fontWeight:600,letterSpacing:'1px',textTransform:'uppercase',marginBottom:3}},l),
+            l==='Status'?React.createElement(Badge,{t:p.status}):React.createElement('div',{style:{fontSize:14,fontWeight:600}},v)
+          )
         )
       ),
-      React.createElement('input',{placeholder:'Buscar cliente ou nº...',value:search,onChange:e=>setSearch(e.target.value),style:{...C.inp,marginBottom:0,width:200,padding:'7px 12px',fontSize:12}})
-    ),
-    // Table
-    React.createElement('div',{style:C.card,padding:0},
-      React.createElement(Tbl,{cols:['Nº','Cliente','Itens','Pagamento','Total','Data/Hora','Canal','Status',''],
-        rows:list.map(p=>{
-          const pags=p.pagamentos||[];
-          const pagNome=pags.length?(PM_MAP[(pags[0].payment_method||'').toLowerCase()]||pags[0].payment_method||'—'):'—';
-          const dt=p.data_pedido||'';
-          const raw=p.raw||{};
-          const dtFmt=raw.created_at?new Date(raw.created_at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):FD(dt);
-          const itens=(raw.items||raw.itens||[]);
-          const itensTxt=itens.length?itens.slice(0,2).map(i=>`${i.quantity||i.qty||1}x ${i.name||i.nome||'?'}`).join(', ')+(itens.length>2?'…':''):'—';
-          const canal=p.canal||'';
-          return React.createElement(TR,{key:p.id||p.pedido_id,onClick:()=>verPedido(p),cells:[
-            React.createElement('span',{style:{fontWeight:700,color:'#2563eb',fontSize:12}},'#'+p.pedido_id),
-            React.createElement('span',{style:{fontWeight:600}},p.cliente),
-            React.createElement('span',{style:{fontSize:11,color:'#aaa'}},itensTxt),
-            React.createElement('span',{style:{fontSize:12}},pagNome),
-            React.createElement('span',{style:{fontWeight:700}},F(p.total)),
-            React.createElement('span',{style:{fontSize:11,color:'#aaa'}},dtFmt),
-            canal?React.createElement('span',{style:{fontSize:10,background:'#fee2e2',color:'#dc2626',padding:'2px 6px',borderRadius:4,fontWeight:700}},(canal==='ifood'?'iFood':canal).slice(0,8)):React.createElement('span',{style:{color:'#ddd'}},'—'),
-            React.createElement(Badge,{t:CW_STATUS_MAP[p.status]||p.status}),
-            React.createElement('span',{style:{color:'#ddd',fontSize:11}},'›'),
-          ]});
-        }),
-        empty:'Nenhum pedido. Configure o token e sincronize.'
-      })
-    )
-  );
-}
-
-function PedidoDetalhe({p,contas,formas_pagamento,uid,reload,close}){
-  const raw=p.raw||{};
-  const pags=p.pagamentos||raw.payments||[];
-  const itens=raw.items||raw.itens||[];
-  const ja_lancou=p.lanc_gerado;
-  return React.createElement('div',null,
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}},
-      [['Pedido','#'+p.pedido_id],['Cliente',p.cliente],['Data',FD(p.data_pedido)],['Canal',p.canal||'Direto'],['Status',null],['Total',null]].map(([l,v])=>
-        React.createElement('div',{key:l,style:{background:'#f8f9fc',borderRadius:10,padding:'10px 13px'}},
-          React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:600,letterSpacing:'1px',textTransform:'uppercase',marginBottom:3}},l),
-          l==='Status'?React.createElement(Badge,{t:CW_STATUS_MAP[p.status]||p.status}):
-          l==='Total'?React.createElement('div',{style:{fontWeight:800,fontSize:16,color:'#2563eb'}},F(p.total)):
-          React.createElement('div',{style:{fontSize:14,fontWeight:600}},v)
+      React.createElement('div',{style:{background:'#f5f5f7',borderRadius:12,padding:'13px',marginBottom:12}},
+        React.createElement('div',{style:{fontSize:11,color:'#2563eb',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:9}},'Itens'),
+        (p.itens||[]).map((it,i)=>React.createElement('div',{key:i,style:{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:i<p.itens.length-1?'1px solid #222':'none'}},
+          React.createElement('span',{style:{fontSize:13,color:'#666666'}},it.produto+' × '+it.qty),
+          React.createElement('span',{style:{fontWeight:700}},F(Number(it.preco)*Number(it.qty)))
+        )),
+        React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginTop:10,paddingTop:10,borderTop:'1px solid #ebebef'}},
+          React.createElement('span',{style:{fontWeight:700}},'Total'),
+          React.createElement('span',{style:{fontWeight:800,fontSize:16,color:'#2563eb'}},F(tot(p)))
         )
+      ),
+      p.obs&&React.createElement('div',{style:{background:'#f5f5f7',borderRadius:10,padding:'9px 13px',marginBottom:12,fontSize:13,color:'#777777'}},'📝 '+p.obs),
+      React.createElement('div',{style:{display:'flex',gap:7,justifyContent:'flex-end',flexWrap:'wrap'}},
+        p.status==='Aguardando'&&React.createElement('button',{style:{...C.bsm,background:'#1e3a5f'},onClick:async()=>{await sb.from('pedidos').update({status:'Em preparo'}).eq('id',p.id);toast('Em preparo!');reload();setM(null);}},'+preparo'),
+        p.status==='Em preparo'&&React.createElement('button',{style:{...C.bsm,background:'#14532d'},onClick:async()=>{
+          for(const it of(p.itens||[])){
+            const est=db.estoque.find(e=>e.categoria==='Produto Acabado'&&e.nome.toLowerCase().includes((it.produto||'').toLowerCase().split(' ').slice(1).join(' ')));
+            if(est)await sb.from('estoque').update({qtd:Math.max(0,Number(est.qtd)-Number(it.qty))}).eq('id',est.id);
+          }
+          await sb.from('pedidos').update({status:'Entregue'}).eq('id',p.id);
+          const jaExiste=receber.find(r=>r.pedido_id===p.numero);
+          if(!jaExiste){
+            const dias={PIX:0,Dinheiro:0,Cartão:1,Transferência:1};
+            const prev=new Date(p.data_pedido+'T00:00:00');prev.setDate(prev.getDate()+(dias[p.pagamento]||0));
+            await sb.from('contas_receber').insert({user_id:uid,pedido_id:p.numero,cliente:p.cliente,valor_bruto:tot(p),forma_pagamento:p.pagamento,status:'Pendente',data_venda:p.data_pedido,data_prevista:prev.toISOString().split('T')[0],origem:'Pedido'});
+          }
+          toast('Entregue! Conta a receber criada.',false,true);reload();setM(null);
+        }},'✓ Entregar'),
+        p.status!=='Cancelado'&&p.status!=='Entregue'&&React.createElement('button',{style:{...C.gsm,color:'#2563eb'},onClick:async()=>{await sb.from('pedidos').update({status:'Cancelado'}).eq('id',p.id);toast('Cancelado',true);reload();setM(null);}},' Cancelar'),
+        React.createElement('button',{style:C.ghost,onClick:()=>setM(null)},'Fechar')
       )
-    ),
-    // Itens
-    React.createElement('div',{style:{background:'#f8f9fc',borderRadius:12,padding:'13px',marginBottom:12}},
-      React.createElement('div',{style:{fontSize:11,color:'#2563eb',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:9}},'Itens do Pedido'),
-      itens.length===0?React.createElement('div',{style:{fontSize:13,color:'#bbb'}},'Sem detalhes de itens'):
-      itens.map((it,i)=>React.createElement('div',{key:i,style:{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:i<itens.length-1?'1px solid #eee':'none'}},
-        React.createElement('span',{style:{fontSize:13,color:'#555'}},(it.quantity||it.qty||1)+'x '+(it.name||it.nome||'?')),
-        React.createElement('span',{style:{fontWeight:700}},F((it.price||it.preco||0)*(it.quantity||it.qty||1)))
-      )),
-      React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginTop:10,paddingTop:10,borderTop:'1px solid #e8e8ec'}},
-        React.createElement('span',{style:{fontWeight:700}},'Total'),
-        React.createElement('span',{style:{fontWeight:800,fontSize:16,color:'#2563eb'}},F(p.total))
-      )
-    ),
-    // Pagamentos
-    React.createElement('div',{style:{background:'#f8f9fc',borderRadius:12,padding:'13px',marginBottom:12}},
-      React.createElement('div',{style:{fontSize:11,color:'#aaa',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:9}},'Pagamentos'),
-      pags.length===0?React.createElement('div',{style:{fontSize:13,color:'#bbb'}},'Sem dados de pagamento'):
-      pags.map((pg,i)=>{
-        const pmNome=PM_MAP[(pg.payment_method||'').toLowerCase()]||pg.payment_method||'—';
-        const val=pg.value||pg.total||pg.valor||0;
-        const forma=formas_pagamento?.find(f=>f.status==='ativa'&&(f.nome||'').toLowerCase().includes((pmNome||'').toLowerCase().split(' ')[0]));
-        const taxa=forma?.taxa_pct?val*(forma.taxa_pct/100):0;
-        return React.createElement('div',{key:i,style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderBottom:i<pags.length-1?'1px solid #eee':'none'}},
-          React.createElement('div',null,
-            React.createElement('div',{style:{fontSize:13,fontWeight:600}},pmNome),
-            taxa>0&&React.createElement('div',{style:{fontSize:11,color:'#aaa'}},'Taxa: '+F(taxa)+' · Líq: '+F(val-taxa))
-          ),
-          React.createElement('span',{style:{fontWeight:700}},F(val))
-        );
-      })
-    ),
-    // Auto-lançamento
-    React.createElement('div',{style:{background:'rgba(37,99,235,0.05)',borderRadius:10,padding:'10px 13px',marginBottom:14,fontSize:12,color:'#2563eb',lineHeight:1.6}},
-      ja_lancou?'✅ Lançamento financeiro já gerado para este pedido.':
-      '💡 Ao entregar, o sistema gera automaticamente os lançamentos financeiros nas contas configuradas.'
-    ),
-    React.createElement('div',{style:{display:'flex',gap:7,justifyContent:'flex-end',flexWrap:'wrap'}},
-      !ja_lancou&&p.status==='DELIVERED'&&React.createElement('button',{style:C.bsm,onClick:async()=>{
-        await autoGerarLancamentos(uid,[raw||p],[],formas_pagamento,true);
-        await sb.from('pedidos_cw').update({lanc_gerado:true}).eq('id',p.id);
-        toast('Lançamento gerado!',false,true);reload();close();
-      }},'💰 Gerar Lançamento'),
-      React.createElement('button',{style:C.ghost,onClick:close},'Fechar')
     )
-  );
-}
-
-async function autoGerarLancamentos(uid,pedidos,contas,formasPag,force=false){
-  if(!pedidos||!pedidos.length)return;
-  // Buscar lançamentos já gerados
-  const{data:jaGerados}=await sb.from('lancamentos').select('pedido_id').eq('user_id',uid).not('pedido_id','is',null);
-  const geradosSet=new Set((jaGerados||[]).map(x=>x.pedido_id));
-  // Buscar contas do user se não passadas
-  if(!contas||!contas.length){
-    const{data:c}=await sb.from('contas_bancarias').select('*').eq('user_id',uid);
-    contas=c||[];
-  }
-  if(!formasPag||!formasPag.length){
-    const{data:f}=await sb.from('formas_pagamento').select('*').eq('user_id',uid);
-    formasPag=f||[];
-  }
-
-  const novosLanc=[];
-  const pedidosGerados=[];
-
-  pedidos.forEach(p=>{
-    const pid=String(p.id||p.display_id||p.displayId||'');
-    if(!force&&geradosSet.has(pid))return;
-    const status=(p.status||p.situacao||'');
-    if(!force&&status!=='DELIVERED'&&status!=='Entregue')return;
-    const pags=p.payments||p.pagamentos||[];
-    if(!pags.length){
-      // sem pagamentos, usa total
-      const dt=(p.created_at||p.createdAt||'').split('T')[0]||TODAY();
-      novosLanc.push({user_id:uid,tipo:'receita',desc:`Pedido #${p.display_id||p.id} (${dt})`,valor:Number(p.total||p.totalAmount||0),data:dt,venc:dt,data_pag:dt,pago:true,pedido_id:pid,categoria:'Vendas',obs:'Auto-gerado pelo Moneyy'});
-      pedidosGerados.push(pid);
-      return;
-    }
-    let mudou=false;
-    pags.forEach(pg=>{
-      const pmKey=(pg.payment_method||'').toLowerCase();
-      // pular pagamentos online iFood
-      if(pmKey==='ifood'||pmKey==='online_credit_card'||(pg.payment_type||'').toLowerCase()==='online')return;
-      const pmNome=PM_MAP[pmKey]||pmKey;
-      const forma=formasPag.find(f=>f.status==='ativa'&&(f.nome||'').toLowerCase().includes(pmNome.toLowerCase().split(' ')[0]));
-      let valor=Number(pg.value||pg.total||pg.valor||pg.prepaid||pg.paid_value||0);
-      if(!valor&&pags.length===1)valor=Number(p.total||p.totalAmount||0);
-      if(!valor)return;
-      const taxa=forma?.taxa_pct?valor*(forma.taxa_pct/100):0;
-      const valorLiq=parseFloat((valor-taxa).toFixed(2));
-      const diasRec=forma?.dias||0;
-      const dtBase=(p.created_at||p.createdAt||'').split('T')[0]||TODAY();
-      const dtRec=advanceDate(dtBase,'semanal',0); // same day default
-      let dtRecFinal=dtBase;
-      if(diasRec>0){const d=new Date(dtBase+'T12:00:00');d.setDate(d.getDate()+diasRec);dtRecFinal=d.toISOString().split('T')[0];}
-      // Encontrar conta
-      const contaId=forma?.conta_id||contas.find(c=>{
-        const n=(c.nome||'').toLowerCase();
-        if(pmNome.toLowerCase().includes('pix'))return n.includes('pix')||n.includes('nubank')||c.tipo==='Digital';
-        if(pmNome.toLowerCase().includes('dinheiro'))return c.tipo==='Caixa'||n.includes('caixa');
-        return n.includes('stone')||n.includes('cielo')||c.tipo==='Maquininha'||c.tipo==='Digital';
-      })?.id||contas[0]?.id;
-      if(!contaId)return;
-      novosLanc.push({
-        user_id:uid,tipo:'receita',
-        desc:`Pedido #${p.display_id||p.id} — ${forma?.nome||pmNome} (${dtBase})`,
-        valor:valorLiq,data:dtRecFinal,venc:dtRecFinal,data_pag:diasRec===0?dtRecFinal:'',
-        pago:diasRec===0,conta_id:contaId,categoria:'Vendas',
-        obs:`Auto-gerado. Bruto: ${F(valor)} · Taxa: ${F(taxa)}`,
-        pedido_id:pid,
-      });
-      if(taxa>0){
-        novosLanc.push({
-          user_id:uid,tipo:'despesa',
-          desc:`Taxa ${forma?.nome||pmNome} — Pedido #${p.display_id||p.id}`,
-          valor:taxa,data:dtRecFinal,venc:dtRecFinal,data_pag:dtRecFinal,
-          pago:true,conta_id:contaId,categoria:'Taxa Cartão',
-          obs:'Auto-gerado.',pedido_id:pid,
-        });
-      }
-      mudou=true;
-    });
-    if(mudou)pedidosGerados.push(pid);
   });
 
-  if(novosLanc.length){
-    await sb.from('lancamentos').insert(novosLanc);
-    // marcar pedidos como gerados
-    if(pedidosGerados.length){
-      await sb.from('pedidos_cw').update({lanc_gerado:true}).in('source_id',pedidosGerados).eq('user_id',uid);
-    }
-  }
+  return React.createElement(PW,{title:'Gestão de Pedidos',sub:'Pedido → Entregue → Conta a Receber',actions:[React.createElement('button',{key:'n',style:C.btn,onClick:novo},'+ Novo Pedido')]},
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:13,marginBottom:20}},
+      React.createElement(SC,{label:'Total',val:pedidos.length}),
+      React.createElement(SC,{label:'Entregues',val:pedidos.filter(p=>p.status==='Entregue').length,color:'#16a34a'}),
+      React.createElement(SC,{label:'Em aberto',val:pedidos.filter(p=>p.status==='Aguardando'||p.status==='Em preparo').length,color:'#d97706'}),
+      React.createElement(SC,{label:'Faturamento',val:F(pedidos.filter(p=>p.status==='Entregue').reduce((s,p)=>s+Number(p.total),0)),color:'#2563eb'})
+    ),
+    React.createElement('div',{style:{display:'flex',gap:5,marginBottom:14,flexWrap:'wrap'}},
+      ['Todos','Aguardando','Em preparo','Entregue','Cancelado'].map(f=>React.createElement('button',{key:f,onClick:()=>setFil(f),style:{padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,background:fil===f?'#2563eb':'#181818',color:fil===f?'#fff':'#555',border:fil===f?'1px solid #2563eb':'1px solid #252525'}},f))
+    ),
+    React.createElement('div',{style:C.card},
+      React.createElement(Tbl,{cols:['Nº','Cliente','Pagamento','Total','Data','Status',''],
+        rows:list.map(p=>React.createElement(TR,{key:p.id,onClick:()=>ver(p),cells:[
+          React.createElement('span',{style:{fontWeight:700,color:'#2563eb',fontSize:12}},p.numero),
+          React.createElement('span',{style:{fontWeight:600}},p.cliente),
+          p.pagamento,
+          React.createElement('span',{style:{fontWeight:700}},F(p.total)),
+          FD(p.data_pedido),
+          React.createElement(Badge,{t:p.status}),
+          React.createElement('span',{style:{fontSize:11,color:'#aaaaaa'}},'›'),
+        ]}))
+      })
+    )
+  );
 }
 
-function CWConfig({cfg,setCfg,contas,db,close}){
-  const[token,setToken]=useState(cfg.cw_token||'');
-  const[formas,setFormas]=useState(db.formas_pagamento||[]);
-  const[ld,setLd]=useState(false);
-
-  const save=async()=>{
-    setLd(true);
-    const newCfg={...cfg,cw_token:token};
-    await sb.from('config_usuario').upsert({user_id:cfg.uid,chave:'cw_token',valor:token},{onConflict:'user_id,chave'});
-    // salvar formas
-    for(const f of formas){
-      await sb.from('formas_pagamento').upsert({...f},{onConflict:'id'});
-    }
-    setCfg(newCfg);
-    toast('Configurações salvas!',false,true);setLd(false);close();
-  };
-
-  const updForma=(id,k,v)=>setFormas(p=>p.map(f=>f.id===id?{...f,[k]:v}:f));
-
+function PedForm({uid,db,reload,close}){
+  const[cli,setCli]=useState('');const[pag,setPag]=useState('PIX');const[obs,setObs]=useState('');
+  const[itens,setItens]=useState([{produto:'',qty:1,preco:''}]);const[ld,setLd]=useState(false);
+  const total=itens.reduce((s,i)=>s+(parseFloat(i.preco||0)*parseInt(i.qty||1)),0);
+  const upd=(i,k,v)=>setItens(p=>p.map((it,idx)=>idx===i?{...it,[k]:v}:it));
   return React.createElement('div',null,
-    React.createElement(Inp,{label:'Token da API Cardápio Web',v:token,set:setToken,ph:'Seu token de API',type:'password'}),
-    React.createElement('div',{style:{fontSize:11,color:'#bbb',marginBottom:16,lineHeight:1.6}},'O token funciona como senha. Não compartilhe com ninguém. Obtenha em: Cardápio Web → Integrações → API.'),
-    React.createElement(Divider),
-    React.createElement('div',{style:{fontSize:12,fontWeight:700,color:'#555',marginBottom:12,textTransform:'uppercase',letterSpacing:'1px'}},'Formas de Pagamento e Contas'),
-    React.createElement('div',{style:{fontSize:11,color:'#bbb',marginBottom:14}},'Configure a conta de destino e a taxa para cada forma de pagamento dos pedidos.'),
-    formas.map(f=>React.createElement('div',{key:f.id,style:{background:'#f8f9fc',borderRadius:12,padding:'12px',marginBottom:10}},
-      React.createElement('div',{style:{fontWeight:600,fontSize:13,marginBottom:8}},f.nome),
-      React.createElement(G3,null,
-        React.createElement(Sel,{label:'Conta Destino',v:f.conta_id||'',set:v=>updForma(f.id,'conta_id',v),opts:[{v:'',l:'— Selecione —'},...(contas||[]).map(c=>({v:c.id,l:c.nome}))]}),
-        React.createElement(Inp,{label:'Taxa %',v:f.taxa_pct||'',set:v=>updForma(f.id,'taxa_pct',parseFloat(v)||0),type:'number',step:'0.01',ph:'0.00'}),
-        React.createElement(Inp,{label:'Dias p/ receber',v:f.dias||'',set:v=>updForma(f.id,'dias',parseInt(v)||0),type:'number',ph:'0'})
-      )
+    React.createElement(Inp,{label:'Cliente',v:cli,set:setCli,ph:'Nome do cliente'}),
+    React.createElement(Lbl,{c:'Itens'}),
+    itens.map((it,i)=>React.createElement('div',{key:i,style:{display:'grid',gridTemplateColumns:'1fr 56px 84px 22px',gap:5,marginBottom:6,alignItems:'center'}},
+      React.createElement('input',{style:{...C.inp,marginBottom:0},placeholder:'Produto',value:it.produto,onChange:e=>upd(i,'produto',e.target.value)}),
+      React.createElement('input',{style:{...C.inp,marginBottom:0,textAlign:'center'},type:'number',min:1,value:it.qty,onChange:e=>upd(i,'qty',e.target.value)}),
+      React.createElement('input',{style:{...C.inp,marginBottom:0},type:'number',step:'0.01',placeholder:'R$',value:it.preco,onChange:e=>upd(i,'preco',e.target.value)}),
+      itens.length>1&&React.createElement('button',{style:{color:'#2563eb',fontSize:16},onClick:()=>setItens(p=>p.filter((_,idx)=>idx!==i))},'×')
     )),
-    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',marginTop:4}},
+    React.createElement('button',{style:{...C.gsm,marginBottom:12},onClick:()=>setItens(p=>[...p,{produto:'',qty:1,preco:''}])},'+ Item'),
+    React.createElement(G2,null,
+      React.createElement(Sel,{label:'Pagamento',v:pag,set:setPag,opts:['PIX','Cartão','Dinheiro','Transferência']}),
+      React.createElement('div',null,React.createElement(Lbl,{c:'Total'}),React.createElement('div',{style:{...C.inp,marginBottom:0,fontWeight:800,fontSize:15,color:'#2563eb',display:'flex',alignItems:'center'}},F(total)))
+    ),
+    React.createElement(Inp,{label:'Obs.',v:obs,set:setObs,ph:'Opcional'}),
+    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
       React.createElement('button',{style:C.ghost,onClick:close},'Cancelar'),
-      React.createElement('button',{style:C.btn,onClick:save},ld?React.createElement(Spin):'Salvar Configurações')
+      React.createElement('button',{style:C.btn,onClick:async()=>{
+        if(!cli||itens.some(i=>!i.produto)){toast('Preencha cliente e produtos',true);return;}
+        setLd(true);
+        const num='PED'+String(Date.now()).slice(-5);
+        await sb.from('pedidos').insert({user_id:uid,numero:num,cliente:cli,itens:itens.map(i=>({produto:i.produto,qty:parseInt(i.qty)||1,preco:parseFloat(i.preco)||0})),pagamento:pag,obs,status:'Aguardando',total,data_pedido:TODAY()});
+        toast('Pedido '+num+' criado!',false,true);reload();close();setLd(false);
+      }},ld?React.createElement(Spin):'Criar Pedido')
     )
   );
 }
@@ -510,36 +277,35 @@ function Estoque({uid,db,reload,setM}){
   const[tab,setTab]=useState('Todos');
   const cats=['Todos','Matéria-Prima','Produto Acabado','Embalagem'];
   const list=tab==='Todos'?estoque:estoque.filter(e=>e.categoria===tab);
-  const criticos=(estoque||[]).filter(e=>Number(e.qtd)<=Number(e.minimo));
+  const criticos=estoque.filter(e=>Number(e.qtd)<=Number(e.minimo));
 
-  const mov=id=>setM({title:'Movimentar Estoque',body:React.createElement(MovEst,{id,db,reload,close:()=>setM(null)})});
+  const mov=id=>setM({title:'Movimentar',body:React.createElement(MovEst,{id,db,reload,close:()=>setM(null)})});
   const novo=()=>setM({title:'Novo Item',body:React.createElement(NovoEst,{uid,reload,close:()=>setM(null)})});
 
-  return React.createElement(PW,{title:'Estoque',sub:'Matérias-primas, produtos acabados e embalagens',
-    actions:[criticos.length>0&&React.createElement('span',{key:'c',style:{background:'rgba(220,38,38,0.07)',color:'#dc2626',padding:'5px 13px',borderRadius:20,fontSize:12,fontWeight:700}},'⚠ '+criticos.length+' críticos'),React.createElement('button',{key:'n',style:C.btn,onClick:novo},'+ Adicionar')].filter(Boolean)},
+  return React.createElement(PW,{title:'Estoque',sub:'Matérias-primas, produtos e embalagens',
+    actions:[criticos.length>0&&React.createElement('span',{key:'c',style:{...BM.red,display:'inline-flex',padding:'5px 13px',borderRadius:20,fontSize:12,fontWeight:700,background:BM.red.bg,color:BM.red.c,border:`1px solid ${BM.red.b}`}},'⚠ '+criticos.length+' críticos'),React.createElement('button',{key:'n',style:C.btn,onClick:novo},'+ Adicionar')].filter(Boolean)},
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:13,marginBottom:20}},
-      React.createElement(SC,{label:'Total Itens',val:(estoque||[]).length,icon:'📦'}),
-      React.createElement(SC,{label:'Críticos',val:criticos.length,color:criticos.length>0?'#dc2626':'#15803d',icon:'⚠'}),
-      React.createElement(SC,{label:'Prod. Acabados',val:(estoque||[]).filter(e=>e.categoria==='Produto Acabado').reduce((s,e)=>s+Number(e.qtd),0)+' un',color:'#1d4ed8',icon:'🍪'}),
-      React.createElement(SC,{label:'Val. Estoque',val:F((estoque||[]).reduce((s,e)=>s+(Number(e.qtd)*Number(e.custo)),0)),color:'#2563eb',icon:'💰'})
+      React.createElement(SC,{label:'Total Itens',val:estoque.length}),
+      React.createElement(SC,{label:'Críticos',val:criticos.length,color:criticos.length>0?'#f87171':'#4ade80'}),
+      React.createElement(SC,{label:'Prod. Acabados',val:estoque.filter(e=>e.categoria==='Produto Acabado').reduce((s,e)=>s+Number(e.qtd),0)+' un',color:'#2563eb'}),
+      React.createElement(SC,{label:'Val. Estoque',val:F(estoque.reduce((s,e)=>s+(Number(e.qtd)*Number(e.custo)),0)),color:'#2563eb'})
     ),
     React.createElement('div',{style:{display:'flex',gap:5,marginBottom:14,flexWrap:'wrap'}},
-      cats.map(c=>React.createElement('button',{key:c,onClick:()=>setTab(c),style:{padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,background:tab===c?'#2563eb':'#f4f6fa',color:tab===c?'#fff':'#666'}},c))
+      cats.map(c=>React.createElement('button',{key:c,onClick:()=>setTab(c),style:{padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,background:tab===c?'#2563eb':'#181818',color:tab===c?'#fff':'#555',border:tab===c?'1px solid #2563eb':'1px solid #252525'}},c))
     ),
-    React.createElement('div',{style:{...C.card,padding:0}},
-      React.createElement(Tbl,{cols:['Nome','Cat.','Qtd','Mín.','Status','Custo','Val.Total','Fornecedor','Validade',''],
-        rows:(list||[]).map(e=>{
+    React.createElement('div',{style:C.card},
+      React.createElement(Tbl,{cols:['Nome','Cat.','Qtd','Mín.','Status','Custo','Val. Total','Fornecedor',''],
+        rows:list.map(e=>{
           const diff=e.validade?Math.ceil((new Date(e.validade)-new Date())/86400000):999;
           const st=Number(e.qtd)<=Number(e.minimo)?'Crítico':diff<0?'Vencido':diff<30?'Vencendo':'OK';
           return React.createElement(TR,{key:e.id,cells:[
             React.createElement('span',{style:{fontWeight:600}},e.nome),
-            React.createElement('span',{style:{fontSize:11,color:'#aaa'}},e.categoria),
-            React.createElement('span',{style:{fontWeight:700,color:Number(e.qtd)<=Number(e.minimo)?'#dc2626':'#111'}},e.qtd+' '+e.unidade),
+            React.createElement('span',{style:{fontSize:11,color:'#999999'}},e.categoria),
+            React.createElement('span',{style:{fontWeight:700,color:Number(e.qtd)<=Number(e.minimo)?'#f87171':'#f0f0f0'}},e.qtd+' '+e.unidade),
             e.minimo+' '+e.unidade,
             React.createElement(Badge,{t:st,c:st==='Crítico'||st==='Vencido'?'red':st==='Vencendo'?'amber':'green'}),
             F(e.custo),F(Number(e.qtd)*Number(e.custo)),
-            React.createElement('span',{style:{fontSize:11,color:'#aaa'}},e.fornecedor||'—'),
-            e.validade?React.createElement('span',{style:{fontSize:11,color:diff<30?'#b45309':'#aaa'}},FD(e.validade)):React.createElement('span',{style:{color:'#ddd'}},'—'),
+            React.createElement('span',{style:{fontSize:11,color:'#999999'}},e.fornecedor||'—'),
             React.createElement('button',{style:C.gsm,onClick:ev=>{ev.stopPropagation();mov(e.id);}},'Mov.'),
           ]});
         })
@@ -550,12 +316,9 @@ function Estoque({uid,db,reload,setM}){
 
 function MovEst({id,db,reload,close}){
   const[tipo,setTipo]=useState('entrada');const[qtd,setQtd]=useState('');const[ld,setLd]=useState(false);
-  const e=(db.estoque||[]).find(x=>x.id===id);
+  const e=db.estoque.find(x=>x.id===id);
   return React.createElement('div',null,
-    React.createElement('div',{style:{background:'#f8f9fc',borderRadius:10,padding:'11px 13px',marginBottom:13}},
-      React.createElement('div',{style:{fontWeight:700}},e?.nome),
-      React.createElement('div',{style:{fontSize:12,color:'#aaa',marginTop:3}},'Atual: '+e?.qtd+' '+e?.unidade+' · Mín: '+e?.minimo)
-    ),
+    React.createElement('div',{style:{background:'#f5f5f7',borderRadius:10,padding:'11px 13px',marginBottom:13}},React.createElement('div',{style:{fontWeight:700}},e?.nome),React.createElement('div',{style:{fontSize:12,color:'#999999',marginTop:3}},'Atual: '+e?.qtd+' '+e?.unidade+' · Mín: '+e?.minimo)),
     React.createElement(Sel,{label:'Tipo',v:tipo,set:setTipo,opts:[{v:'entrada',l:'Entrada (compra)'},{v:'saida',l:'Saída (uso/ajuste)'}]}),
     React.createElement(Inp,{label:'Quantidade',v:qtd,set:setQtd,type:'number',ph:'0'}),
     React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
@@ -600,16 +363,16 @@ function NovoEst({uid,reload,close}){
   );
 }
 
-// ── FINANCEIRO ──
+// ── FINANCEIRO (abas internas) ──
 function Financeiro({uid,db,reload,setM}){
   const[aba,setAba]=useState('visao');
-  const abas=[{id:'visao',l:'Visão Geral'},{id:'lancamentos',l:'Lançamentos'},{id:'receber',l:'A Receber'},{id:'pagar',l:'A Pagar'},{id:'movs',l:'Movimentações'},{id:'contas',l:'Contas'}];
-  return React.createElement(PW,{title:'Financeiro',sub:'Lançamentos, contas a receber/pagar, fluxo de caixa'},
-    React.createElement('div',{style:{display:'flex',gap:2,marginBottom:20,background:'#f4f6fa',borderRadius:11,padding:3,width:'fit-content'}},
-      abas.map(a=>React.createElement('button',{key:a.id,onClick:()=>setAba(a.id),style:{padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,background:aba===a.id?'#fff':'transparent',color:aba===a.id?'#2563eb':'#999',boxShadow:aba===a.id?'0 2px 8px rgba(0,0,0,0.06)':'none',transition:'all 0.15s'}},a.l))
+  const abas=[{id:'visao',l:'Visão Geral'},{id:'receber',l:'A Receber'},{id:'pagar',l:'A Pagar'},{id:'movs',l:'Movimentações'},{id:'contas',l:'Contas'}];
+
+  return React.createElement(PW,{title:'Financeiro',sub:'Contas a receber, pagar, movimentações e fluxo'},
+    React.createElement('div',{style:{display:'flex',gap:4,marginBottom:20,borderBottom:'1px solid #e8e8ec'}},
+      abas.map(a=>React.createElement('button',{key:a.id,onClick:()=>setAba(a.id),style:{padding:'9px 16px',borderRadius:'11px 11px 0 0',fontSize:13,fontWeight:600,background:aba===a.id?'#111':'transparent',color:aba===a.id?'#2563eb':'#555',border:aba===a.id?'1px solid #1e1e1e':'1px solid transparent',borderBottom:'none',marginBottom:aba===a.id?-1:0,transition:'all 0.12s'}},a.l))
     ),
-    aba==='visao'&&React.createElement(FinVisao,{db}),
-    aba==='lancamentos'&&React.createElement(FinLancamentos,{uid,db,reload,setM}),
+    aba==='visao'&&React.createElement(FinVisao,{uid,db,reload,setM}),
     aba==='receber'&&React.createElement(FinReceber,{uid,db,reload,setM}),
     aba==='pagar'&&React.createElement(FinPagar,{uid,db,reload,setM}),
     aba==='movs'&&React.createElement(FinMovs,{uid,db,reload,setM}),
@@ -618,290 +381,50 @@ function Financeiro({uid,db,reload,setM}){
 }
 
 function FinVisao({db}){
-  const{contas,lancamentos,movs}=db;
-  const saldo=(contas||[]).reduce((s,c)=>s+Number(c.saldo),0);
+  const{contas,receber,pagar,movs}=db;
+  const saldo=contas.reduce((s,c)=>s+Number(c.saldo),0);
   const mes=TODAY().slice(0,7);
-  const lancMes=(lancamentos||[]).filter(l=>l.data?.slice(0,7)===mes);
-  const recMes=lancMes.filter(l=>l.tipo==='receita').reduce((s,l)=>s+Number(l.valor),0);
-  const despMes=lancMes.filter(l=>l.tipo==='despesa').reduce((s,l)=>s+Number(l.valor),0);
-  const aPagar=(lancamentos||[]).filter(l=>l.tipo==='despesa'&&!l.pago).reduce((s,l)=>s+Number(l.valor),0);
-  const aReceber=db.receber?(db.receber).filter(r=>r.status==='Pendente').reduce((s,r)=>s+Number(r.valor_bruto),0):0;
-
+  const recMes=movs.filter(m=>m.tipo==='entrada'&&m.data_movimentacao?.slice(0,7)===mes).reduce((s,m)=>s+Number(m.valor),0);
+  const despMes=movs.filter(m=>m.tipo==='saida'&&m.data_movimentacao?.slice(0,7)===mes).reduce((s,m)=>s+Number(m.valor),0);
+  const aRec=receber.filter(r=>r.status==='Pendente').reduce((s,r)=>s+Number(r.valor_bruto),0);
+  const aPag=pagar.filter(p=>p.status==='Pendente').reduce((s,p)=>s+Number(p.valor),0);
   const chartRef=useRef(null);
   useEffect(()=>{
     if(!chartRef.current)return;let c=null;
-    try{
-      const meses=Array.from({length:6},(_,i)=>{const d=new Date();d.setMonth(d.getMonth()-5+i);return d.toISOString().slice(0,7);});
-      const recs=meses.map(m=>(lancamentos||[]).filter(l=>l.tipo==='receita'&&l.data?.slice(0,7)===m).reduce((s,l)=>s+Number(l.valor),0));
-      const desps=meses.map(m=>(lancamentos||[]).filter(l=>l.tipo==='despesa'&&l.data?.slice(0,7)===m).reduce((s,l)=>s+Number(l.valor),0));
-      c=new Chart(chartRef.current,{type:'bar',data:{labels:meses.map(m=>m.slice(5)),datasets:[{label:'Receitas',data:recs,backgroundColor:'rgba(37,99,235,0.7)',borderRadius:7},{label:'Despesas',data:desps,backgroundColor:'rgba(0,0,0,0.07)',borderRadius:7}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#aaa',font:{size:10,family:'Poppins'},boxWidth:7,padding:10}}},scales:{x:{grid:{display:false},ticks:{color:'#ccc',font:{size:10}}},y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{color:'#ccc',font:{size:10}}}}}});
-    }catch{}
+    try{c=new Chart(chartRef.current,{type:'bar',data:{labels:['Jan','Fev','Mar','Abr','Mai',mes.slice(5)],datasets:[{label:'Receitas',data:[12000,18000,15000,22000,19000,recMes||0],backgroundColor:'rgba(232,41,58,0.7)',borderRadius:7,borderSkipped:false},{label:'Despesas',data:[9000,14000,11000,16000,13000,despMes||0],backgroundColor:'rgba(255,255,255,0.07)',borderRadius:7,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#aaaaaa',font:{size:10,family:'Poppins'},boxWidth:7,padding:10}}},scales:{x:{grid:{display:false},ticks:{color:'#bbbbbb',font:{size:10}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#bbbbbb',font:{size:10}}}}}});}catch{}
     return()=>{try{c&&c.destroy()}catch{}};
-  },[lancamentos]);
-
+  },[recMes,despMes]);
   return React.createElement('div',null,
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:13,marginBottom:18}},
-      React.createElement(SC,{label:'Saldo Total',val:F(saldo),icon:'🏦'}),
-      React.createElement(SC,{label:'Receitas do Mês',val:F(recMes),color:'#15803d',icon:'📈'}),
-      React.createElement(SC,{label:'Despesas do Mês',val:F(despMes),color:'#dc2626',icon:'📉'}),
-      React.createElement(SC,{label:'Lucro do Mês',val:F(recMes-despMes),color:recMes-despMes>=0?'#15803d':'#dc2626',icon:'✨'}),
-      React.createElement(SC,{label:'A Receber',val:F(aReceber),color:'#b45309',sub:(db.receber||[]).filter(r=>r.status==='Pendente').length+' pendentes'}),
-      React.createElement(SC,{label:'A Pagar',val:F(aPagar),color:'#dc2626',sub:(lancamentos||[]).filter(l=>l.tipo==='despesa'&&!l.pago).length+' pendentes'})
+      React.createElement(SC,{label:'Saldo Total',val:F(saldo),color:'#111111'}),
+      React.createElement(SC,{label:'Receitas do Mês',val:F(recMes),color:'#16a34a'}),
+      React.createElement(SC,{label:'Despesas do Mês',val:F(despMes),color:'#dc2626'}),
+      React.createElement(SC,{label:'Lucro do Mês',val:F(recMes-despMes),color:recMes-despMes>=0?'#4ade80':'#f87171'}),
+      React.createElement(SC,{label:'A Receber',val:F(aRec),color:'#d97706',sub:receber.filter(r=>r.status==='Pendente').length+' pendentes'}),
+      React.createElement(SC,{label:'A Pagar',val:F(aPag),color:'#dc2626',sub:pagar.filter(p=>p.status==='Pendente').length+' pendentes'})
     ),
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1.5fr 1fr',gap:14}},
-      React.createElement('div',{style:C.card},React.createElement('div',{style:{fontWeight:700,marginBottom:12,color:'#0f172a',fontSize:14}},'Receitas × Despesas'),React.createElement('div',{style:{height:200}},React.createElement('canvas',{ref:chartRef}))),
+      React.createElement('div',{style:C.card},React.createElement('div',{style:{fontWeight:700,marginBottom:13}},'Receitas × Despesas'),React.createElement('div',{style:{height:200}},React.createElement('canvas',{ref:chartRef}))),
       React.createElement('div',{style:C.card},
-        React.createElement('div',{style:{fontWeight:700,marginBottom:12,color:'#0f172a',fontSize:14}},'Saldo por Conta'),
-        (contas||[]).length===0?React.createElement('div',{style:{color:'#ccc',textAlign:'center',padding:'20px 0',fontSize:13}},'Nenhuma conta'):
-        (contas||[]).map(c=>React.createElement('div',{key:c.id,style:{display:'flex',alignItems:'center',gap:9,marginBottom:10}},
+        React.createElement('div',{style:{fontWeight:700,marginBottom:13}},'Saldo por Conta'),
+        contas.length===0?React.createElement('div',{style:{color:'#bbbbbb',textAlign:'center',padding:'20px 0',fontSize:13}},'Nenhuma conta'):
+        contas.map(c=>React.createElement('div',{key:c.id,style:{display:'flex',alignItems:'center',gap:9,marginBottom:10}},
           React.createElement('div',{style:{width:9,height:9,borderRadius:'50%',background:c.cor||'#2563eb',flexShrink:0}}),
-          React.createElement('span',{style:{fontSize:13,flex:1,color:'#555'}},c.nome),
-          React.createElement('span',{style:{fontSize:13,fontWeight:700,color:'#111'}},F(c.saldo))
+          React.createElement('span',{style:{fontSize:13,flex:1,color:'#666666'}},c.nome),
+          React.createElement('span',{style:{fontSize:13,fontWeight:700}},F(c.saldo))
         ))
       )
     )
   );
 }
 
-// ── LANÇAMENTOS (receitas + despesas + parcelado + recorrente) ──
-function FinLancamentos({uid,db,reload,setM}){
-  const{lancamentos,contas}=db;
-  const[fil,setFil]=useState('todos');
-  const[mes,setMes]=useState(TODAY().slice(0,7));
-  const hoje=TODAY();
-
-  const list=useMemo(()=>{
-    let r=lancamentos||[];
-    r=r.filter(l=>l.data?.slice(0,7)===mes);
-    if(fil==='receitas')r=r.filter(l=>l.tipo==='receita');
-    else if(fil==='despesas')r=r.filter(l=>l.tipo==='despesa');
-    else if(fil==='pendentes')r=r.filter(l=>!l.pago);
-    else if(fil==='pagos')r=r.filter(l=>l.pago);
-    return r.sort((a,b)=>a.data>b.data?-1:1);
-  },[lancamentos,fil,mes]);
-
-  const recTotal=list.filter(l=>l.tipo==='receita').reduce((s,l)=>s+Number(l.valor),0);
-  const despTotal=list.filter(l=>l.tipo==='despesa').reduce((s,l)=>s+Number(l.valor),0);
-  const vencidos=(lancamentos||[]).filter(l=>!l.pago&&l.venc&&l.venc<hoje);
-
-  const novo=(tipo)=>setM({title:(tipo==='receita'?'+ Nova Receita':'+ Nova Despesa'),body:React.createElement(LancForm,{uid,tipo,db,reload,close:()=>setM(null)})});
-
-  const pagar_=l=>setM({title:'Confirmar Pagamento',body:
-    React.createElement('div',null,
-      React.createElement('div',{style:{background:'#f8f9fc',borderRadius:11,padding:'13px',marginBottom:14}},
-        React.createElement('div',{style:{fontWeight:700,marginBottom:4,color:'#0f172a'}},l.desc),
-        React.createElement('div',{style:{fontSize:21,fontWeight:800,color:l.tipo==='receita'?'#15803d':'#dc2626'}},F(l.valor)),
-        React.createElement('div',{style:{fontSize:12,color:'#aaa',marginTop:3}},(l.categoria||'—')+' · '+FD(l.venc))
-      ),
-      React.createElement(Sel,{label:'Conta',v:l.conta_id||contas[0]?.id||'',set:()=>{},opts:(contas||[]).map(c=>({v:c.id,l:c.nome+' — '+F(c.saldo)}))}),
-      React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',marginTop:8}},
-        React.createElement('button',{style:C.ghost,onClick:()=>setM(null)},'Cancelar'),
-        React.createElement('button',{style:C.bgrn,onClick:async()=>{
-          const contaId=l.conta_id||contas[0]?.id;
-          await sb.from('lancamentos').update({pago:true,data_pag:TODAY()}).eq('id',l.id);
-          // atualizar saldo
-          if(contaId){
-            const conta=(contas||[]).find(c=>c.id===contaId);
-            if(conta){
-              const novoSaldo=l.tipo==='receita'?Number(conta.saldo)+Number(l.valor):Number(conta.saldo)-Number(l.valor);
-              await sb.from('contas_bancarias').update({saldo:novoSaldo}).eq('id',contaId);
-            }
-          }
-          toast('Confirmado!',false,true);reload();setM(null);
-        }},'✓ Confirmar')
-      )
-    )
-  });
-
-  const excluir=async(l)=>{
-    if(!confirm('Excluir lançamento "'+l.desc+'"?'))return;
-    // Verificar se tem grupo
-    if(l.grupo_id){
-      const opcao=confirm('Este lançamento faz parte de um grupo.\nOK = excluir todos do grupo\nCancelar = excluir só este');
-      if(opcao){await sb.from('lancamentos').delete().eq('grupo_id',l.grupo_id).eq('user_id',uid);}
-      else{await sb.from('lancamentos').delete().eq('id',l.id);}
-    }else{
-      await sb.from('lancamentos').delete().eq('id',l.id);
-    }
-    toast('Excluído!',false,true);reload();
-  };
-
-  // Meses disponíveis
-  const mesesDisp=useMemo(()=>{
-    const s=new Set((lancamentos||[]).map(l=>l.data?.slice(0,7)).filter(Boolean));
-    const hoje=TODAY().slice(0,7);
-    s.add(hoje);
-    return [...s].sort().reverse().slice(0,12);
-  },[lancamentos]);
-
-  return React.createElement('div',null,
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:13,marginBottom:16}},
-      React.createElement(SC,{label:'Receitas',val:F(recTotal),color:'#15803d',icon:'📈'}),
-      React.createElement(SC,{label:'Despesas',val:F(despTotal),color:'#dc2626',icon:'📉'}),
-      React.createElement(SC,{label:'Resultado',val:F(recTotal-despTotal),color:recTotal-despTotal>=0?'#15803d':'#dc2626',icon:'✨'}),
-      React.createElement(SC,{label:'Vencidos',val:vencidos.length,color:vencidos.length>0?'#dc2626':'#15803d',sub:vencidos.length>0?'⚠ Atenção!':'OK',icon:'⚠'})
-    ),
-    // Ações + filtros
-    React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,flexWrap:'wrap',gap:8}},
-      React.createElement('div',{style:{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}},
-        React.createElement('select',{style:{...C.sel,marginBottom:0,width:'auto',padding:'6px 12px',fontSize:12},value:mes,onChange:e=>setMes(e.target.value)},
-          mesesDisp.map(m=>React.createElement('option',{key:m,value:m},new Date(m+'-01').toLocaleDateString('pt-BR',{month:'long',year:'numeric'})))
-        ),
-        [['todos','Todos'],['receitas','Receitas'],['despesas','Despesas'],['pendentes','Pendentes'],['pagos','Pagos']].map(([v,l])=>
-          React.createElement('button',{key:v,onClick:()=>setFil(v),style:{padding:'6px 13px',borderRadius:20,fontSize:12,fontWeight:600,background:fil===v?'#2563eb':'#f4f6fa',color:fil===v?'#fff':'#666'}},l)
-        )
-      ),
-      React.createElement('div',{style:{display:'flex',gap:7}},
-        React.createElement('button',{style:{...C.bsm,background:'linear-gradient(135deg,#15803d,#166534)'},onClick:()=>novo('receita')},'+ Receita'),
-        React.createElement('button',{style:C.bsm,onClick:()=>novo('despesa')},'+ Despesa')
-      )
-    ),
-    // Tabela
-    React.createElement('div',{style:{...C.card,padding:0}},
-      React.createElement(Tbl,{cols:['Data','Descrição','Categoria','Conta','Tipo','Parcela','Valor','Status',''],
-        rows:list.map(l=>{
-          const venc=!l.pago&&l.venc&&l.venc<hoje;
-          const contaNome=(contas||[]).find(c=>c.id===l.conta_id)?.nome||'—';
-          return React.createElement(TR,{key:l.id,cells:[
-            FD(l.data),
-            React.createElement('div',null,
-              React.createElement('div',{style:{fontWeight:600,fontSize:13}},l.desc),
-              l.obs&&React.createElement('div',{style:{fontSize:10,color:'#bbb',marginTop:1}},l.obs.slice(0,50))
-            ),
-            React.createElement(Badge,{t:l.categoria||'—',c:'gray'}),
-            React.createElement('span',{style:{fontSize:11,color:'#aaa'}},contaNome),
-            React.createElement(Badge,{t:l.tipo==='receita'?'Receita':'Despesa',c:l.tipo==='receita'?'green':'red'}),
-            l.parcela?React.createElement('span',{style:{fontSize:11,color:'#7c3aed',fontWeight:600,background:'rgba(124,58,237,0.07)',padding:'2px 7px',borderRadius:8}},l.recorrente?'🔄':'📦'+' '+l.parcela}):React.createElement('span',{style:{color:'#eee'}},'—'),
-            React.createElement('span',{style:{fontWeight:700,color:l.tipo==='receita'?'#15803d':'#dc2626'}},(l.tipo==='receita'?'+':'-')+F(l.valor)),
-            React.createElement(Badge,{t:venc?'Vencido':l.pago?'Pago':'Pendente',c:venc?'red':l.pago?'green':'amber'}),
-            React.createElement('div',{style:{display:'flex',gap:4}},
-              !l.pago&&React.createElement('button',{style:{...C.gsm,fontSize:11,background:'rgba(22,163,74,0.08)',color:'#15803d'},onClick:e=>{e.stopPropagation();pagar_(l);}},'✓'),
-              React.createElement('button',{style:{...C.gsm,fontSize:11,background:'rgba(220,38,38,0.07)',color:'#dc2626'},onClick:e=>{e.stopPropagation();excluir(l);}},'×')
-            ),
-          ]});
-        }),
-        empty:'Nenhum lançamento neste período'
-      })
-    )
-  );
-}
-
-// ── FORM LANÇAMENTO (com parcelado e recorrente) ──
-function LancForm({uid,tipo,db,reload,close,initial}){
-  const{contas}=db;
-  const[desc,setDesc]=useState(initial?.desc||'');
-  const[valor,setValor]=useState(initial?.valor||'');
-  const[cat,setCat]=useState(initial?.categoria||(tipo==='receita'?'Vendas':'Aluguel'));
-  const[contaId,setContaId]=useState(initial?.conta_id||contas?.[0]?.id||'');
-  const[data,setData]=useState(initial?.data||TODAY());
-  const[venc,setVenc]=useState(initial?.venc||TODAY());
-  const[pago,setPago]=useState(initial?.pago??false);
-  const[obs,setObs]=useState(initial?.obs||'');
-  const[tipoLanc,setTipoLanc]=useState('unico'); // unico|parcelado|recorrente
-  const[numParc,setNumParc]=useState(2);
-  const[freqParc,setFreqParc]=useState('mensal');
-  const[numRep,setNumRep]=useState(12);
-  const[freqRec,setFreqRec]=useState('mensal');
-  const[ld,setLd]=useState(false);
-
-  const CATS_REC=['Vendas','Serviços','Outros'];
-  const CATS_DESP=['Aluguel','Salários','Energia','Água','Internet','Marketing','Combustível','Contador','Manutenção','Fornecedores','Taxa Cartão','Outros'];
-  const cats=tipo==='receita'?CATS_REC:CATS_DESP;
-  const FREQS=[{v:'semanal',l:'Semanal'},{v:'quinzenal',l:'Quinzenal'},{v:'mensal',l:'Mensal'},{v:'bimestral',l:'Bimestral'},{v:'trimestral',l:'Trimestral'},{v:'semestral',l:'Semestral'},{v:'anual',l:'Anual'}];
-
-  const salvar=async()=>{
-    if(!desc||!valor){toast('Preencha descrição e valor',true);return;}
-    setLd(true);
-    const v=parseFloat(String(valor).replace(',','.'));
-    const base={user_id:uid,tipo,desc,valor:v,categoria:cat,conta_id:contaId||null,data,venc,pago,obs};
-
-    let rows=[];
-    if(tipoLanc==='parcelado'){
-      const grupoId=uid();
-      for(let i=0;i<numParc;i++){
-        const dt=advanceDate(venc,freqParc,i);
-        rows.push({...base,id:undefined,data:dt,venc:dt,data_pag:i===0&&pago?dt:'',pago:i===0?pago:false,grupo_id:grupoId,parcela:`${i+1}/${numParc}`,desc:`${desc} (${i+1}/${numParc})`});
-      }
-    }else if(tipoLanc==='recorrente'){
-      const grupoId=uid();
-      for(let i=0;i<numRep;i++){
-        const dt=advanceDate(venc,freqRec,i);
-        rows.push({...base,id:undefined,data:dt,venc:dt,data_pag:i===0&&pago?dt:'',pago:i===0?pago:false,grupo_id:grupoId,recorrente:freqRec,parcela:`${i+1}/${numRep}`});
-      }
-    }else{
-      rows=[{...base,data_pag:pago?TODAY():''}];
-    }
-
-    const{error}=await sb.from('lancamentos').insert(rows);
-    if(error){toast('Erro: '+error.message,true);setLd(false);return;}
-    // Atualizar saldo da conta se pago
-    if(pago&&contaId){
-      const conta=(contas||[]).find(c=>c.id===contaId);
-      if(conta){
-        const delta=tipo==='receita'?v:-v;
-        await sb.from('contas_bancarias').update({saldo:Number(conta.saldo)+delta}).eq('id',contaId);
-      }
-    }
-    toast((tipoLanc==='unico'?'Lançamento':tipoLanc==='parcelado'?numParc+' parcelas':numRep+' ocorrências')+' criado(s)!',false,true);
-    reload();close();setLd(false);
-  };
-
-  const isRec=tipo==='receita';
-  return React.createElement('div',null,
-    // Tipo de lançamento
-    React.createElement('div',{style:{display:'flex',gap:5,marginBottom:16}},
-      [['unico','Único'],['parcelado','Parcelado 📦'],['recorrente','Recorrente 🔄']].map(([v,l])=>
-        React.createElement('button',{key:v,onClick:()=>setTipoLanc(v),style:{flex:1,padding:'8px',borderRadius:9,fontSize:12,fontWeight:600,background:tipoLanc===v?(isRec?'#16a34a':'#2563eb'):'#f4f6fa',color:tipoLanc===v?'#fff':'#888'}},l)
-      )
-    ),
-    React.createElement(Inp,{label:'Descrição',v:desc,set:setDesc,ph:isRec?'Ex: Receita de vendas':'Ex: Aluguel escritório'}),
-    React.createElement(G2,null,
-      React.createElement(Inp,{label:'Valor (R$)',v:valor,set:setValor,type:'number',step:'0.01',ph:'0.00'}),
-      React.createElement(Sel,{label:'Categoria',v:cat,set:setCat,opts:cats})
-    ),
-    React.createElement(G2,null,
-      React.createElement(Sel,{label:'Conta',v:contaId,set:setContaId,opts:[{v:'',l:'— Sem conta —'},...(contas||[]).map(c=>({v:c.id,l:c.nome}))]}),
-      React.createElement(Inp,{label:tipoLanc==='unico'?'Data':'Data Inicial',v:venc,set:setVenc,type:'date'})
-    ),
-    // Parcelado
-    tipoLanc==='parcelado'&&React.createElement('div',{style:{background:'rgba(124,58,237,0.05)',borderRadius:11,padding:'12px',marginBottom:13}},
-      React.createElement('div',{style:{fontSize:11,color:'#7c3aed',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:10}},'📦 Configurar Parcelas'),
-      React.createElement(G2,null,
-        React.createElement(Inp,{label:'Nº de Parcelas',v:numParc,set:v=>setNumParc(Math.max(2,parseInt(v)||2)),type:'number',min:2,max:120}),
-        React.createElement(Sel,{label:'Frequência',v:freqParc,set:setFreqParc,opts:FREQS})
-      ),
-      React.createElement('div',{style:{fontSize:12,color:'#aaa'}},`${numParc} parcelas de ${F(parseFloat(valor||0))} = ${F(parseFloat(valor||0)*numParc)} total`)
-    ),
-    // Recorrente
-    tipoLanc==='recorrente'&&React.createElement('div',{style:{background:'rgba(37,99,235,0.05)',borderRadius:11,padding:'12px',marginBottom:13}},
-      React.createElement('div',{style:{fontSize:11,color:'#2563eb',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:10}},'🔄 Configurar Recorrência'),
-      React.createElement(G2,null,
-        React.createElement(Inp,{label:'Nº de Repetições',v:numRep,set:v=>setNumRep(Math.max(1,parseInt(v)||12)),type:'number',min:1,max:120}),
-        React.createElement(Sel,{label:'Frequência',v:freqRec,set:setFreqRec,opts:FREQS})
-      ),
-      React.createElement('div',{style:{fontSize:12,color:'#aaa'}},`${numRep} repetições ${FREQS.find(f=>f.v===freqRec)?.l||''} a partir de ${FD(venc)}`)
-    ),
-    React.createElement(Inp,{label:'Observação',v:obs,set:setObs,ph:'Opcional'}),
-    React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:14}},
-      React.createElement('input',{type:'checkbox',checked:pago,onChange:e=>setPago(e.target.checked),id:'chk-pago',style:{width:16,height:16,accentColor:'#2563eb'}}),
-      React.createElement('label',{htmlFor:'chk-pago',style:{fontSize:13,color:'#555',cursor:'pointer'}},isRec?'Já recebido':'Já pago')
-    ),
-    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
-      React.createElement('button',{style:C.ghost,onClick:close},'Cancelar'),
-      React.createElement('button',{style:isRec?C.bgrn:C.btn,onClick:salvar},ld?React.createElement(Spin):tipoLanc==='unico'?'Salvar':tipoLanc==='parcelado'?`Criar ${numParc} Parcelas`:`Criar ${numRep} Repetições`)
-    )
-  );
-}
-
-// ── A RECEBER ──
 function FinReceber({uid,db,reload,setM}){
   const{receber,contas}=db;
   const[fil,setFil]=useState('Todos');
   const hoje=TODAY();const mes=hoje.slice(0,7);
-  const list=(receber||[]).filter(r=>fil==='Pendentes'?r.status==='Pendente':fil==='Recebidos'?r.status==='Recebido':fil==='Hoje'?r.data_venda===hoje:fil==='Mês'?r.data_venda?.slice(0,7)===mes:true);
-  const totalPend=(receber||[]).filter(r=>r.status==='Pendente').reduce((s,r)=>s+Number(r.valor_bruto),0);
+  const list=fil==='Pendentes'?receber.filter(r=>r.status==='Pendente'):fil==='Recebidos'?receber.filter(r=>r.status==='Recebido'):fil==='Hoje'?receber.filter(r=>r.data_venda===hoje):fil==='Mês'?receber.filter(r=>r.data_venda?.slice(0,7)===mes):receber;
 
-  const receber_=r=>setM({title:'Confirmar Recebimento',body:React.createElement(ConfRecModal,{uid,r,contas:contas||[],reload,close:()=>setM(null)})});
+  const receber_=r=>setM({title:'Confirmar Recebimento',body:React.createElement(ConfRecModal,{uid,r,contas,reload,close:()=>setM(null)})});
   const simular=()=>{
     const fake={pedido_id:'#'+Math.floor(Math.random()*9000+1000),cliente:'Cliente Teste',valor_bruto:(Math.floor(Math.random()*20)+3)*10,forma_pagamento:['PIX','Cartão','Dinheiro'][Math.floor(Math.random()*3)]};
     setM({title:'📡 Simular API Cardápio Web',body:React.createElement(SimModal,{uid,fake,reload,close:()=>setM(null)})});
@@ -910,30 +433,30 @@ function FinReceber({uid,db,reload,setM}){
 
   return React.createElement('div',null,
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:13,marginBottom:16}},
-      React.createElement(SC,{label:'A Receber',val:F(totalPend),color:'#b45309',sub:(receber||[]).filter(r=>r.status==='Pendente').length+' pendentes'}),
-      React.createElement(SC,{label:'Recebido no Mês',val:F((receber||[]).filter(r=>r.status==='Recebido'&&r.data_recebimento?.slice(0,7)===mes).reduce((s,r)=>s+Number(r.valor_liquido||r.valor_bruto),0)),color:'#15803d'}),
-      React.createElement(SC,{label:'Total',val:(receber||[]).length})
+      React.createElement(SC,{label:'A Receber',val:F(receber.filter(r=>r.status==='Pendente').reduce((s,r)=>s+Number(r.valor_bruto),0)),color:'#d97706',sub:receber.filter(r=>r.status==='Pendente').length+' pendentes'}),
+      React.createElement(SC,{label:'Recebido no Mês',val:F(receber.filter(r=>r.status==='Recebido'&&r.data_recebimento?.slice(0,7)===mes).reduce((s,r)=>s+Number(r.valor_liquido||r.valor_bruto),0)),color:'#16a34a'}),
+      React.createElement(SC,{label:'Total',val:receber.length})
     ),
-    React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:14,flexWrap:'wrap',gap:8}},
+    React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,flexWrap:'wrap',gap:8}},
       React.createElement('div',{style:{display:'flex',gap:5,flexWrap:'wrap'}},
-        ['Todos','Pendentes','Recebidos','Hoje','Mês'].map(f=>React.createElement('button',{key:f,onClick:()=>setFil(f),style:{padding:'6px 13px',borderRadius:20,fontSize:12,fontWeight:600,background:fil===f?'#2563eb':'#f4f6fa',color:fil===f?'#fff':'#666'}},f))
+        ['Todos','Pendentes','Recebidos','Hoje','Mês'].map(f=>React.createElement('button',{key:f,onClick:()=>setFil(f),style:{padding:'6px 13px',borderRadius:20,fontSize:12,fontWeight:600,background:fil===f?'#2563eb':'#181818',color:fil===f?'#fff':'#555',border:fil===f?'1px solid #2563eb':'1px solid #252525'}},f))
       ),
       React.createElement('div',{style:{display:'flex',gap:7}},
         React.createElement('button',{style:C.ghost,onClick:simular},'📡 Simular API'),
         React.createElement('button',{style:C.btn,onClick:manual},'+ Manual')
       )
     ),
-    React.createElement('div',{style:{...C.card,padding:0}},
+    React.createElement('div',{style:C.card},
       React.createElement(Tbl,{cols:['Pedido','Cliente','Valor Bruto','Pagamento','Origem','Data','Previsão','Status',''],
         rows:list.map(r=>React.createElement(TR,{key:r.id,cells:[
           React.createElement('span',{style:{fontWeight:700,color:'#2563eb',fontSize:12}},r.pedido_id||'—'),
           React.createElement('span',{style:{fontWeight:600}},r.cliente),
           React.createElement('span',{style:{fontWeight:700}},F(r.valor_bruto)),
           r.forma_pagamento,
-          React.createElement('span',{style:{fontSize:11,color:'#aaa'}},r.origem||'Manual'),
+          React.createElement('span',{style:{fontSize:11,color:'#999999'}},r.origem||'Manual'),
           FD(r.data_venda),FD(r.data_prevista),
           React.createElement(Badge,{t:r.status}),
-          r.status==='Pendente'?React.createElement('button',{style:{...C.bsm,fontSize:11},onClick:e=>{e.stopPropagation();receber_(r);}},F(r.valor_bruto).replace('R$ ',''),' ↓'):React.createElement('span',{style:{fontSize:11,color:'#15803d'}},'✓')
+          r.status==='Pendente'?React.createElement('button',{style:C.bsm,onClick:e=>{e.stopPropagation();receber_(r);}},F(r.valor_bruto).replace('R$ ',''),' Receber'):React.createElement('span',{style:{fontSize:11,color:'#16a34a'}},'✓')
         ]}))
       })
     )
@@ -941,7 +464,6 @@ function FinReceber({uid,db,reload,setM}){
 }
 
 function ConfRecModal({uid,r,contas,reload,close}){
-  const TAXA={PIX:0,Dinheiro:0,'Cartão':3.5,'Cartão Crédito':3.5,'Cartão Débito':1.5,Transferência:0};
   const[contaId,setContaId]=useState(contas[0]?.id||'');
   const[taxa,setTaxa]=useState(TAXA[r.forma_pagamento]||0);
   const[dt,setDt]=useState(TODAY());const[obs,setObs]=useState('');const[ld,setLd]=useState(false);
@@ -949,19 +471,19 @@ function ConfRecModal({uid,r,contas,reload,close}){
   const taxaVal=parseFloat(((bruto*taxa)/100).toFixed(2));
   const liq=parseFloat((bruto-taxaVal).toFixed(2));
   return React.createElement('div',null,
-    React.createElement('div',{style:{background:'#f8f9fc',borderRadius:11,padding:'13px',marginBottom:14}},
+    React.createElement('div',{style:{background:'#f5f5f7',borderRadius:11,padding:'13px',marginBottom:14}},
       React.createElement(G2,null,
-        [['Pedido',r.pedido_id||'—'],['Cliente',r.cliente],['Pagamento',r.forma_pagamento],['Data',FD(r.data_venda)]].map(([l,v])=>React.createElement('div',{key:l},React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:600,letterSpacing:'1px',textTransform:'uppercase',marginBottom:3}},l),React.createElement('div',{style:{fontSize:13,fontWeight:600}},v)))
+        [['Pedido',r.pedido_id||'—'],['Cliente',r.cliente],['Pagamento',r.forma_pagamento],['Data',FD(r.data_venda)]].map(([l,v])=>React.createElement('div',{key:l},React.createElement('div',{style:{fontSize:10,color:'#aaaaaa',fontWeight:600,letterSpacing:'1px',textTransform:'uppercase',marginBottom:3}},l),React.createElement('div',{style:{fontSize:13,fontWeight:600}},v)))
       )
     ),
     React.createElement(Sel,{label:'Conta Destino',v:contaId,set:setContaId,opts:contas.map(c=>({v:c.id,l:c.nome+' — '+F(c.saldo)}))}),
     React.createElement(G2,null,
       React.createElement('div',null,React.createElement(Lbl,{c:'Valor Bruto'}),React.createElement('div',{style:{...C.inp,fontWeight:800,fontSize:14,display:'flex',alignItems:'center'}},F(bruto))),
-      React.createElement(Inp,{label:'Taxa (%)',v:taxa,set:v=>setTaxa(parseFloat(v)||0),type:'number',step:'0.01'})
+      React.createElement(Inp,{label:'Taxa (%)',v:taxa,set:v=>setTaxa(parseFloat(v)||0),type:'number'})
     ),
-    React.createElement('div',{style:{background:'rgba(37,99,235,0.05)',borderRadius:11,padding:'13px',marginBottom:13}},
-      [['Valor Bruto',F(bruto),'#111'],['Valor Taxa (-)',F(taxaVal),'#dc2626'],['Valor Líquido',F(liq),'#15803d']].map(([l,v,c])=>
-        React.createElement('div',{key:l,style:{display:'flex',justifyContent:'space-between',marginBottom:6}},React.createElement('span',{style:{fontSize:12,color:'#aaa'}},l),React.createElement('span',{style:{fontSize:13,fontWeight:700,color:c}},v))
+    React.createElement('div',{style:{background:'rgba(37,99,235,0.05)',border:'1px solid rgba(37,99,235,0.12)',borderRadius:11,padding:'13px',marginBottom:13}},
+      [['Valor Bruto',F(bruto),'#f0f0f0'],['Valor Taxa','-'+F(taxaVal),'#f87171'],['Valor Líquido',F(liq),'#4ade80']].map(([l,v,c])=>
+        React.createElement('div',{key:l,style:{display:'flex',justifyContent:'space-between',marginBottom:6}},React.createElement('span',{style:{fontSize:12,color:'#777777'}},l),React.createElement('span',{style:{fontSize:13,fontWeight:700,color:c}},v))
       )
     ),
     React.createElement(G2,null,
@@ -974,7 +496,7 @@ function ConfRecModal({uid,r,contas,reload,close}){
         if(!contaId){toast('Selecione uma conta',true);return;}
         setLd(true);
         await sb.from('contas_receber').update({status:'Recebido',data_recebimento:dt,conta_destino_id:contaId,valor_taxa:taxaVal,valor_liquido:liq,taxa_pct:taxa,observacao:obs}).eq('id',r.id);
-        await sb.from('movimentacoes').insert({user_id:uid,conta_id:contaId,tipo:'entrada',categoria:'Venda',descricao:'Receb. '+(r.pedido_id||r.cliente),valor:liq,data_movimentacao:dt});
+        await sb.from('movimentacoes').insert({user_id:uid,conta_id:contaId,tipo:'entrada',categoria:'Venda',descricao:'Receb. '+(r.pedido_id||r.cliente),valor:liq,origem:'Pedido '+(r.pedido_id||''),data_movimentacao:dt});
         const conta=contas.find(c=>c.id===contaId);
         if(conta)await sb.from('contas_bancarias').update({saldo:Number(conta.saldo)+liq}).eq('id',contaId);
         if(taxaVal>0)await sb.from('movimentacoes').insert({user_id:uid,conta_id:contaId,tipo:'saida',categoria:'Taxa Cartão',descricao:'Taxa '+(r.pedido_id||r.cliente),valor:taxaVal,data_movimentacao:dt});
@@ -987,15 +509,15 @@ function ConfRecModal({uid,r,contas,reload,close}){
 function SimModal({uid,fake,reload,close}){
   const[cli,setCli]=useState(fake.cliente);const[pid,setPid]=useState(fake.pedido_id);const[val,setVal]=useState(fake.valor_bruto);const[pag,setPag]=useState(fake.forma_pagamento);const[ld,setLd]=useState(false);
   return React.createElement('div',null,
-    React.createElement('div',{style:{background:'rgba(37,99,235,0.06)',borderRadius:9,padding:'9px 13px',marginBottom:13,fontSize:12,color:'#2563eb'}},'📡 Simulando API Cardápio Web — em produção acontece via webhook.'),
+    React.createElement('div',{style:{background:'rgba(59,130,246,0.08)',border:'1px solid rgba(59,130,246,0.2)',borderRadius:9,padding:'9px 13px',marginBottom:13,fontSize:12,color:'#2563eb'}},'📡 Simulando API — em produção acontece via webhook automaticamente.'),
     React.createElement(G2,null,React.createElement(Inp,{label:'Nº Pedido',v:pid,set:setPid}),React.createElement(Inp,{label:'Cliente',v:cli,set:setCli})),
     React.createElement(G2,null,React.createElement(Inp,{label:'Valor (R$)',v:val,set:setVal,type:'number'}),React.createElement(Sel,{label:'Pagamento',v:pag,set:setPag,opts:['PIX','Cartão','Dinheiro','Transferência']})),
     React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
       React.createElement('button',{style:C.ghost,onClick:close},'Cancelar'),
       React.createElement('button',{style:C.btn,onClick:async()=>{
         setLd(true);
-        const DIAS={PIX:0,Dinheiro:0,Cartão:1,Transferência:1};
-        const prev=new Date(TODAY()+'T12:00:00');prev.setDate(prev.getDate()+(DIAS[pag]||0));
+        const dias={PIX:0,Dinheiro:0,Cartão:1,Transferência:1};
+        const prev=new Date(TODAY()+'T00:00:00');prev.setDate(prev.getDate()+(dias[pag]||0));
         await sb.from('contas_receber').insert({user_id:uid,pedido_id:pid,cliente:cli,valor_bruto:parseFloat(val)||0,forma_pagamento:pag,status:'Pendente',data_venda:TODAY(),data_prevista:prev.toISOString().split('T')[0],origem:'Cardápio Web'});
         toast('Pedido importado!',false,true);reload();close();setLd(false);
       }},ld?React.createElement(Spin):'Importar')
@@ -1013,8 +535,8 @@ function RecForm({uid,reload,close}){
       React.createElement('button',{style:C.btn,onClick:async()=>{
         if(!cli||!val){toast('Preencha os campos',true);return;}
         setLd(true);
-        const DIAS={PIX:0,Dinheiro:0,Cartão:1,Transferência:1};
-        const prev=new Date(TODAY()+'T12:00:00');prev.setDate(prev.getDate()+(DIAS[pag]||0));
+        const dias={PIX:0,Dinheiro:0,Cartão:1,Transferência:1};
+        const prev=new Date(TODAY()+'T00:00:00');prev.setDate(prev.getDate()+(dias[pag]||0));
         await sb.from('contas_receber').insert({user_id:uid,pedido_id:pid,cliente:cli,valor_bruto:parseFloat(val)||0,forma_pagamento:pag,status:'Pendente',data_venda:TODAY(),data_prevista:prev.toISOString().split('T')[0],origem:'Manual'});
         toast('Criado!',false,true);reload();close();setLd(false);
       }},ld?React.createElement(Spin):'Criar')
@@ -1022,103 +544,110 @@ function RecForm({uid,reload,close}){
   );
 }
 
-// ── A PAGAR ──
 function FinPagar({uid,db,reload,setM}){
-  const{lancamentos,contas}=db;
-  const hoje=TODAY();const mes=hoje.slice(0,7);
-  const pagar=(lancamentos||[]).filter(l=>l.tipo==='despesa');
+  const{pagar,contas}=db;const hoje=TODAY();const mes=hoje.slice(0,7);
   const[fil,setFil]=useState('Todos');
-  const list=fil==='Pendentes'?pagar.filter(p=>!p.pago):fil==='Vencidos'?pagar.filter(p=>!p.pago&&p.venc<hoje):fil==='Pagos'?pagar.filter(p=>p.pago):fil==='Mês'?pagar.filter(p=>p.venc?.slice(0,7)===mes):pagar;
-  const venc=pagar.filter(p=>!p.pago&&p.venc&&p.venc<hoje);
-  const totalPend=pagar.filter(p=>!p.pago).reduce((s,p)=>s+Number(p.valor),0);
+  const list=fil==='Pendentes'?pagar.filter(p=>p.status==='Pendente'):fil==='Vencidos'?pagar.filter(p=>p.status==='Pendente'&&p.vencimento<hoje):fil==='Pagos'?pagar.filter(p=>p.status==='Pago'):fil==='Mês'?pagar.filter(p=>p.vencimento?.slice(0,7)===mes):pagar;
+  const venc=pagar.filter(p=>p.status==='Pendente'&&p.vencimento<hoje);
 
   const pagar_=p=>setM({title:'Confirmar Pagamento',body:
     React.createElement('div',null,
-      React.createElement('div',{style:{background:'#f8f9fc',borderRadius:10,padding:'13px',marginBottom:13}},
-        React.createElement('div',{style:{fontWeight:700,marginBottom:4}},p.desc),
-        React.createElement('div',{style:{fontSize:21,fontWeight:800,color:'#dc2626'}},F(p.valor)),
-        React.createElement('div',{style:{fontSize:12,color:'#aaa',marginTop:3}},(p.categoria||'—')+' · Venc: '+FD(p.venc))
-      ),
-      React.createElement(Sel,{label:'Pagar com',v:(contas||[])[0]?.id||'',set:()=>{},opts:(contas||[]).map(c=>({v:c.id,l:c.nome+' — '+F(c.saldo)}))}),
+      React.createElement('div',{style:{background:'#f5f5f7',borderRadius:10,padding:'13px',marginBottom:13}},React.createElement('div',{style:{fontWeight:700,marginBottom:4}},p.descricao),React.createElement('div',{style:{fontSize:21,fontWeight:800,color:'#dc2626'}},F(p.valor)),React.createElement('div',{style:{fontSize:12,color:'#999999',marginTop:3}},p.categoria+' · Venc: '+FD(p.vencimento))),
+      React.createElement(Sel,{label:'Pagar com',v:contas[0]?.id||'',set:()=>{},opts:contas.map(c=>({v:c.id,l:c.nome+' — '+F(c.saldo)}))}),
       React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',marginTop:4}},
         React.createElement('button',{style:C.ghost,onClick:()=>setM(null)},'Cancelar'),
         React.createElement('button',{style:C.bgrn,onClick:async()=>{
-          const contaId=(contas||[])[0]?.id;
-          await sb.from('lancamentos').update({pago:true,data_pag:TODAY()}).eq('id',p.id);
-          if(contaId){
-            const conta=(contas||[]).find(c=>c.id===contaId);
-            if(conta)await sb.from('contas_bancarias').update({saldo:Number(conta.saldo)-Number(p.valor)}).eq('id',contaId);
-          }
+          const contaId=contas[0]?.id;
+          await sb.from('contas_pagar').update({status:'Pago',data_pagamento:TODAY(),conta_pagamento_id:contaId}).eq('id',p.id);
+          await sb.from('movimentacoes').insert({user_id:uid,conta_id:contaId,tipo:'saida',categoria:p.categoria,descricao:p.descricao,valor:Number(p.valor),data_movimentacao:TODAY()});
+          const conta=contas.find(c=>c.id===contaId);
+          if(conta)await sb.from('contas_bancarias').update({saldo:Number(conta.saldo)-Number(p.valor)}).eq('id',contaId);
           toast('Pago!',false,true);reload();setM(null);
         }},'Confirmar Pagamento')
       )
     )
   });
 
-  const novo=()=>setM({title:'+ Nova Despesa',body:React.createElement(LancForm,{uid,tipo:'despesa',db,reload,close:()=>setM(null)})});
+  const novo=()=>setM({title:'Nova Conta a Pagar',body:React.createElement(PagForm,{uid,reload,close:()=>setM(null)})});
 
   return React.createElement('div',null,
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:13,marginBottom:16}},
-      React.createElement(SC,{label:'A Pagar',val:F(totalPend),color:'#dc2626',sub:pagar.filter(p=>!p.pago).length+' pendentes'}),
-      React.createElement(SC,{label:'Vencidos',val:venc.length,color:venc.length>0?'#dc2626':'#15803d'}),
-      React.createElement(SC,{label:'Pago no Mês',val:F(pagar.filter(p=>p.pago&&p.data_pag?.slice(0,7)===mes).reduce((s,p)=>s+Number(p.valor),0)),color:'#aaa'})
+      React.createElement(SC,{label:'A Pagar',val:F(pagar.filter(p=>p.status==='Pendente').reduce((s,p)=>s+Number(p.valor),0)),color:'#dc2626',sub:pagar.filter(p=>p.status==='Pendente').length+' pendentes'}),
+      React.createElement(SC,{label:'Vencidos',val:venc.length,color:venc.length>0?'#f87171':'#4ade80'}),
+      React.createElement(SC,{label:'Pago no Mês',val:F(pagar.filter(p=>p.status==='Pago'&&p.data_pagamento?.slice(0,7)===mes).reduce((s,p)=>s+Number(p.valor),0)),color:'#777777'})
     ),
-    React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:14,flexWrap:'wrap',gap:8}},
+    React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,flexWrap:'wrap',gap:8}},
       React.createElement('div',{style:{display:'flex',gap:5,flexWrap:'wrap'}},
-        ['Todos','Pendentes','Vencidos','Pagos','Mês'].map(f=>React.createElement('button',{key:f,onClick:()=>setFil(f),style:{padding:'6px 13px',borderRadius:20,fontSize:12,fontWeight:600,background:fil===f?'#2563eb':'#f4f6fa',color:fil===f?'#fff':'#666'}},(f==='Vencidos'&&venc.length>0?'⚠ ':'')+f+(f==='Vencidos'&&venc.length>0?' ('+venc.length+')':'')))
+        ['Todos','Pendentes','Vencidos','Pagos','Mês'].map(f=>React.createElement('button',{key:f,onClick:()=>setFil(f),style:{padding:'6px 13px',borderRadius:20,fontSize:12,fontWeight:600,background:fil===f?'#2563eb':'#181818',color:fil===f?'#fff':'#555',border:fil===f?'1px solid #2563eb':'1px solid #252525'}},(f==='Vencidos'&&venc.length>0?'⚠ ':'')+f+(f==='Vencidos'&&venc.length>0?' ('+venc.length+')':'')))
       ),
-      React.createElement('button',{style:C.btn,onClick:novo},'+ Nova Despesa')
+      React.createElement('button',{style:C.btn,onClick:novo},'+ Nova Conta')
     ),
-    React.createElement('div',{style:{...C.card,padding:0}},
-      React.createElement(Tbl,{cols:['Categoria','Descrição','Valor','Vencimento','Parcela','Status',''],
-        rows:list.sort((a,b)=>a.venc>b.venc?1:-1).map(p=>{
-          const v=!p.pago&&p.venc&&p.venc<hoje;
-          return React.createElement(TR,{key:p.id,cells:[
-            React.createElement(Badge,{t:p.categoria||'—',c:'gray'}),
-            React.createElement('span',{style:{fontWeight:600}},p.desc),
-            React.createElement('span',{style:{fontWeight:700,color:'#dc2626'}},F(p.valor)),
-            React.createElement('span',{style:{color:v?'#dc2626':'#555'}},FD(p.venc)+(v?' ⚠':'')),
-            p.parcela?React.createElement('span',{style:{fontSize:11,color:'#7c3aed',background:'rgba(124,58,237,0.07)',padding:'2px 7px',borderRadius:8}},p.recorrente?'🔄 ':''+(p.parcela||'')):React.createElement('span',{style:{color:'#eee'}},'—'),
-            React.createElement(Badge,{t:v?'Vencido':p.pago?'Pago':'Pendente',c:v?'red':p.pago?'green':'amber'}),
-            !p.pago?React.createElement('button',{style:{...C.bsm,background:'linear-gradient(135deg,#15803d,#166534)',fontSize:11},onClick:e=>{e.stopPropagation();pagar_(p);}},'Pagar'):React.createElement('span',{style:{fontSize:11,color:'#15803d'}},'✓ '+FD(p.data_pag))
-          ]});
-        })
+    React.createElement('div',{style:C.card},
+      React.createElement(Tbl,{cols:['Categoria','Descrição','Valor','Vencimento','Status',''],
+        rows:list.map(p=>{const v=p.status==='Pendente'&&p.vencimento<hoje;return React.createElement(TR,{key:p.id,cells:[
+          React.createElement(Badge,{t:p.categoria,c:'gray'}),
+          React.createElement('span',{style:{fontWeight:600}},p.descricao),
+          React.createElement('span',{style:{fontWeight:700}},F(p.valor)),
+          React.createElement('span',{style:{color:v?'#f87171':'#ccc'}},FD(p.vencimento)+(v?' ⚠':'')),
+          React.createElement(Badge,{t:v?'Vencido':p.status,c:v?'red':p.status==='Pago'?'green':'amber'}),
+          p.status==='Pendente'?React.createElement('button',{style:{...C.bsm,background:v?'#1d4ed8':'linear-gradient(135deg,#16a34a,#15803d)',boxShadow:'none',fontSize:11},onClick:e=>{e.stopPropagation();pagar_(p);}},'Pagar'):React.createElement('span',{style:{fontSize:11,color:'#16a34a'}},'✓ '+FD(p.data_pagamento))
+        ]});})
       })
     )
   );
 }
 
-// ── MOVIMENTAÇÕES ──
+function PagForm({uid,reload,close}){
+  const[cat,setCat]=useState(CATS[0]);const[desc,setDesc]=useState('');const[val,setVal]=useState('');const[venc,setVenc]=useState('');const[ld,setLd]=useState(false);
+  return React.createElement('div',null,
+    React.createElement(G2,null,
+      React.createElement(Sel,{label:'Categoria',v:cat,set:setCat,opts:CATS}),
+      React.createElement(Inp,{label:'Valor (R$)',v:val,set:setVal,type:'number',ph:'0.00'})
+    ),
+    React.createElement(Inp,{label:'Descrição',v:desc,set:setDesc,ph:'Ex: Aluguel Junho/2026'}),
+    React.createElement(Inp,{label:'Vencimento',v:venc,set:setVenc,type:'date'}),
+    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
+      React.createElement('button',{style:C.ghost,onClick:close},'Cancelar'),
+      React.createElement('button',{style:C.btn,onClick:async()=>{
+        if(!desc||!val||!venc){toast('Preencha todos os campos',true);return;}
+        setLd(true);
+        await sb.from('contas_pagar').insert({user_id:uid,categoria:cat,descricao:desc,valor:parseFloat(val),vencimento:venc,status:'Pendente'});
+        toast('Criado!',false,true);reload();close();setLd(false);
+      }},ld?React.createElement(Spin):'Criar')
+    )
+  );
+}
+
 function FinMovs({uid,db,reload,setM}){
   const{movs,contas}=db;
   const[tipo,setTipo]=useState('Todos');
-  const list=tipo==='Todos'?movs||[]:tipo==='Entradas'?(movs||[]).filter(m=>m.tipo==='entrada'):(movs||[]).filter(m=>m.tipo==='saida');
-  const ent=(movs||[]).filter(m=>m.tipo==='entrada').reduce((s,m)=>s+Number(m.valor),0);
-  const sai=(movs||[]).filter(m=>m.tipo==='saida').reduce((s,m)=>s+Number(m.valor),0);
+  const list=tipo==='Todos'?movs:movs.filter(m=>m.tipo===(tipo==='Entradas'?'entrada':'saida'));
+  const ent=movs.filter(m=>m.tipo==='entrada').reduce((s,m)=>s+Number(m.valor),0);
+  const sai=movs.filter(m=>m.tipo==='saida').reduce((s,m)=>s+Number(m.valor),0);
 
   const novo=()=>setM({title:'Nova Movimentação',body:React.createElement(MovForm,{uid,db,reload,close:()=>setM(null)})});
 
   return React.createElement('div',null,
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:13,marginBottom:16}},
-      React.createElement(SC,{label:'Entradas',val:F(ent),color:'#15803d'}),
+      React.createElement(SC,{label:'Entradas',val:F(ent),color:'#16a34a'}),
       React.createElement(SC,{label:'Saídas',val:F(sai),color:'#dc2626'}),
-      React.createElement(SC,{label:'Resultado',val:F(ent-sai),color:ent-sai>=0?'#15803d':'#dc2626'})
+      React.createElement(SC,{label:'Resultado',val:F(ent-sai),color:ent-sai>=0?'#4ade80':'#f87171'})
     ),
-    React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:14}},
+    React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}},
       React.createElement('div',{style:{display:'flex',gap:5}},
-        ['Todos','Entradas','Saídas'].map(t=>React.createElement('button',{key:t,onClick:()=>setTipo(t),style:{padding:'6px 13px',borderRadius:20,fontSize:12,fontWeight:600,background:tipo===t?'#2563eb':'#f4f6fa',color:tipo===t?'#fff':'#666'}},t))
+        ['Todos','Entradas','Saídas'].map(t=>React.createElement('button',{key:t,onClick:()=>setTipo(t),style:{padding:'6px 13px',borderRadius:20,fontSize:12,fontWeight:600,background:tipo===t?'#2563eb':'#181818',color:tipo===t?'#fff':'#555',border:tipo===t?'1px solid #2563eb':'1px solid #252525'}},t))
       ),
       React.createElement('button',{style:C.btn,onClick:novo},'+ Nova Mov.')
     ),
-    React.createElement('div',{style:{...C.card,padding:0}},
+    React.createElement('div',{style:C.card},
       React.createElement(Tbl,{cols:['Data','Conta','Categoria','Descrição','Tipo','Valor'],
         rows:list.map(m=>React.createElement(TR,{key:m.id,cells:[
           FD(m.data_movimentacao),
-          React.createElement('span',{style:{fontSize:12,color:'#aaa'}},(contas||[]).find(c=>c.id===m.conta_id)?.nome||'—'),
+          React.createElement('span',{style:{fontSize:12,color:'#999999'}},contas.find(c=>c.id===m.conta_id)?.nome||'—'),
           React.createElement(Badge,{t:m.categoria,c:'gray'}),
           React.createElement('span',{style:{fontWeight:600,fontSize:12}},m.descricao),
           React.createElement(Badge,{t:m.tipo==='entrada'?'Entrada':'Saída',c:m.tipo==='entrada'?'green':'red'}),
-          React.createElement('span',{style:{fontWeight:700,color:m.tipo==='entrada'?'#15803d':'#dc2626'}},(m.tipo==='entrada'?'+':'-')+F(m.valor))
+          React.createElement('span',{style:{fontWeight:700,color:m.tipo==='entrada'?'#4ade80':'#f87171'}},(m.tipo==='entrada'?'+':'-')+F(m.valor))
         ]}))
       })
     )
@@ -1127,15 +656,15 @@ function FinMovs({uid,db,reload,setM}){
 
 function MovForm({uid,db,reload,close}){
   const{contas}=db;
-  const[tipo,setTipo]=useState('entrada');const[contaId,setContaId]=useState((contas||[])[0]?.id||'');
+  const[tipo,setTipo]=useState('entrada');const[contaId,setContaId]=useState(contas[0]?.id||'');
   const[cat,setCat]=useState('Venda');const[desc,setDesc]=useState('');const[val,setVal]=useState('');const[dt,setDt]=useState(TODAY());const[ld,setLd]=useState(false);
-  const catsPor={entrada:['Venda','Serviços','Outros'],saida:['Aluguel','Salários','Energia','Água','Internet','Marketing','Combustível','Contador','Manutenção','Fornecedores','Taxa Cartão','Outros']};
+  const catsPor={entrada:['Venda','Outros'],saida:CATS};
   return React.createElement('div',null,
     React.createElement('div',{style:{display:'flex',gap:5,marginBottom:13}},
-      ['entrada','saida'].map(t=>React.createElement('button',{key:t,onClick:()=>{setTipo(t);setCat(catsPor[t][0]);},style:{flex:1,padding:'8px',borderRadius:10,fontSize:12,fontWeight:600,background:tipo===t?'#2563eb':'#f4f6fa',color:tipo===t?'#fff':'#888'}},{entrada:'Entrada',saida:'Saída'}[t]))
+      ['entrada','saida'].map(t=>React.createElement('button',{key:t,onClick:()=>{setTipo(t);setCat(catsPor[t][0]);},style:{flex:1,padding:'8px',borderRadius:10,fontSize:12,fontWeight:600,background:tipo===t?'#2563eb':'#181818',color:tipo===t?'#fff':'#555',border:tipo===t?'1px solid #2563eb':'1px solid #252525'}},{entrada:'Entrada',saida:'Saída'}[t]))
     ),
     React.createElement(G2,null,
-      React.createElement(Sel,{label:'Conta',v:contaId,set:setContaId,opts:(contas||[]).map(c=>({v:c.id,l:c.nome}))}),
+      React.createElement(Sel,{label:'Conta',v:contaId,set:setContaId,opts:contas.map(c=>({v:c.id,l:c.nome}))}),
       React.createElement(Sel,{label:'Categoria',v:cat,set:setCat,opts:catsPor[tipo]})
     ),
     React.createElement(G2,null,
@@ -1147,9 +676,10 @@ function MovForm({uid,db,reload,close}){
       React.createElement('button',{style:C.ghost,onClick:close},'Cancelar'),
       React.createElement('button',{style:C.btn,onClick:async()=>{
         if(!val||!desc){toast('Preencha os campos',true);return;}
-        setLd(true);const v=parseFloat(val);
+        setLd(true);
+        const v=parseFloat(val);
         await sb.from('movimentacoes').insert({user_id:uid,conta_id:contaId,tipo,categoria:cat,descricao:desc,valor:v,data_movimentacao:dt,origem:'Manual'});
-        const conta=(contas||[]).find(c=>c.id===contaId);
+        const conta=contas.find(c=>c.id===contaId);
         if(conta)await sb.from('contas_bancarias').update({saldo:tipo==='entrada'?Number(conta.saldo)+v:Number(conta.saldo)-v}).eq('id',contaId);
         toast('Registrado!',false,true);reload();close();setLd(false);
       }},ld?React.createElement(Spin):'Salvar')
@@ -1157,24 +687,23 @@ function MovForm({uid,db,reload,close}){
   );
 }
 
-// ── CONTAS BANCÁRIAS ──
 function FinContas({uid,db,reload,setM}){
   const{contas}=db;
-  const total=(contas||[]).reduce((s,c)=>s+Number(c.saldo),0);
+  const total=contas.reduce((s,c)=>s+Number(c.saldo),0);
   const novo=()=>setM({title:'Nova Conta',body:React.createElement(ContaForm,{uid,reload,close:()=>setM(null)})});
   return React.createElement('div',null,
-    React.createElement('div',{style:{...C.card,marginBottom:16,background:'linear-gradient(135deg,rgba(37,99,235,0.05),rgba(37,99,235,0.02))'}},
+    React.createElement('div',{style:{...C.card,marginBottom:16,background:'rgba(37,99,235,0.05)',border:'1px solid rgba(37,99,235,0.15)'}},
       React.createElement('div',{style:{fontSize:10,color:'#2563eb',fontWeight:600,letterSpacing:'1.5px',textTransform:'uppercase',marginBottom:5}},'Saldo Total'),
-      React.createElement('div',{style:{fontSize:28,fontWeight:800,color:'#0f172a',letterSpacing:'-1px'}},F(total))
+      React.createElement('div',{style:{fontSize:28,fontWeight:800,color:'#111111',letterSpacing:'-1px'}},F(total))
     ),
     React.createElement('div',{style:{display:'flex',justifyContent:'flex-end',marginBottom:14}},React.createElement('button',{style:C.btn,onClick:novo},'+ Nova Conta')),
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(230px,1fr))',gap:13}},
-      (contas||[]).map(c=>React.createElement('div',{key:c.id,style:{...C.card,borderLeft:`4px solid ${c.cor||'#2563eb'}`}},
+      contas.map(c=>React.createElement('div',{key:c.id,style:{...C.card,borderTop:`3px solid ${c.cor||'#2563eb'}`}},
         React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:10}},
-          React.createElement('div',null,React.createElement('div',{style:{fontWeight:700,fontSize:14,color:'#0f172a'}},c.nome),React.createElement('div',{style:{fontSize:11,color:'#bbb',marginTop:2}},c.tipo+(c.banco?' · '+c.banco:''))),
+          React.createElement('div',null,React.createElement('div',{style:{fontWeight:700,fontSize:14}},c.nome),React.createElement('div',{style:{fontSize:11,color:'#aaaaaa',marginTop:2}},c.tipo+(c.banco?' · '+c.banco:''))),
           React.createElement('div',{style:{width:9,height:9,borderRadius:'50%',background:c.cor||'#2563eb',marginTop:4}})
         ),
-        React.createElement('div',{style:{fontSize:21,fontWeight:800,color:'#0f172a',letterSpacing:'-0.5px'}},F(c.saldo))
+        React.createElement('div',{style:{fontSize:21,fontWeight:800,color:'#111111',letterSpacing:'-0.5px'}},F(c.saldo))
       ))
     )
   );
@@ -1190,9 +719,9 @@ function ContaForm({uid,reload,close}){
     ),
     React.createElement(G2,null,
       React.createElement(Inp,{label:'Saldo Inicial (R$)',v:saldo,set:setSaldo,type:'number',ph:'0.00'}),
-      React.createElement('div',null,React.createElement(Lbl,{c:'Cor'}),React.createElement('div',{style:{display:'flex',gap:7,flexWrap:'wrap',marginBottom:13}},['#2563eb','#16a34a','#dc2626','#d97706','#7c3aed','#0891b2','#ea580c'].map(c=>React.createElement('div',{key:c,onClick:()=>setCor(c),style:{width:22,height:22,borderRadius:'50%',background:c,cursor:'pointer',border:cor===c?'3px solid #0f172a':'3px solid transparent',transition:'border 0.12s'}}))))
+      React.createElement('div',null,React.createElement(Lbl,{c:'Cor'}),React.createElement('div',{style:{display:'flex',gap:7,flexWrap:'wrap'}},['#2563eb','#22c55e','#3b82f6','#f59e0b','#8b5cf6','#06b6d4'].map(c=>React.createElement('div',{key:c,onClick:()=>setCor(c),style:{width:22,height:22,borderRadius:'50%',background:c,cursor:'pointer',border:cor===c?'3px solid #fff':'3px solid transparent',transition:'border 0.12s'}}))))
     ),
-    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
+    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',marginTop:4}},
       React.createElement('button',{style:C.ghost,onClick:close},'Cancelar'),
       React.createElement('button',{style:C.btn,onClick:async()=>{
         if(!nome){toast('Informe o nome',true);return;}
@@ -1207,8 +736,7 @@ function ContaForm({uid,reload,close}){
 // ── APP ──
 function App(){
   const[user,setUser]=useState(null);const[page,setPage]=useState('pedidos');
-  const[db,setDb]=useState({pedidos_cw:[],estoque:[],contas:[],receber:[],lancamentos:[],movs:[],formas_pagamento:[]});
-  const[cfg,setCfg]=useState({cw_token:'',uid:null});
+  const[db,setDb]=useState({pedidos:[],estoque:[],contas:[],receber:[],pagar:[],movs:[]});
   const[modal,setModal]=useState(null);const[col,setCol]=useState(false);const[loading,setLoading]=useState(false);
 
   useEffect(()=>{
@@ -1218,57 +746,41 @@ function App(){
   },[]);
 
   const reload=useCallback(async()=>{
-    if(!user)return;setLoading(true);
+    if(!user)return;
+    setLoading(true);
     const uid=user.id;
-    const[ped,est,con,rec,lanc,mov,fps,cfgr]=await Promise.all([
-      sb.from('pedidos_cw').select('*').eq('user_id',uid).order('data_pedido',{ascending:false}).limit(500),
+    const[ped,est,con,rec,pag,mov]=await Promise.all([
+      sb.from('pedidos').select('*').eq('user_id',uid).order('criado_em',{ascending:false}),
       sb.from('estoque').select('*').eq('user_id',uid).order('nome'),
       sb.from('contas_bancarias').select('*').eq('user_id',uid).eq('ativo',true).order('criado_em'),
       sb.from('contas_receber').select('*').eq('user_id',uid).order('criado_em',{ascending:false}),
-      sb.from('lancamentos').select('*').eq('user_id',uid).order('data',{ascending:false}).limit(1000),
-      sb.from('movimentacoes').select('*').eq('user_id',uid).order('data_movimentacao',{ascending:false}).limit(500),
-      sb.from('formas_pagamento').select('*').eq('user_id',uid),
-      sb.from('config_usuario').select('*').eq('user_id',uid),
+      sb.from('contas_pagar').select('*').eq('user_id',uid).order('vencimento'),
+      sb.from('movimentacoes').select('*').eq('user_id',uid).order('data_movimentacao',{ascending:false}),
     ]);
-    // seed contas
-    let contas=con.data||[];
+    const contas=con.data||[];
     if(contas.length===0){
       await sb.from('contas_bancarias').insert([
-        {user_id:uid,nome:'Nubank PJ',tipo:'Digital',banco:'Nubank',saldo:0,cor:'#7c3aed',ativo:true},
-        {user_id:uid,nome:'Stone',tipo:'Maquininha',banco:'Stone',saldo:0,cor:'#16a34a',ativo:true},
-        {user_id:uid,nome:'Caixa',tipo:'Caixa',banco:'',saldo:0,cor:'#d97706',ativo:true},
+        {user_id:uid,nome:'Nubank PJ',tipo:'Digital',banco:'Nubank',saldo:0,cor:'#8b5cf6',ativo:true},
+        {user_id:uid,nome:'Caixa',tipo:'Caixa',banco:'',saldo:0,cor:'#f59e0b',ativo:true},
       ]);
       const{data:nc}=await sb.from('contas_bancarias').select('*').eq('user_id',uid);
-      contas=nc||[];
+      setDb({pedidos:ped.data||[],estoque:est.data||[],contas:nc||[],receber:rec.data||[],pagar:pag.data||[],movs:mov.data||[]});
+    }else{
+      setDb({pedidos:ped.data||[],estoque:est.data||[],contas,receber:rec.data||[],pagar:pag.data||[],movs:mov.data||[]});
     }
-    // seed formas_pagamento
-    let fps2=fps.data||[];
-    if(fps2.length===0){
-      const fSeed=[
-        {user_id:uid,nome:'PIX',taxa_pct:0,dias:0,status:'ativa'},
-        {user_id:uid,nome:'Cartão Crédito',taxa_pct:3.26,dias:1,status:'ativa'},
-        {user_id:uid,nome:'Cartão Débito',taxa_pct:1.39,dias:1,status:'ativa'},
-        {user_id:uid,nome:'Dinheiro',taxa_pct:0,dias:0,status:'ativa'},
-      ];
-      const{data:nf}=await sb.from('formas_pagamento').insert(fSeed).select();
-      fps2=nf||[];
-    }
-    setDb({pedidos_cw:ped.data||[],estoque:est.data||[],contas,receber:rec.data||[],lancamentos:lanc.data||[],movs:mov.data||[],formas_pagamento:fps2});
-    // cfg
-    const cfgMap={};(cfgr.data||[]).forEach(r=>{cfgMap[r.chave]=r.valor;});
-    setCfg({...cfgMap,cw_token:cfgMap.cw_token||'',uid});
     setLoading(false);
   },[user]);
 
   useEffect(()=>{if(user)reload();},[user]);
+
   const logout=async()=>{await sb.auth.signOut();setUser(null);};
 
   if(!user)return React.createElement(React.Fragment,null,React.createElement(Auth,{onLogin:setUser}),React.createElement(Toasts));
-  if(loading)return React.createElement('div',{style:{height:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#f5f5f7',flexDirection:'column',gap:10}},React.createElement(Spin),React.createElement('div',{style:{color:'#bbb',fontSize:13,marginTop:6}},'Carregando Moneyy...'));
+  if(loading)return React.createElement('div',{style:{height:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#f5f5f7',flexDirection:'column',gap:10}},React.createElement(Spin),React.createElement('div',{style:{color:'#aaaaaa',fontSize:13,marginTop:6}},'Carregando...'));
 
   const uid=user.id;
   const PAGES={
-    pedidos:()=>React.createElement(Pedidos,{uid,db,reload,setM:setModal,cfg,setCfg}),
+    pedidos:()=>React.createElement(Pedidos,{uid,db,reload,setM:setModal}),
     estoque:()=>React.createElement(Estoque,{uid,db,reload,setM:setModal}),
     financeiro:()=>React.createElement(Financeiro,{uid,db,reload,setM:setModal}),
   };
@@ -1277,7 +789,7 @@ function App(){
   return React.createElement(React.Fragment,null,
     React.createElement('div',{style:{display:'flex',height:'100vh',background:'#f5f5f7',overflow:'hidden'}},
       React.createElement(Sidebar,{page,setPage,user,logout,col,setCol}),
-      React.createElement('main',{style:{flex:1,overflow:'auto',background:'#f5f5f7'}},React.createElement(PC))
+      React.createElement('main',{style:{flex:1,overflow:'auto',background:'#f0f0f2'}},React.createElement(PC))
     ),
     React.createElement(Modal,{m:modal,close:()=>setModal(null)}),
     React.createElement(Toasts)
