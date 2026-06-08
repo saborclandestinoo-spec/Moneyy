@@ -48,8 +48,8 @@ const C={
   inp:{width:'100%',background:'#f5f5f7',border:'1px solid #252525',borderRadius:11,padding:'10px 13px',fontSize:13,marginBottom:13,color:'#111111'},
   sel:{width:'100%',background:'#f5f5f7',border:'1px solid #252525',borderRadius:11,padding:'10px 13px',fontSize:13,marginBottom:13,color:'#111111'},
   lbl:{fontSize:10,color:'#999999',fontWeight:600,letterSpacing:'1.5px',textTransform:'uppercase',display:'block',marginBottom:6},
-  btn:{background:'linear-gradient(135deg,#e8293a,#c41f2e)',color:'#fff',padding:'10px 18px',borderRadius:11,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',boxShadow:'0 4px 14px rgba(232,41,58,0.25)'},
-  bsm:{background:'linear-gradient(135deg,#e8293a,#c41f2e)',color:'#fff',padding:'6px 13px',borderRadius:9,fontSize:12,fontWeight:600,border:'none',cursor:'pointer'},
+  btn:{background:'linear-gradient(135deg,#2563eb,#1d4ed8)',color:'#fff',padding:'10px 18px',borderRadius:11,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',boxShadow:'0 4px 14px rgba(37,99,235,0.22)'},
+  bsm:{background:'linear-gradient(135deg,#2563eb,#1d4ed8)',color:'#fff',padding:'6px 13px',borderRadius:9,fontSize:12,fontWeight:600,border:'none',cursor:'pointer'},
   bgrn:{background:'linear-gradient(135deg,#16a34a,#15803d)',color:'#fff',padding:'10px 18px',borderRadius:11,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},
   ghost:{background:'#f5f5f7',color:'#777777',padding:'9px 16px',borderRadius:11,fontSize:13,fontWeight:500,border:'1px solid #252525',cursor:'pointer'},
   gsm:{background:'#f5f5f7',color:'#777777',padding:'5px 11px',borderRadius:8,fontSize:12,border:'1px solid #1e1e1e',cursor:'pointer'},
@@ -57,14 +57,14 @@ const C={
   td:{padding:'11px 14px',fontSize:13,color:'#333333',borderBottom:'1px solid #f0f0f4',verticalAlign:'middle'},
 };
 
-const BM={red:{bg:'rgba(220,38,38,0.08)',c:'#dc2626',b:'rgba(220,38,38,0.2)'},green:{bg:'rgba(22,163,74,0.08)',c:'#16a34a',b:'rgba(22,163,74,0.2)'},amber:{bg:'rgba(217,119,6,0.08)',c:'#d97706',b:'rgba(217,119,6,0.2)'},blue:{bg:'rgba(37,99,235,0.08)',c:'#2563eb',b:'rgba(37,99,235,0.2)'},gray:{bg:'rgba(0,0,0,0.05)',c:'#666666',b:'rgba(0,0,0,0.08)'}};
+const BM={red:{bg:'rgba(220,38,38,0.08)',c:'#dc2626',b:'rgba(220,38,38,0.2)'},green:{bg:'rgba(22,163,74,0.08)',c:'#16a34a',b:'rgba(22,163,74,0.2)'},amber:{bg:'rgba(217,119,6,0.08)',c:'#d97706',b:'rgba(217,119,6,0.2)'},blue:{bg:'rgba(37,99,235,0.08)',c:'#1d4ed8',b:'rgba(37,99,235,0.18)'},gray:{bg:'rgba(0,0,0,0.05)',c:'#666666',b:'rgba(0,0,0,0.08)'}};
 const SM={Entregue:'green',Pago:'green',Recebido:'green',OK:'green','Em preparo':'blue','Em andamento':'blue',Aguardando:'amber',Pendente:'amber',Cancelado:'red',Crítico:'red',Vencido:'red'};
 function Badge({t,c}){const b=BM[c||SM[t]||'gray'];return React.createElement('span',{style:{display:'inline-flex',padding:'3px 9px',borderRadius:20,fontSize:11,fontWeight:700,background:b.bg,color:b.c,border:`1px solid ${b.b}`,whiteSpace:'nowrap'}},t);}
 
-function Tbl({cols,rows}){return React.createElement('div',{style:{borderRadius:14,border:'1px solid #e8e8ec',overflow:'hidden',boxShadow:'0 1px 6px rgba(0,0,0,0.05)',overflow:'hidden'}},React.createElement('table',{style:{width:'100%',borderCollapse:'collapse'}},React.createElement('thead',null,React.createElement('tr',null,cols.map(c=>React.createElement('th',{key:c,style:C.th},c)))),React.createElement('tbody',null,rows.length===0?React.createElement('tr',null,React.createElement('td',{colSpan:cols.length,style:{...C.td,textAlign:'center',color:'#bbbbbb',padding:'36px'}},'Nenhum registro')):rows)));}
+function Tbl({cols,rows}){return React.createElement('div',{style:{borderRadius:14,border:'1px solid #e8e8ec',overflow:'hidden',boxShadow:'0 2px 8px rgba(0,0,0,0.05)',overflow:'hidden'}},React.createElement('table',{style:{width:'100%',borderCollapse:'collapse'}},React.createElement('thead',null,React.createElement('tr',null,cols.map(c=>React.createElement('th',{key:c,style:C.th},c)))),React.createElement('tbody',null,rows.length===0?React.createElement('tr',null,React.createElement('td',{colSpan:cols.length,style:{...C.td,textAlign:'center',color:'#bbbbbb',padding:'36px'}},'Nenhum registro')):rows)));}
 function TR({cells,onClick}){const[h,sh]=useState(false);return React.createElement('tr',{onClick,onMouseEnter:()=>sh(true),onMouseLeave:()=>sh(false),style:{background:h?'#fafafa':'#ffffff',transition:'background 0.1s',cursor:onClick?'pointer':'default'}},cells.map((c,i)=>React.createElement('td',{key:i,style:C.td},c)));}
-function SC({label,val,color,sub}){return React.createElement('div',{style:C.card},React.createElement('div',{style:{fontSize:10,color:'#999999',fontWeight:600,letterSpacing:'1.5px',textTransform:'uppercase',marginBottom:10}},label),React.createElement('div',{style:{fontSize:21,fontWeight:800,color:color||'#111111',letterSpacing:'-0.5px',lineHeight:1}},val),sub&&React.createElement('div',{style:{fontSize:12,color:'#aaaaaa',marginTop:6}},sub));}
-function PW({title,sub,actions,children}){return React.createElement('div',{style:{padding:'24px',animation:'fadeUp 0.2s ease'}},React.createElement('div',{style:{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:22,flexWrap:'wrap',gap:12}},React.createElement('div',null,React.createElement('h1',{style:{fontSize:22,fontWeight:800,color:'#111111',letterSpacing:'-0.5px'}},title),sub&&React.createElement('p',{style:{fontSize:12,color:'#999999',marginTop:4}},sub)),actions&&React.createElement('div',{style:{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}},actions)),children);}
+function SC({label,val,color,sub}){return React.createElement('div',{style:C.card},React.createElement('div',{style:{fontSize:10,color:'#999999',fontWeight:600,letterSpacing:'1.5px',textTransform:'uppercase',marginBottom:10}},label),React.createElement('div',{style:{fontSize:21,fontWeight:800,color:color||'#0f172a',letterSpacing:'-0.5px',lineHeight:1}},val),sub&&React.createElement('div',{style:{fontSize:12,color:'#aaaaaa',marginTop:6}},sub));}
+function PW({title,sub,actions,children}){return React.createElement('div',{style:{padding:'24px',animation:'fadeUp 0.2s ease'}},React.createElement('div',{style:{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:22,flexWrap:'wrap',gap:12}},React.createElement('div',null,React.createElement('h1',{style:{fontSize:22,fontWeight:800,color:'#0f172a',letterSpacing:'-0.5px'}},title),sub&&React.createElement('p',{style:{fontSize:12,color:'#999999',marginTop:4}},sub)),actions&&React.createElement('div',{style:{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}},actions)),children);}
 function Lbl({c}){return React.createElement('label',{style:C.lbl},c);}
 function Inp({label,v,set,type,ph,ro}){return React.createElement('div',null,label&&React.createElement(Lbl,{c:label}),React.createElement('input',{style:C.inp,type:type||'text',value:v||'',onChange:e=>set&&set(e.target.value),placeholder:ph,readOnly:ro}));}
 function Sel({label,v,set,opts}){return React.createElement('div',null,label&&React.createElement(Lbl,{c:label}),React.createElement('select',{style:C.sel,value:v||'',onChange:e=>set(e.target.value)},opts.map(o=>React.createElement('option',{key:o.v||o,value:o.v||o},o.l||o))));}
@@ -104,17 +104,17 @@ function Auth({onLogin}){
     setLd(false);
   };
   return React.createElement('div',{style:{minHeight:'100vh',background:'#f5f5f7',display:'flex',alignItems:'center',justifyContent:'center',padding:16}},
-    React.createElement('div',{style:{position:'absolute',width:500,height:500,borderRadius:'50%',background:'radial-gradient(circle,rgba(232,41,58,0.07) 0%,transparent 70%)',top:'50%',left:'50%',transform:'translate(-50%,-50%)',pointerEvents:'none'}}),
+    React.createElement('div',{style:{position:'absolute',width:500,height:500,borderRadius:'50%',background:'radial-gradient(circle,rgba(37,99,235,0.07) 0%,transparent 70%)',top:'50%',left:'50%',transform:'translate(-50%,-50%)',pointerEvents:'none'}}),
     React.createElement('div',{style:{position:'relative',zIndex:2,background:'#ffffff',border:'1px solid #252525',borderRadius:24,padding:'40px 36px',width:'100%',maxWidth:390,boxShadow:'0 40px 100px rgba(0,0,0,0.8)',animation:'fadeUp 0.4s ease'}},
       React.createElement('div',{style:{textAlign:'center',marginBottom:32}},
-        React.createElement('div',{style:{width:52,height:52,background:'linear-gradient(135deg,#e8293a,#c41f2e)',borderRadius:16,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 14px',fontSize:22,boxShadow:'0 8px 28px rgba(232,41,58,0.4)'}},'💰'),
+        React.createElement('div',{style:{width:52,height:52,background:'linear-gradient(135deg,#2563eb,#1d4ed8)',borderRadius:16,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 14px',fontSize:22,boxShadow:'0 6px 20px rgba(37,99,235,0.30)'}},'💰'),
         React.createElement('div',{style:{fontSize:24,fontWeight:800,color:'#111111',letterSpacing:'-0.5px'}},'Moneyy'),
         React.createElement('div',{style:{fontSize:11,color:'#aaaaaa',marginTop:3,letterSpacing:'1.5px',textTransform:'uppercase'}},'ERP para Confeitarias')
       ),
       React.createElement('div',{style:{display:'flex',background:'#f0f0f4',borderRadius:11,padding:3,marginBottom:22}},
-        ['login','register'].map(m=>React.createElement('button',{key:m,onClick:()=>{setMode(m);setErr('');},style:{flex:1,padding:'8px',borderRadius:9,fontSize:13,fontWeight:600,background:mode===m?'#e8293a':'transparent',color:mode===m?'#fff':'#555',transition:'all 0.2s'}},m==='login'?'Entrar':'Criar conta'))
+        ['login','register'].map(m=>React.createElement('button',{key:m,onClick:()=>{setMode(m);setErr('');},style:{flex:1,padding:'8px',borderRadius:9,fontSize:13,fontWeight:600,background:mode===m?'#2563eb':'transparent',color:mode===m?'#fff':'#555',transition:'all 0.2s'}},m==='login'?'Entrar':'Criar conta'))
       ),
-      err&&React.createElement('div',{style:{background:'rgba(232,41,58,0.1)',border:'1px solid rgba(232,41,58,0.3)',borderRadius:9,padding:'9px 13px',fontSize:13,color:'#e8293a',marginBottom:13}},err),
+      err&&React.createElement('div',{style:{background:'rgba(232,41,58,0.1)',border:'1px solid rgba(37,99,235,0.22)',borderRadius:9,padding:'9px 13px',fontSize:13,color:'#2563eb',marginBottom:13}},err),
       mode==='register'&&React.createElement('div',null,React.createElement(Lbl,{c:'Nome'}),React.createElement('input',{style:C.inp,type:'text',placeholder:'Seu nome',value:name,onChange:e=>setName(e.target.value)})),
       React.createElement(Lbl,{c:'E-mail'}),
       React.createElement('input',{style:C.inp,type:'email',placeholder:'seu@email.com',value:email,onChange:e=>setEmail(e.target.value)}),
@@ -137,18 +137,18 @@ function Sidebar({page,setPage,user,logout,col,setCol}){
   const nm=user?.user_metadata?.name||user?.email?.split('@')[0]||'Usuário';
   return React.createElement('aside',{style:{width:W,minWidth:W,background:'#f0f0f2',borderRight:'1px solid #1a1a1a',display:'flex',flexDirection:'column',height:'100vh',transition:'width 0.25s cubic-bezier(0.4,0,0.2,1)',overflow:'hidden',flexShrink:0,borderRadius:'0 16px 16px 0'}},
     React.createElement('div',{style:{padding:'16px 12px',borderBottom:'1px solid #ebebef',background:'#ffffff',display:'flex',alignItems:'center',gap:9,justifyContent:col?'center':'flex-start'}},
-      React.createElement('div',{style:{width:32,height:32,background:'linear-gradient(135deg,#e8293a,#c41f2e)',borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,flexShrink:0,boxShadow:'0 4px 12px rgba(232,41,58,0.35)'}},'💰'),
+      React.createElement('div',{style:{width:32,height:32,background:'linear-gradient(135deg,#2563eb,#1d4ed8)',borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,flexShrink:0,boxShadow:'0 4px 12px rgba(37,99,235,0.30)'}},'💰'),
       !col&&React.createElement('span',{style:{fontSize:15,fontWeight:800,color:'#111111',letterSpacing:'-0.3px',whiteSpace:'nowrap'}},'Moneyy')
     ),
     React.createElement('nav',{style:{flex:1,padding:'10px 7px',display:'flex',flexDirection:'column',gap:3}},
-      MODS.map(m=>React.createElement('button',{key:m.id,onClick:()=>setPage(m.id),title:col?m.l:'',style:{display:'flex',alignItems:'center',gap:col?0:9,padding:col?'11px':'9px 11px',borderRadius:12,justifyContent:col?'center':'flex-start',color:page===m.id?'#fff':'#444',background:page===m.id?'linear-gradient(135deg,rgba(232,41,58,0.85),rgba(196,31,46,0.85))':'transparent',border:page===m.id?'1px solid rgba(232,41,58,0.4)':'1px solid transparent',transition:'all 0.12s',width:'100%',boxShadow:page===m.id?'0 4px 14px rgba(232,41,58,0.2)':'none'}},
+      MODS.map(m=>React.createElement('button',{key:m.id,onClick:()=>setPage(m.id),title:col?m.l:'',style:{display:'flex',alignItems:'center',gap:col?0:9,padding:col?'11px':'9px 11px',borderRadius:12,justifyContent:col?'center':'flex-start',color:page===m.id?'#fff':'#444',background:page===m.id?'#2563eb':'transparent',border:page===m.id?'1px solid rgba(37,99,235,0.30)':'1px solid transparent',transition:'all 0.12s',width:'100%',boxShadow:page===m.id?'0 4px 14px rgba(37,99,235,0.15)':'none'}},
         React.createElement('span',{style:{fontSize:col?17:14,lineHeight:1,flexShrink:0}},m.i),
         !col&&React.createElement('span',{style:{fontSize:13,fontWeight:600,whiteSpace:'nowrap'}},m.l)
       ))
     ),
     React.createElement('div',{style:{padding:'10px 7px',borderTop:'1px solid #1a1a1a'}},
       !col&&React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderRadius:10,background:'#f5f5f7',marginBottom:7}},
-        React.createElement('div',{style:{width:26,height:26,borderRadius:8,background:'rgba(232,41,58,0.15)',border:'1px solid rgba(232,41,58,0.25)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:800,color:'#e8293a',flexShrink:0}},nm.slice(0,2).toUpperCase()),
+        React.createElement('div',{style:{width:26,height:26,borderRadius:8,background:'rgba(37,99,235,0.12)',border:'1px solid rgba(37,99,235,0.20)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:800,color:'#2563eb',flexShrink:0}},nm.slice(0,2).toUpperCase()),
         React.createElement('div',{style:{minWidth:0,flex:1}},
           React.createElement('div',{style:{fontSize:11,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},nm),
           React.createElement('button',{onClick:logout,style:{fontSize:10,color:'#aaaaaa',padding:0}},'Sair')
@@ -179,14 +179,14 @@ function Pedidos({uid,db,reload,setM}){
         )
       ),
       React.createElement('div',{style:{background:'#f5f5f7',borderRadius:12,padding:'13px',marginBottom:12}},
-        React.createElement('div',{style:{fontSize:11,color:'#e8293a',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:9}},'Itens'),
+        React.createElement('div',{style:{fontSize:11,color:'#2563eb',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:9}},'Itens'),
         (p.itens||[]).map((it,i)=>React.createElement('div',{key:i,style:{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:i<p.itens.length-1?'1px solid #222':'none'}},
           React.createElement('span',{style:{fontSize:13,color:'#666666'}},it.produto+' × '+it.qty),
           React.createElement('span',{style:{fontWeight:700}},F(Number(it.preco)*Number(it.qty)))
         )),
         React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginTop:10,paddingTop:10,borderTop:'1px solid #ebebef'}},
           React.createElement('span',{style:{fontWeight:700}},'Total'),
-          React.createElement('span',{style:{fontWeight:800,fontSize:16,color:'#e8293a'}},F(tot(p)))
+          React.createElement('span',{style:{fontWeight:800,fontSize:16,color:'#2563eb'}},F(tot(p)))
         )
       ),
       p.obs&&React.createElement('div',{style:{background:'#f5f5f7',borderRadius:10,padding:'9px 13px',marginBottom:12,fontSize:13,color:'#777777'}},'📝 '+p.obs),
@@ -206,7 +206,7 @@ function Pedidos({uid,db,reload,setM}){
           }
           toast('Entregue! Conta a receber criada.',false,true);reload();setM(null);
         }},'✓ Entregar'),
-        p.status!=='Cancelado'&&p.status!=='Entregue'&&React.createElement('button',{style:{...C.gsm,color:'#e8293a'},onClick:async()=>{await sb.from('pedidos').update({status:'Cancelado'}).eq('id',p.id);toast('Cancelado',true);reload();setM(null);}},' Cancelar'),
+        p.status!=='Cancelado'&&p.status!=='Entregue'&&React.createElement('button',{style:{...C.gsm,color:'#2563eb'},onClick:async()=>{await sb.from('pedidos').update({status:'Cancelado'}).eq('id',p.id);toast('Cancelado',true);reload();setM(null);}},' Cancelar'),
         React.createElement('button',{style:C.ghost,onClick:()=>setM(null)},'Fechar')
       )
     )
@@ -217,15 +217,15 @@ function Pedidos({uid,db,reload,setM}){
       React.createElement(SC,{label:'Total',val:pedidos.length}),
       React.createElement(SC,{label:'Entregues',val:pedidos.filter(p=>p.status==='Entregue').length,color:'#16a34a'}),
       React.createElement(SC,{label:'Em aberto',val:pedidos.filter(p=>p.status==='Aguardando'||p.status==='Em preparo').length,color:'#d97706'}),
-      React.createElement(SC,{label:'Faturamento',val:F(pedidos.filter(p=>p.status==='Entregue').reduce((s,p)=>s+Number(p.total),0)),color:'#e8293a'})
+      React.createElement(SC,{label:'Faturamento',val:F(pedidos.filter(p=>p.status==='Entregue').reduce((s,p)=>s+Number(p.total),0)),color:'#2563eb'})
     ),
     React.createElement('div',{style:{display:'flex',gap:5,marginBottom:14,flexWrap:'wrap'}},
-      ['Todos','Aguardando','Em preparo','Entregue','Cancelado'].map(f=>React.createElement('button',{key:f,onClick:()=>setFil(f),style:{padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,background:fil===f?'#e8293a':'#181818',color:fil===f?'#fff':'#555',border:fil===f?'1px solid #e8293a':'1px solid #252525'}},f))
+      ['Todos','Aguardando','Em preparo','Entregue','Cancelado'].map(f=>React.createElement('button',{key:f,onClick:()=>setFil(f),style:{padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,background:fil===f?'#2563eb':'#181818',color:fil===f?'#fff':'#555',border:fil===f?'1px solid #2563eb':'1px solid #252525'}},f))
     ),
     React.createElement('div',{style:C.card},
       React.createElement(Tbl,{cols:['Nº','Cliente','Pagamento','Total','Data','Status',''],
         rows:list.map(p=>React.createElement(TR,{key:p.id,onClick:()=>ver(p),cells:[
-          React.createElement('span',{style:{fontWeight:700,color:'#e8293a',fontSize:12}},p.numero),
+          React.createElement('span',{style:{fontWeight:700,color:'#2563eb',fontSize:12}},p.numero),
           React.createElement('span',{style:{fontWeight:600}},p.cliente),
           p.pagamento,
           React.createElement('span',{style:{fontWeight:700}},F(p.total)),
@@ -250,12 +250,12 @@ function PedForm({uid,db,reload,close}){
       React.createElement('input',{style:{...C.inp,marginBottom:0},placeholder:'Produto',value:it.produto,onChange:e=>upd(i,'produto',e.target.value)}),
       React.createElement('input',{style:{...C.inp,marginBottom:0,textAlign:'center'},type:'number',min:1,value:it.qty,onChange:e=>upd(i,'qty',e.target.value)}),
       React.createElement('input',{style:{...C.inp,marginBottom:0},type:'number',step:'0.01',placeholder:'R$',value:it.preco,onChange:e=>upd(i,'preco',e.target.value)}),
-      itens.length>1&&React.createElement('button',{style:{color:'#e8293a',fontSize:16},onClick:()=>setItens(p=>p.filter((_,idx)=>idx!==i))},'×')
+      itens.length>1&&React.createElement('button',{style:{color:'#2563eb',fontSize:16},onClick:()=>setItens(p=>p.filter((_,idx)=>idx!==i))},'×')
     )),
     React.createElement('button',{style:{...C.gsm,marginBottom:12},onClick:()=>setItens(p=>[...p,{produto:'',qty:1,preco:''}])},'+ Item'),
     React.createElement(G2,null,
       React.createElement(Sel,{label:'Pagamento',v:pag,set:setPag,opts:['PIX','Cartão','Dinheiro','Transferência']}),
-      React.createElement('div',null,React.createElement(Lbl,{c:'Total'}),React.createElement('div',{style:{...C.inp,marginBottom:0,fontWeight:800,fontSize:15,color:'#e8293a',display:'flex',alignItems:'center'}},F(total)))
+      React.createElement('div',null,React.createElement(Lbl,{c:'Total'}),React.createElement('div',{style:{...C.inp,marginBottom:0,fontWeight:800,fontSize:15,color:'#2563eb',display:'flex',alignItems:'center'}},F(total)))
     ),
     React.createElement(Inp,{label:'Obs.',v:obs,set:setObs,ph:'Opcional'}),
     React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
@@ -288,10 +288,10 @@ function Estoque({uid,db,reload,setM}){
       React.createElement(SC,{label:'Total Itens',val:estoque.length}),
       React.createElement(SC,{label:'Críticos',val:criticos.length,color:criticos.length>0?'#f87171':'#4ade80'}),
       React.createElement(SC,{label:'Prod. Acabados',val:estoque.filter(e=>e.categoria==='Produto Acabado').reduce((s,e)=>s+Number(e.qtd),0)+' un',color:'#2563eb'}),
-      React.createElement(SC,{label:'Val. Estoque',val:F(estoque.reduce((s,e)=>s+(Number(e.qtd)*Number(e.custo)),0)),color:'#e8293a'})
+      React.createElement(SC,{label:'Val. Estoque',val:F(estoque.reduce((s,e)=>s+(Number(e.qtd)*Number(e.custo)),0)),color:'#2563eb'})
     ),
     React.createElement('div',{style:{display:'flex',gap:5,marginBottom:14,flexWrap:'wrap'}},
-      cats.map(c=>React.createElement('button',{key:c,onClick:()=>setTab(c),style:{padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,background:tab===c?'#e8293a':'#181818',color:tab===c?'#fff':'#555',border:tab===c?'1px solid #e8293a':'1px solid #252525'}},c))
+      cats.map(c=>React.createElement('button',{key:c,onClick:()=>setTab(c),style:{padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,background:tab===c?'#2563eb':'#181818',color:tab===c?'#fff':'#555',border:tab===c?'1px solid #2563eb':'1px solid #252525'}},c))
     ),
     React.createElement('div',{style:C.card},
       React.createElement(Tbl,{cols:['Nome','Cat.','Qtd','Mín.','Status','Custo','Val. Total','Fornecedor',''],
@@ -370,7 +370,7 @@ function Financeiro({uid,db,reload,setM}){
 
   return React.createElement(PW,{title:'Financeiro',sub:'Contas a receber, pagar, movimentações e fluxo'},
     React.createElement('div',{style:{display:'flex',gap:4,marginBottom:20,borderBottom:'1px solid #e8e8ec'}},
-      abas.map(a=>React.createElement('button',{key:a.id,onClick:()=>setAba(a.id),style:{padding:'9px 16px',borderRadius:'11px 11px 0 0',fontSize:13,fontWeight:600,background:aba===a.id?'#111':'transparent',color:aba===a.id?'#e8293a':'#555',border:aba===a.id?'1px solid #1e1e1e':'1px solid transparent',borderBottom:'none',marginBottom:aba===a.id?-1:0,transition:'all 0.12s'}},a.l))
+      abas.map(a=>React.createElement('button',{key:a.id,onClick:()=>setAba(a.id),style:{padding:'9px 16px',borderRadius:'11px 11px 0 0',fontSize:13,fontWeight:600,background:aba===a.id?'#111':'transparent',color:aba===a.id?'#2563eb':'#555',border:aba===a.id?'1px solid #1e1e1e':'1px solid transparent',borderBottom:'none',marginBottom:aba===a.id?-1:0,transition:'all 0.12s'}},a.l))
     ),
     aba==='visao'&&React.createElement(FinVisao,{uid,db,reload,setM}),
     aba==='receber'&&React.createElement(FinReceber,{uid,db,reload,setM}),
@@ -409,7 +409,7 @@ function FinVisao({db}){
         React.createElement('div',{style:{fontWeight:700,marginBottom:13}},'Saldo por Conta'),
         contas.length===0?React.createElement('div',{style:{color:'#bbbbbb',textAlign:'center',padding:'20px 0',fontSize:13}},'Nenhuma conta'):
         contas.map(c=>React.createElement('div',{key:c.id,style:{display:'flex',alignItems:'center',gap:9,marginBottom:10}},
-          React.createElement('div',{style:{width:9,height:9,borderRadius:'50%',background:c.cor||'#e8293a',flexShrink:0}}),
+          React.createElement('div',{style:{width:9,height:9,borderRadius:'50%',background:c.cor||'#2563eb',flexShrink:0}}),
           React.createElement('span',{style:{fontSize:13,flex:1,color:'#666666'}},c.nome),
           React.createElement('span',{style:{fontSize:13,fontWeight:700}},F(c.saldo))
         ))
@@ -439,7 +439,7 @@ function FinReceber({uid,db,reload,setM}){
     ),
     React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,flexWrap:'wrap',gap:8}},
       React.createElement('div',{style:{display:'flex',gap:5,flexWrap:'wrap'}},
-        ['Todos','Pendentes','Recebidos','Hoje','Mês'].map(f=>React.createElement('button',{key:f,onClick:()=>setFil(f),style:{padding:'6px 13px',borderRadius:20,fontSize:12,fontWeight:600,background:fil===f?'#e8293a':'#181818',color:fil===f?'#fff':'#555',border:fil===f?'1px solid #e8293a':'1px solid #252525'}},f))
+        ['Todos','Pendentes','Recebidos','Hoje','Mês'].map(f=>React.createElement('button',{key:f,onClick:()=>setFil(f),style:{padding:'6px 13px',borderRadius:20,fontSize:12,fontWeight:600,background:fil===f?'#2563eb':'#181818',color:fil===f?'#fff':'#555',border:fil===f?'1px solid #2563eb':'1px solid #252525'}},f))
       ),
       React.createElement('div',{style:{display:'flex',gap:7}},
         React.createElement('button',{style:C.ghost,onClick:simular},'📡 Simular API'),
@@ -449,7 +449,7 @@ function FinReceber({uid,db,reload,setM}){
     React.createElement('div',{style:C.card},
       React.createElement(Tbl,{cols:['Pedido','Cliente','Valor Bruto','Pagamento','Origem','Data','Previsão','Status',''],
         rows:list.map(r=>React.createElement(TR,{key:r.id,cells:[
-          React.createElement('span',{style:{fontWeight:700,color:'#e8293a',fontSize:12}},r.pedido_id||'—'),
+          React.createElement('span',{style:{fontWeight:700,color:'#2563eb',fontSize:12}},r.pedido_id||'—'),
           React.createElement('span',{style:{fontWeight:600}},r.cliente),
           React.createElement('span',{style:{fontWeight:700}},F(r.valor_bruto)),
           r.forma_pagamento,
@@ -481,7 +481,7 @@ function ConfRecModal({uid,r,contas,reload,close}){
       React.createElement('div',null,React.createElement(Lbl,{c:'Valor Bruto'}),React.createElement('div',{style:{...C.inp,fontWeight:800,fontSize:14,display:'flex',alignItems:'center'}},F(bruto))),
       React.createElement(Inp,{label:'Taxa (%)',v:taxa,set:v=>setTaxa(parseFloat(v)||0),type:'number'})
     ),
-    React.createElement('div',{style:{background:'rgba(232,41,58,0.06)',border:'1px solid rgba(232,41,58,0.15)',borderRadius:11,padding:'13px',marginBottom:13}},
+    React.createElement('div',{style:{background:'rgba(37,99,235,0.05)',border:'1px solid rgba(37,99,235,0.12)',borderRadius:11,padding:'13px',marginBottom:13}},
       [['Valor Bruto',F(bruto),'#f0f0f0'],['Valor Taxa','-'+F(taxaVal),'#f87171'],['Valor Líquido',F(liq),'#4ade80']].map(([l,v,c])=>
         React.createElement('div',{key:l,style:{display:'flex',justifyContent:'space-between',marginBottom:6}},React.createElement('span',{style:{fontSize:12,color:'#777777'}},l),React.createElement('span',{style:{fontSize:13,fontWeight:700,color:c}},v))
       )
@@ -578,7 +578,7 @@ function FinPagar({uid,db,reload,setM}){
     ),
     React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,flexWrap:'wrap',gap:8}},
       React.createElement('div',{style:{display:'flex',gap:5,flexWrap:'wrap'}},
-        ['Todos','Pendentes','Vencidos','Pagos','Mês'].map(f=>React.createElement('button',{key:f,onClick:()=>setFil(f),style:{padding:'6px 13px',borderRadius:20,fontSize:12,fontWeight:600,background:fil===f?'#e8293a':'#181818',color:fil===f?'#fff':'#555',border:fil===f?'1px solid #e8293a':'1px solid #252525'}},(f==='Vencidos'&&venc.length>0?'⚠ ':'')+f+(f==='Vencidos'&&venc.length>0?' ('+venc.length+')':'')))
+        ['Todos','Pendentes','Vencidos','Pagos','Mês'].map(f=>React.createElement('button',{key:f,onClick:()=>setFil(f),style:{padding:'6px 13px',borderRadius:20,fontSize:12,fontWeight:600,background:fil===f?'#2563eb':'#181818',color:fil===f?'#fff':'#555',border:fil===f?'1px solid #2563eb':'1px solid #252525'}},(f==='Vencidos'&&venc.length>0?'⚠ ':'')+f+(f==='Vencidos'&&venc.length>0?' ('+venc.length+')':'')))
       ),
       React.createElement('button',{style:C.btn,onClick:novo},'+ Nova Conta')
     ),
@@ -590,7 +590,7 @@ function FinPagar({uid,db,reload,setM}){
           React.createElement('span',{style:{fontWeight:700}},F(p.valor)),
           React.createElement('span',{style:{color:v?'#f87171':'#ccc'}},FD(p.vencimento)+(v?' ⚠':'')),
           React.createElement(Badge,{t:v?'Vencido':p.status,c:v?'red':p.status==='Pago'?'green':'amber'}),
-          p.status==='Pendente'?React.createElement('button',{style:{...C.bsm,background:v?'#c41f2e':'linear-gradient(135deg,#16a34a,#15803d)',boxShadow:'none',fontSize:11},onClick:e=>{e.stopPropagation();pagar_(p);}},'Pagar'):React.createElement('span',{style:{fontSize:11,color:'#16a34a'}},'✓ '+FD(p.data_pagamento))
+          p.status==='Pendente'?React.createElement('button',{style:{...C.bsm,background:v?'#1d4ed8':'linear-gradient(135deg,#16a34a,#15803d)',boxShadow:'none',fontSize:11},onClick:e=>{e.stopPropagation();pagar_(p);}},'Pagar'):React.createElement('span',{style:{fontSize:11,color:'#16a34a'}},'✓ '+FD(p.data_pagamento))
         ]});})
       })
     )
@@ -635,7 +635,7 @@ function FinMovs({uid,db,reload,setM}){
     ),
     React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}},
       React.createElement('div',{style:{display:'flex',gap:5}},
-        ['Todos','Entradas','Saídas'].map(t=>React.createElement('button',{key:t,onClick:()=>setTipo(t),style:{padding:'6px 13px',borderRadius:20,fontSize:12,fontWeight:600,background:tipo===t?'#e8293a':'#181818',color:tipo===t?'#fff':'#555',border:tipo===t?'1px solid #e8293a':'1px solid #252525'}},t))
+        ['Todos','Entradas','Saídas'].map(t=>React.createElement('button',{key:t,onClick:()=>setTipo(t),style:{padding:'6px 13px',borderRadius:20,fontSize:12,fontWeight:600,background:tipo===t?'#2563eb':'#181818',color:tipo===t?'#fff':'#555',border:tipo===t?'1px solid #2563eb':'1px solid #252525'}},t))
       ),
       React.createElement('button',{style:C.btn,onClick:novo},'+ Nova Mov.')
     ),
@@ -661,7 +661,7 @@ function MovForm({uid,db,reload,close}){
   const catsPor={entrada:['Venda','Outros'],saida:CATS};
   return React.createElement('div',null,
     React.createElement('div',{style:{display:'flex',gap:5,marginBottom:13}},
-      ['entrada','saida'].map(t=>React.createElement('button',{key:t,onClick:()=>{setTipo(t);setCat(catsPor[t][0]);},style:{flex:1,padding:'8px',borderRadius:10,fontSize:12,fontWeight:600,background:tipo===t?'#e8293a':'#181818',color:tipo===t?'#fff':'#555',border:tipo===t?'1px solid #e8293a':'1px solid #252525'}},{entrada:'Entrada',saida:'Saída'}[t]))
+      ['entrada','saida'].map(t=>React.createElement('button',{key:t,onClick:()=>{setTipo(t);setCat(catsPor[t][0]);},style:{flex:1,padding:'8px',borderRadius:10,fontSize:12,fontWeight:600,background:tipo===t?'#2563eb':'#181818',color:tipo===t?'#fff':'#555',border:tipo===t?'1px solid #2563eb':'1px solid #252525'}},{entrada:'Entrada',saida:'Saída'}[t]))
     ),
     React.createElement(G2,null,
       React.createElement(Sel,{label:'Conta',v:contaId,set:setContaId,opts:contas.map(c=>({v:c.id,l:c.nome}))}),
@@ -692,16 +692,16 @@ function FinContas({uid,db,reload,setM}){
   const total=contas.reduce((s,c)=>s+Number(c.saldo),0);
   const novo=()=>setM({title:'Nova Conta',body:React.createElement(ContaForm,{uid,reload,close:()=>setM(null)})});
   return React.createElement('div',null,
-    React.createElement('div',{style:{...C.card,marginBottom:16,background:'rgba(232,41,58,0.06)',border:'1px solid rgba(232,41,58,0.2)'}},
-      React.createElement('div',{style:{fontSize:10,color:'#e8293a',fontWeight:600,letterSpacing:'1.5px',textTransform:'uppercase',marginBottom:5}},'Saldo Total'),
+    React.createElement('div',{style:{...C.card,marginBottom:16,background:'rgba(37,99,235,0.05)',border:'1px solid rgba(37,99,235,0.15)'}},
+      React.createElement('div',{style:{fontSize:10,color:'#2563eb',fontWeight:600,letterSpacing:'1.5px',textTransform:'uppercase',marginBottom:5}},'Saldo Total'),
       React.createElement('div',{style:{fontSize:28,fontWeight:800,color:'#111111',letterSpacing:'-1px'}},F(total))
     ),
     React.createElement('div',{style:{display:'flex',justifyContent:'flex-end',marginBottom:14}},React.createElement('button',{style:C.btn,onClick:novo},'+ Nova Conta')),
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(230px,1fr))',gap:13}},
-      contas.map(c=>React.createElement('div',{key:c.id,style:{...C.card,borderTop:`3px solid ${c.cor||'#e8293a'}`}},
+      contas.map(c=>React.createElement('div',{key:c.id,style:{...C.card,borderTop:`3px solid ${c.cor||'#2563eb'}`}},
         React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:10}},
           React.createElement('div',null,React.createElement('div',{style:{fontWeight:700,fontSize:14}},c.nome),React.createElement('div',{style:{fontSize:11,color:'#aaaaaa',marginTop:2}},c.tipo+(c.banco?' · '+c.banco:''))),
-          React.createElement('div',{style:{width:9,height:9,borderRadius:'50%',background:c.cor||'#e8293a',marginTop:4}})
+          React.createElement('div',{style:{width:9,height:9,borderRadius:'50%',background:c.cor||'#2563eb',marginTop:4}})
         ),
         React.createElement('div',{style:{fontSize:21,fontWeight:800,color:'#111111',letterSpacing:'-0.5px'}},F(c.saldo))
       ))
@@ -710,7 +710,7 @@ function FinContas({uid,db,reload,setM}){
 }
 
 function ContaForm({uid,reload,close}){
-  const[nome,setNome]=useState('');const[tipo,setTipo]=useState('Digital');const[banco,setBanco]=useState('');const[saldo,setSaldo]=useState('');const[cor,setCor]=useState('#e8293a');const[ld,setLd]=useState(false);
+  const[nome,setNome]=useState('');const[tipo,setTipo]=useState('Digital');const[banco,setBanco]=useState('');const[saldo,setSaldo]=useState('');const[cor,setCor]=useState('#2563eb');const[ld,setLd]=useState(false);
   return React.createElement('div',null,
     React.createElement(Inp,{label:'Nome',v:nome,set:setNome,ph:'Ex: Nubank PJ'}),
     React.createElement(G2,null,
@@ -719,7 +719,7 @@ function ContaForm({uid,reload,close}){
     ),
     React.createElement(G2,null,
       React.createElement(Inp,{label:'Saldo Inicial (R$)',v:saldo,set:setSaldo,type:'number',ph:'0.00'}),
-      React.createElement('div',null,React.createElement(Lbl,{c:'Cor'}),React.createElement('div',{style:{display:'flex',gap:7,flexWrap:'wrap'}},['#e8293a','#22c55e','#3b82f6','#f59e0b','#8b5cf6','#06b6d4'].map(c=>React.createElement('div',{key:c,onClick:()=>setCor(c),style:{width:22,height:22,borderRadius:'50%',background:c,cursor:'pointer',border:cor===c?'3px solid #fff':'3px solid transparent',transition:'border 0.12s'}}))))
+      React.createElement('div',null,React.createElement(Lbl,{c:'Cor'}),React.createElement('div',{style:{display:'flex',gap:7,flexWrap:'wrap'}},['#2563eb','#22c55e','#3b82f6','#f59e0b','#8b5cf6','#06b6d4'].map(c=>React.createElement('div',{key:c,onClick:()=>setCor(c),style:{width:22,height:22,borderRadius:'50%',background:c,cursor:'pointer',border:cor===c?'3px solid #fff':'3px solid transparent',transition:'border 0.12s'}}))))
     ),
     React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',marginTop:4}},
       React.createElement('button',{style:C.ghost,onClick:close},'Cancelar'),
