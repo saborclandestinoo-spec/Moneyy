@@ -2,6 +2,9 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<!-- v1781024121 -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Moneyy ERP</title>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -766,7 +769,7 @@ function exportarLancamentos(list, contas, dtIni, dtFim){
     'Data':          l.data||'',
     'Vencimento':    l.venc||'',
     'Tipo':          l.tipo||'',
-    'Descricao':     l.desc||'',
+    'Descricao':     l.descricao||'',
     'Categoria':     l.categoria||'',
     'Conta':         (contas||[]).find(c=>c.id===l.conta_id)&&(contas||[]).find(c=>c.id===l.conta_id).nome||'',
     'Forma Pagto':   l.forma_pag||'',
@@ -823,7 +826,7 @@ async function importarLancamentos(uid, arquivo, contas, reload, onDone){
       const lancToInsert = rows.map(r => ({
         user_id: uid,
         tipo:     (String(r['Tipo']||'despesa')).toLowerCase().includes('rec')?'receita':'despesa',
-        desc:     String(r['Descricao']||r['Descrição']||r['descricao']||'Sem descricao'),
+        descricao:String(r['Descricao']||r['Descrição']||r['descricao']||'Sem descricao'),
         valor:    parseFloat(String(r['Valor']||0).replace(',','.'))||0,
         categoria:String(r['Categoria']||r['categoria']||''),
         forma_pag:String(r['Forma Pagto']||r['Forma de Pagamento']||''),
@@ -833,7 +836,7 @@ async function importarLancamentos(uid, arquivo, contas, reload, onDone){
         pago:     String(r['Pago']||'').toLowerCase()==='sim'||String(r['Pago']||'')==='true',
         obs:      String(r['Obs']||r['Observacao']||r['Observação']||''),
         conta_id: null, // conta por nome abaixo
-      })).filter(l=>l.desc&&l.valor>0);
+      })).filter(l=>l.descricao&&l.descricao.length>0&&l.valor>0);
 
       // Tentar mapear conta por nome
       lancToInsert.forEach((l,i) => {
@@ -1118,7 +1121,7 @@ function FinLancamentos({uid,db,reload,setM}){
     if(filTipo)r=r.filter(l=>l.tipo===filTipo);
     if(filConta)r=r.filter(l=>l.conta_id===filConta);
     if(filCat)r=r.filter(l=>l.categoria===filCat);
-    if(busca){const b=busca.toLowerCase();r=r.filter(l=>(l.desc||'').toLowerCase().includes(b)||(l.categoria||'').toLowerCase().includes(b));}
+    if(busca){const b=busca.toLowerCase();r=r.filter(l=>(l.descricao||'').toLowerCase().includes(b)||(l.categoria||'').toLowerCase().includes(b));}
     if(filStatus==='vencidos')r=r.filter(l=>!l.pago&&l.venc&&l.venc<hoje);
     else if(filStatus==='vence_hoje')r=r.filter(l=>!l.pago&&l.venc===hoje);
     else if(filStatus==='a_vencer')r=r.filter(l=>!l.pago&&l.venc&&l.venc>hoje);
@@ -1140,7 +1143,7 @@ function FinLancamentos({uid,db,reload,setM}){
   const confirmar=(l)=>setM({title:'Confirmar',body:
     React.createElement('div',null,
       React.createElement('div',{style:{background:'#f9f9fb',borderRadius:11,padding:'13px',marginBottom:14}},
-        React.createElement('div',{style:{fontWeight:700,marginBottom:4}},l.desc),
+        React.createElement('div',{style:{fontWeight:700,marginBottom:4}},l.descricao),
         React.createElement('div',{style:{fontSize:20,fontWeight:800,color:l.tipo==='receita'?'#16a34a':'#dc2626'}},F(l.valor))
       ),
       React.createElement(Sel,{label:'Conta',v:l.conta_id||(contas[0]&&contas[0].id)||'',set:()=>{},opts:contas.map(c=>({v:c.id,l:c.nome+' — '+F(c.saldo)}))}),
@@ -1157,7 +1160,7 @@ function FinLancamentos({uid,db,reload,setM}){
   });
 
   const excluir=async(l)=>{
-    if(!confirm('Excluir "'+l.desc+'"?'))return;
+    if(!confirm('Excluir "'+l.descricao+'"?'))return;
     if(l.grupo_id){const todos=confirm('Grupo encontrado.\nOK = todos  Cancelar = so este');if(todos)await sb.from('lancamentos').delete().eq('grupo_id',l.grupo_id).eq('user_id',uid);else await sb.from('lancamentos').delete().eq('id',l.id);}
     else await sb.from('lancamentos').delete().eq('id',l.id);
     toast('Excluido!',false,true);reload();
@@ -1261,7 +1264,7 @@ function FinLancamentos({uid,db,reload,setM}){
               parcLabel&&React.createElement('div',{style:{fontSize:10,color:'#7c3aed',fontWeight:600,marginTop:2}},parcLabel)
             ),
             React.createElement('div',null,
-              React.createElement('div',{style:{fontWeight:600,fontSize:13,color:'#111'}},l.desc),
+              React.createElement('div',{style:{fontWeight:600,fontSize:13,color:'#111'}},l.descricao),
               l.obs&&React.createElement('div',{style:{fontSize:10,color:'#ccc',marginTop:1}},(l.obs).slice(0,50))
             ),
             React.createElement('span',{style:{fontSize:11,background:'#f5f5f5',color:'#888',padding:'2px 8px',borderRadius:20}},l.categoria||'—'),
@@ -1545,7 +1548,7 @@ function LancForm({uid,tipo,db,reload,close}){
   const salvar=async()=>{
     if(!desc||!valor){toast('Preencha descricao e valor',true);return;}
     setLd(true);
-    const base={user_id:uid,tipo:isTransf?'despesa':tipo,desc,valor:totalFinal,categoria:cat,conta_id:contaId||null,
+    const base={user_id:uid,tipo:isTransf?'despesa':tipo,descricao:desc,valor:totalFinal,categoria:cat,conta_id:contaId||null,
       forma_pag:formaPag,data:venc,venc,competencia:compEfetivo||null,fornecedor:fornecedor||null,
       centro_custo:centroCusto||null,pago,obs:'',juros:jv||null,multa:mv||null,desconto:dv||null};
     let rows=[];
@@ -1553,7 +1556,7 @@ function LancForm({uid,tipo,db,reload,close}){
       const gid=uid_gen();
       for(let i=0;i<numParc;i++){
         const dt=advanceDate(venc,freqParc,i);
-        rows.push({...base,data:dt,venc:dt,data_pag:i===0&&pago?dataPag:null,pago:i===0?pago:false,grupo_id:gid,parcela:(i+1)+'/'+numParc,desc:desc+' ('+(i+1)+'/'+numParc+')'});
+        rows.push({...base,data:dt,venc:dt,data_pag:i===0&&pago?dataPag:null,pago:i===0?pago:false,grupo_id:gid,parcela:(i+1)+'/'+numParc,descricao:desc+' ('+(i+1)+'/'+numParc+')'});
       }
     }else if(tipoLanc==='Recorrente'){
       const gid=uid_gen();
@@ -1569,8 +1572,8 @@ function LancForm({uid,tipo,db,reload,close}){
       const vl=v;
       const dtxt=desc||('Transferencia '+venc);
       await sb.from('lancamentos').insert([
-        {user_id:uid,tipo:'despesa',desc:dtxt,valor:vl,categoria:'Transferencia',conta_id:contaId,forma_pag:'Transferencia',data:venc,venc,pago:true,data_pag:venc},
-        {user_id:uid,tipo:'receita',desc:dtxt,valor:vl,categoria:'Transferencia',conta_id:contaDestId,forma_pag:'Transferencia',data:venc,venc,pago:true,data_pag:venc},
+        {user_id:uid,tipo:'despesa',descricao:dtxt,valor:vl,categoria:'Transferencia',conta_id:contaId,forma_pag:'Transferencia',data:venc,venc,pago:true,data_pag:venc,obs:''},
+        {user_id:uid,tipo:'receita',descricao:dtxt,valor:vl,categoria:'Transferencia',conta_id:contaDestId,forma_pag:'Transferencia',data:venc,venc,pago:true,data_pag:venc,obs:''},
       ]);
       const cO=contas.find(c=>c.id===contaId);const cD=contas.find(c=>c.id===contaDestId);
       if(cO)await sb.from('contas_bancarias').update({saldo:Number(cO.saldo)-vl}).eq('id',contaId);
@@ -2069,7 +2072,7 @@ function CentroForm({uid,reload,close}){
       React.createElement('button',{style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:async()=>{
         if(!nome){toast('Informe o nome',true);return;}
         setLd(true);
-        await sb.from('centros_custo').insert({user_id:uid,nome,desc});
+        await sb.from('centros_custo').insert({user_id:uid,nome,descricao:desc});
         toast('Centro criado!',false,true);reload();close();setLd(false);
       }},ld?'...':'Criar')
     )
