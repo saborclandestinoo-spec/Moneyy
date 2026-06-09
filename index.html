@@ -38,7 +38,7 @@ const CATS=['Aluguel','Salários','Energia','Água','Internet','Marketing','Comb
 
 // TOAST
 let _st=null;
-function Toasts(){const[ts,set]=useState([]);_st=set;return React.createElement('div',{style:{position:'fixed',bottom:20,right:20,zIndex:9999,display:'flex',flexDirection:'column',gap:8}},ts.map(t=>React.createElement('div',{key:t.id,style:{background:t.e?'#7f1d1d':t.s?'#14532d':'#1e3a5f',color:'#fff',padding:'11px 16px',borderRadius:12,fontSize:13,fontWeight:500,boxShadow:'0 8px 24px rgba(0,0,0,0.5)',minWidth:240}},t.msg)));}
+function Toasts(){const[ts,set]=useState([]);_st=set;return React.createElement('div',{style:{position:'fixed',bottom:20,right:20,zIndex:9999,display:'flex',flexDirection:'column',gap:8}},ts.map(t=>React.createElement('div',{key:t.id,style:{background:t.e?'#dc2626':t.s?'#16a34a':'#2563eb',color:'#fff',padding:'11px 16px',borderRadius:12,fontSize:13,fontWeight:500,boxShadow:'0 8px 24px rgba(0,0,0,0.5)',minWidth:240}},t.msg)));}
 const toast=(msg,e,s)=>{if(!_st)return;const id=Date.now();_st(p=>[...p,{id,msg,e,s}]);setTimeout(()=>_st(p=>p.filter(x=>x.id!==id)),3000);};
 const Spin=()=>React.createElement('div',{style:{width:14,height:14,border:'2px solid rgba(255,255,255,0.2)',borderTopColor:'#fff',borderRadius:'50%',animation:'spin 0.7s linear infinite',display:'inline-block'}});
 
@@ -127,34 +127,96 @@ function Auth({onLogin}){
 
 // SIDEBAR — 3 módulos
 const MODS=[
-  {id:'pedidos',l:'Gestão de Pedidos',i:'🛍'},
-  {id:'estoque',l:'Estoque',i:'📦'},
-  {id:'financeiro',l:'Financeiro',i:'💰'},
+  {id:'pedidos',l:'Gestão de Pedidos',i:'#'},
+  {id:'estoque',l:'Estoque',i:'[]'},
 ];
+const FIN_SUBS=[
+  {id:'fin_visao',l:'Visão Geral'},
+  {id:'fin_lancamentos',l:'Lançamentos'},
+  {id:'fin_receber',l:'A Receber'},
+  {id:'fin_pagar',l:'A Pagar'},
+  {id:'fin_movs',l:'Movimentações'},
+  {id:'fin_contas',l:'Contas'},
+];
+const FIN_PAGES=new Set(FIN_SUBS.map(s=>s.id));
 
 function Sidebar({page,setPage,user,logout,col,setCol}){
-  const W=col?64:220;
-  const nm=user?.user_metadata?.name||user?.email?.split('@')[0]||'Usuário';
+  const W=col?64:228;
+  const nm=user?.user_metadata?.name||user?.email?.split('@')[0]||'Usuario';
+  const isFinPage=FIN_PAGES.has(page);
+  const accentR='#dc2626';
+  const navBtn=(id,label,icon,depth)=>{
+    const active=page===id;
+    return React.createElement('button',{
+      key:id,onClick:()=>setPage(id),title:col?label:'',
+      style:{
+        display:'flex',alignItems:'center',gap:col?0:8,
+        padding:col?'11px':depth===1?'7px 10px 7px '+(10+14)+'px':'9px 10px',
+        borderRadius:10,justifyContent:col?'center':'flex-start',
+        color:active?'#fff':depth===1?'#888':'#666',
+        background:active?accentR:'transparent',
+        transition:'all 0.12s',width:'100%',border:'none',
+        fontWeight:active?600:depth===1?500:600,
+        boxShadow:active?'0 3px 10px rgba(220,38,38,0.18)':'none',
+        fontSize:depth===1?12:13,
+      }
+    },
+      icon&&!col&&React.createElement('span',{style:{fontSize:13,lineHeight:1,flexShrink:0,opacity:0.6}},icon),
+      !col&&React.createElement('span',{style:{whiteSpace:'nowrap'}},label),
+      col&&React.createElement('span',{style:{fontSize:16,lineHeight:1}},icon||label[0])
+    );
+  };
   return React.createElement('aside',{style:{width:W,minWidth:W,background:'#fff',borderRight:'1px solid #f0f0f0',boxShadow:'2px 0 12px rgba(0,0,0,0.04)',display:'flex',flexDirection:'column',height:'100vh',transition:'width 0.25s cubic-bezier(0.4,0,0.2,1)',overflow:'hidden',flexShrink:0,borderRadius:'0 16px 16px 0'}},
-    React.createElement('div',{style:{padding:'16px 12px',borderBottom:'1px solid #1a1a1a',display:'flex',alignItems:'center',gap:9,justifyContent:col?'center':'flex-start'}},
-      React.createElement('div',{style:{width:32,height:32,background:'#dc2626',borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,flexShrink:0,boxShadow:'0 4px 12px rgba(220,38,38,0.25)'}},'💰'),
+    // Logo
+    React.createElement('div',{style:{padding:'16px 12px',borderBottom:'1px solid #f5f5f5',display:'flex',alignItems:'center',gap:9,justifyContent:col?'center':'flex-start'}},
+      React.createElement('div',{style:{width:32,height:32,background:accentR,borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,flexShrink:0,boxShadow:'0 4px 12px rgba(220,38,38,0.25)',color:'#fff',fontWeight:800}},'M'),
       !col&&React.createElement('span',{style:{fontSize:15,fontWeight:800,color:'#111',letterSpacing:'-0.3px',whiteSpace:'nowrap'}},'Moneyy')
     ),
-    React.createElement('nav',{style:{flex:1,padding:'10px 7px',display:'flex',flexDirection:'column',gap:3}},
-      MODS.map(m=>React.createElement('button',{key:m.id,onClick:()=>setPage(m.id),title:col?m.l:'',style:{display:'flex',alignItems:'center',gap:col?0:9,padding:col?'11px':'9px 11px',borderRadius:12,justifyContent:col?'center':'flex-start',color:page===m.id?'#fff':'#888',background:page===m.id?'#dc2626':'transparent',border:'none',transition:'all 0.12s',width:'100%',boxShadow:page===m.id?'0 4px 12px rgba(220,38,38,0.18)':'none'}},
-        React.createElement('span',{style:{fontSize:col?17:14,lineHeight:1,flexShrink:0}},m.i),
-        !col&&React.createElement('span',{style:{fontSize:13,fontWeight:600,whiteSpace:'nowrap'}},m.l)
-      ))
+    // Nav
+    React.createElement('nav',{style:{flex:1,padding:'10px 7px',display:'flex',flexDirection:'column',gap:2,overflowY:'auto'}},
+      // Main items
+      MODS.map(m=>navBtn(m.id,m.l,m.i,0)),
+      // Financeiro header
+      React.createElement('div',{style:{marginTop:4}},
+        React.createElement('button',{
+          onClick:()=>setPage('fin_visao'),title:col?'Financeiro':'',
+          style:{display:'flex',alignItems:'center',gap:col?0:8,padding:col?'11px':'9px 10px',borderRadius:10,justifyContent:col?'center':'flex-start',color:isFinPage?accentR:'#666',background:isFinPage?'#fff5f5':'transparent',transition:'all 0.12s',width:'100%',border:'none',fontWeight:700,fontSize:13}
+        },
+          !col&&React.createElement('span',{style:{fontSize:13,lineHeight:1,flexShrink:0,opacity:0.7}}),'',
+          col?React.createElement('span',{style:{fontSize:16}},'$'):
+          React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%'}},
+            React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8}},
+              React.createElement('span',{style:{fontSize:13,color:isFinPage?accentR:'#999',lineHeight:1}}),'',
+              React.createElement('span',{style:{fontWeight:700,color:isFinPage?accentR:'#555',fontSize:13,whiteSpace:'nowrap'}},'Financeiro')
+            ),
+            React.createElement('span',{style:{fontSize:10,color:'#ccc'}},'$')
+          )
+        ),
+        // Subcategories — always visible when not collapsed
+        !col&&React.createElement('div',{style:{marginLeft:0,display:'flex',flexDirection:'column',gap:1,marginTop:2}},
+          FIN_SUBS.map(s=>{
+            const active=page===s.id;
+            return React.createElement('button',{
+              key:s.id,onClick:()=>setPage(s.id),
+              style:{display:'flex',alignItems:'center',gap:8,padding:'7px 10px 7px 22px',borderRadius:9,color:active?'#fff':'#888',background:active?accentR:'transparent',transition:'all 0.12s',width:'100%',border:'none',fontWeight:active?600:400,fontSize:12,boxShadow:active?'0 3px 10px rgba(220,38,38,0.15)':'none'}
+            },
+              React.createElement('span',{style:{width:4,height:4,borderRadius:'50%',background:active?'rgba(255,255,255,0.8)':'#ddd',flexShrink:0}}),
+              React.createElement('span',{style:{whiteSpace:'nowrap'}},s.l)
+            );
+          })
+        )
+      )
     ),
+    // User + collapse
     React.createElement('div',{style:{padding:'10px 7px',borderTop:'1px solid #f5f5f5'}},
-      !col&&React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderRadius:10,background:'#fef2f2',marginBottom:7}},
-        React.createElement('div',{style:{width:26,height:26,borderRadius:8,background:'rgba(220,38,38,0.10)',border:'none',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:800,color:'#dc2626',flexShrink:0}},nm.slice(0,2).toUpperCase()),
+      !col&&React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderRadius:10,background:'#fff5f5',marginBottom:7}},
+        React.createElement('div',{style:{width:26,height:26,borderRadius:8,background:'rgba(220,38,38,0.10)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:800,color:accentR,flexShrink:0}},nm.slice(0,2).toUpperCase()),
         React.createElement('div',{style:{minWidth:0,flex:1}},
           React.createElement('div',{style:{fontSize:11,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:'#111'}},nm),
-          React.createElement('button',{onClick:logout,style:{fontSize:10,color:'#bbb',padding:0}},'Sair')
+          React.createElement('button',{onClick:logout,style:{fontSize:10,color:'#bbb',padding:0,border:'none',background:'none',cursor:'pointer'}},'Sair')
         )
       ),
-      React.createElement('button',{onClick:()=>setCol(c=>!c),style:{width:'100%',padding:'7px',borderRadius:9,background:'#f5f5f5',border:'none',color:'#bbb',fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',gap:4}},col?'›':'‹',!col&&' Recolher')
+      React.createElement('button',{onClick:()=>setCol(c=>!c),style:{width:'100%',padding:'7px',borderRadius:9,background:'#f5f5f5',border:'none',color:'#bbb',fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',gap:4,cursor:'pointer'}},col?'>':'< Recolher')
     )
   );
 }
@@ -364,24 +426,9 @@ function NovoEst({uid,reload,close}){
 }
 
 // ── FINANCEIRO (abas internas) ──
-function Financeiro({uid,db,reload,setM}){
-  const[aba,setAba]=useState('visao');
-  const abas=[{id:'visao',l:'Visão Geral'},{id:'lancamentos',l:'Lançamentos'},{id:'receber',l:'A Receber'},{id:'pagar',l:'A Pagar'},{id:'movs',l:'Movimentações'},{id:'contas',l:'Contas'}];
+// Financeiro removed - now split into pages
 
-  return React.createElement(PW,{title:'Financeiro',sub:'Contas a receber, pagar, movimentações e fluxo'},
-    React.createElement('div',{style:{display:'flex',gap:4,marginBottom:20,borderBottom:'1px solid #1a1a1a'}},
-      abas.map(a=>React.createElement('button',{key:a.id,onClick:()=>setAba(a.id),style:{padding:'9px 16px',borderRadius:'11px 11px 0 0',fontSize:13,fontWeight:600,background:aba===a.id?'#111':'transparent',color:aba===a.id?'#dc2626':'#555',border:aba===a.id?'1px solid #1e1e1e':'1px solid transparent',borderBottom:'none',marginBottom:aba===a.id?-1:0,transition:'all 0.12s'}},a.l))
-    ),
-    aba==='visao'&&React.createElement(FinVisao,{uid,db,reload,setM}),
-    aba==='receber'&&React.createElement(FinReceber,{uid,db,reload,setM}),
-    aba==='pagar'&&React.createElement(FinPagar,{uid,db,reload,setM}),
-    aba==='movs'&&React.createElement(FinMovs,{uid,db,reload,setM}),
-    aba==='lancamentos'&&React.createElement(FinLancamentos,{uid,db,reload,setM}),
-    aba==='contas'&&React.createElement(FinContas,{uid,db,reload,setM})
-  );
-}
-
-function FinVisao({db}){
+function FinVisao({uid,db,reload,setM}){
   const{contas,receber,pagar,movs,lancamentos}=db;
   const saldo=contas.reduce((s,c)=>s+Number(c.saldo),0);
   const mes=TODAY().slice(0,7);
@@ -395,7 +442,7 @@ function FinVisao({db}){
     try{c=new Chart(chartRef.current,{type:'bar',data:{labels:['Jan','Fev','Mar','Abr','Mai',mes.slice(5)],datasets:[{label:'Receitas',data:[12000,18000,15000,22000,19000,recMes||0],backgroundColor:'rgba(220,38,38,0.75)',borderRadius:7,borderSkipped:false},{label:'Despesas',data:[9000,14000,11000,16000,13000,despMes||0],backgroundColor:'rgba(0,0,0,0.07)',borderRadius:7,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#aaa',font:{size:10,family:'Poppins'},boxWidth:7,padding:10}}},scales:{x:{grid:{display:false},ticks:{color:'#ccc',font:{size:10}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#ccc',font:{size:10}}}}}});}catch{}
     return()=>{try{c&&c.destroy()}catch{}};
   },[recMes,despMes]);
-  return React.createElement('div',null,
+  return React.createElement(PW,{title:'Financeiro',sub:'Visão geral das finanças e saldos'},
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:13,marginBottom:18}},
       React.createElement(SC,{label:'Saldo Total',val:F(saldo),color:'#111'}),
       React.createElement(SC,{label:'Receitas do Mês',val:F(recMes),color:'#16a34a'}),
@@ -432,7 +479,11 @@ function FinReceber({uid,db,reload,setM}){
   };
   const manual=()=>setM({title:'Nova Conta a Receber',body:React.createElement(RecForm,{uid,reload,close:()=>setM(null)})});
 
-  return React.createElement('div',null,
+  return React.createElement(PW,{title:'Contas a Receber',sub:'Pedidos entregues geram automaticamente contas a receber',
+    actions:[
+      React.createElement('button',{key:'s',style:{background:'#f5f5f5',color:'#555',padding:'8px 14px',borderRadius:9,fontSize:12,fontWeight:500,border:'none',cursor:'pointer'},onClick:()=>simular()},'Simular API'),
+      React.createElement('button',{key:'m',style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:()=>manual()},'+ Manual'),
+    ]},
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:13,marginBottom:16}},
       React.createElement(SC,{label:'A Receber',val:F(receber.filter(r=>r.status==='Pendente').reduce((s,r)=>s+Number(r.valor_bruto),0)),color:'#fbbf24',sub:receber.filter(r=>r.status==='Pendente').length+' pendentes'}),
       React.createElement(SC,{label:'Recebido no Mês',val:F(receber.filter(r=>r.status==='Recebido'&&r.data_recebimento?.slice(0,7)===mes).reduce((s,r)=>s+Number(r.valor_liquido||r.valor_bruto),0)),color:'#16a34a'}),
@@ -442,10 +493,7 @@ function FinReceber({uid,db,reload,setM}){
       React.createElement('div',{style:{display:'flex',gap:5,flexWrap:'wrap'}},
         ['Todos','Pendentes','Recebidos','Hoje','Mês'].map(f=>React.createElement('button',{key:f,onClick:()=>setFil(f),style:{padding:'6px 13px',borderRadius:20,fontSize:12,fontWeight:600,background:fil===f?'#dc2626':'#f5f5f5',color:fil===f?'#fff':'#666',border:fil===f?'1px solid #e8293a':'1px solid #252525'}},f))
       ),
-      React.createElement('div',{style:{display:'flex',gap:7}},
-        React.createElement('button',{style:C.ghost,onClick:simular},'📡 Simular API'),
-        React.createElement('button',{style:C.btn,onClick:manual},'+ Manual')
-      )
+
     ),
     React.createElement('div',{style:C.card},
       React.createElement(Tbl,{cols:['Pedido','Cliente','Valor Bruto','Pagamento','Origem','Data','Previsão','Status',''],
@@ -571,7 +619,8 @@ function FinPagar({uid,db,reload,setM}){
 
   const novo=()=>setM({title:'Nova Conta a Pagar',body:React.createElement(PagForm,{uid,reload,close:()=>setM(null)})});
 
-  return React.createElement('div',null,
+  return React.createElement(PW,{title:'Contas a Pagar',sub:'Gerencie despesas e compromissos',
+    actions:[React.createElement('button',{key:'n',style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:novo},'+ Nova Despesa')]},
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:13,marginBottom:16}},
       React.createElement(SC,{label:'A Pagar',val:F(pagar.filter(p=>p.status==='Pendente').reduce((s,p)=>s+Number(p.valor),0)),color:'#dc2626',sub:pagar.filter(p=>p.status==='Pendente').length+' pendentes'}),
       React.createElement(SC,{label:'Vencidos',val:venc.length,color:venc.length>0?'#f87171':'#4ade80'}),
@@ -628,7 +677,8 @@ function FinMovs({uid,db,reload,setM}){
 
   const novo=()=>setM({title:'Nova Movimentação',body:React.createElement(MovForm,{uid,db,reload,close:()=>setM(null)})});
 
-  return React.createElement('div',null,
+  return React.createElement(PW,{title:'Movimentações',sub:'Histórico completo de entradas e saídas',
+    actions:[React.createElement('button',{key:'n',style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:novo},'+ Nova Mov.')]},
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:13,marginBottom:16}},
       React.createElement(SC,{label:'Entradas',val:F(ent),color:'#16a34a'}),
       React.createElement(SC,{label:'Saídas',val:F(sai),color:'#dc2626'}),
@@ -638,7 +688,7 @@ function FinMovs({uid,db,reload,setM}){
       React.createElement('div',{style:{display:'flex',gap:5}},
         ['Todos','Entradas','Saídas'].map(t=>React.createElement('button',{key:t,onClick:()=>setTipo(t),style:{padding:'6px 13px',borderRadius:20,fontSize:12,fontWeight:600,background:tipo===t?'#dc2626':'#181818',color:tipo===t?'#fff':'#555',border:tipo===t?'1px solid #e8293a':'1px solid #252525'}},t))
       ),
-      React.createElement('button',{style:C.btn,onClick:novo},'+ Nova Mov.')
+
     ),
     React.createElement('div',{style:C.card},
       React.createElement(Tbl,{cols:['Data','Conta','Categoria','Descrição','Tipo','Valor'],
@@ -765,7 +815,11 @@ function FinLancamentos({uid,db,reload,setM}){
     return[...s].sort().reverse().slice(0,18);
   },[lancamentos]);
 
-  return React.createElement('div',null,
+  return React.createElement(PW,{title:'Lançamentos',sub:'Receitas, despesas e controle contábil',
+    actions:[
+      React.createElement('button',{key:'r',style:{background:'#16a34a',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:()=>novo('receita')},'+ Receita'),
+      React.createElement('button',{key:'d',style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:()=>novo('despesa')},'+ Despesa'),
+    ]},
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:13,marginBottom:18}},
       React.createElement(SC,{label:'Receitas',val:F(recTotal),color:'#16a34a'}),
       React.createElement(SC,{label:'Despesas',val:F(despTotal),color:'#dc2626'}),
@@ -781,10 +835,7 @@ function FinLancamentos({uid,db,reload,setM}){
           React.createElement('button',{key:v,onClick:()=>setFil(v),style:{padding:'6px 13px',borderRadius:20,fontSize:12,fontWeight:600,background:fil===v?'#dc2626':'#f5f5f5',color:fil===v?'#fff':'#666',border:'none',cursor:'pointer'}},l)
         )
       ),
-      React.createElement('div',{style:{display:'flex',gap:7}},
-        React.createElement('button',{style:{background:'#16a34a',color:'#fff',padding:'7px 14px',borderRadius:9,fontSize:12,fontWeight:600,border:'none',cursor:'pointer'},onClick:()=>novo('receita')},'+ Receita'),
-        React.createElement('button',{style:{background:'#dc2626',color:'#fff',padding:'7px 14px',borderRadius:9,fontSize:12,fontWeight:600,border:'none',cursor:'pointer'},onClick:()=>novo('despesa')},'+ Despesa')
-      )
+
     ),
     React.createElement('div',{style:{background:'#fff',borderRadius:16,padding:0,boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
       React.createElement(Tbl,{cols:['Data','Descrição','Categoria','Conta','Tipo','Parcela','Valor','Status',''],
@@ -927,12 +978,13 @@ function FinContas({uid,db,reload,setM}){
   const{contas}=db;
   const total=contas.reduce((s,c)=>s+Number(c.saldo),0);
   const novo=()=>setM({title:'Nova Conta',body:React.createElement(ContaForm,{uid,reload,close:()=>setM(null)})});
-  return React.createElement('div',null,
+  return React.createElement(PW,{title:'Contas Bancárias',sub:'Gerencie suas contas bancárias e saldos',
+    actions:[React.createElement('button',{key:'n',style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:novo},'+ Nova Conta')]},
     React.createElement('div',{style:{...C.card,marginBottom:16,background:'rgba(232,41,58,0.06)',border:'1px solid rgba(232,41,58,0.2)'}},
       React.createElement('div',{style:{fontSize:10,color:'#dc2626',fontWeight:600,letterSpacing:'1.5px',textTransform:'uppercase',marginBottom:5}},'Saldo Total'),
       React.createElement('div',{style:{fontSize:28,fontWeight:800,color:'#111',letterSpacing:'-1px'}},F(total))
     ),
-    React.createElement('div',{style:{display:'flex',justifyContent:'flex-end',marginBottom:14}},React.createElement('button',{style:C.btn,onClick:novo},'+ Nova Conta')),
+
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(230px,1fr))',gap:13}},
       contas.map(c=>React.createElement('div',{key:c.id,style:{...C.card,borderLeft:`4px solid ${c.cor||'#dc2626'}`}},
         React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:10}},
@@ -1019,7 +1071,12 @@ function App(){
   const PAGES={
     pedidos:()=>React.createElement(Pedidos,{uid,db,reload,setM:setModal}),
     estoque:()=>React.createElement(Estoque,{uid,db,reload,setM:setModal}),
-    financeiro:()=>React.createElement(Financeiro,{uid,db,reload,setM:setModal}),
+    fin_visao:()=>React.createElement(FinVisao,{uid,db,reload,setM:setModal}),
+    fin_lancamentos:()=>React.createElement(FinLancamentos,{uid,db,reload,setM:setModal}),
+    fin_receber:()=>React.createElement(FinReceber,{uid,db,reload,setM:setModal}),
+    fin_pagar:()=>React.createElement(FinPagar,{uid,db,reload,setM:setModal}),
+    fin_movs:()=>React.createElement(FinMovs,{uid,db,reload,setM:setModal}),
+    fin_contas:()=>React.createElement(FinContas,{uid,db,reload,setM:setModal}),
   };
   const PC=PAGES[page]||PAGES.pedidos;
 
