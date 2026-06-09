@@ -1239,7 +1239,7 @@ function LancForm({uid,tipo,db,reload,close}){
   const{contas,categorias_fin}=db;
   const[desc,setDesc]=React.useState('');
   const[valor,setValor]=React.useState('');
-  const[cat,setCat]=React.useState(tipo==='receita'?'1.1 Vendas de Produtos':'3.2 Aluguel');
+  const[cat,setCat]=React.useState(tipo==='receita'?'3.1.1 Pix':'4.3.2.1 Aluguel');
   const[contaId,setContaId]=React.useState(contas&&contas[0]&&contas[0].id||'');
   const[formaPag,setFormaPag]=React.useState('PIX');
   const[venc,setVenc]=React.useState(TODAY());
@@ -1252,10 +1252,10 @@ function LancForm({uid,tipo,db,reload,close}){
   const[freqRec,setFreqRec]=React.useState('mensal');
   const[ld,setLd]=React.useState(false);
 
-  const CATS_REC_PAD=['1.1 Vendas de Produtos','1.2 Prestação de Serviços','1.3 Receitas Financeiras','1.4 Outras Receitas'];
-  const CATS_DESP_PAD=['2.1 CMV - Custo das Mercadorias','3.1 Pessoal e Salários','3.2 Aluguel','3.3 Energia e Água','3.4 Internet e Comunicação','3.5 Marketing e Publicidade','3.6 Contador e Assessoria','3.7 Manutenção','3.8 Combustível e Transporte','4.1 Taxas Bancárias','4.2 Taxas de Cartão','5.1 Simples Nacional','6.1 Equipamentos'];
-  const catsCustom=(categorias_fin||[]).filter(c=>c.tipo===tipo).map(c=>c.nome);
-  const cats=tipo==='receita'?[...CATS_REC_PAD,...catsCustom]:[...CATS_DESP_PAD,...catsCustom];
+  const catsCustom=(categorias_fin||[]).filter(c=>c.tipo===tipo||c.tipo===tipo).map(c=>c.nome);
+  // usa plano de contas padrão filtrado por tipo
+  const catsPadrao=PLANO_CONTAS.filter(c=>c.nivel>=2&&c.tipo===tipo).map(c=>c.cod+' '+c.nome);
+  const cats=[...catsPadrao,...catsCustom];
   const FREQS=[{v:'semanal',l:'Semanal'},{v:'quinzenal',l:'Quinzenal'},{v:'mensal',l:'Mensal'},{v:'bimestral',l:'Bimestral'},{v:'trimestral',l:'Trimestral'},{v:'semestral',l:'Semestral'},{v:'anual',l:'Anual'}];
   const isRec=tipo==='receita';
   const v=parseFloat(String(valor||'0').replace(',','.'));
@@ -1369,76 +1369,185 @@ function FinContas({uid,db,reload,setM}){
 }
 
 // ── CATEGORIAS FINANCEIRAS (PLANO DE CONTAS) ──
+// ── PLANO DE CONTAS PADRÃO MONEYY CONFEITARIA ──
+const PLANO_CONTAS=[
+  // 1 ATIVO
+  {cod:'1',    nome:'Ativo',                                    tipo:'ativo',    nivel:0},
+  {cod:'1.1',  nome:'Ativo Circulante',                         tipo:'ativo',    nivel:1},
+  {cod:'1.1.1',nome:'Caixa',                                    tipo:'ativo',    nivel:2},
+  {cod:'1.1.2',nome:'Bancos',                                   tipo:'ativo',    nivel:2},
+  {cod:'1.1.3',nome:'Clientes (Contas a Receber)',               tipo:'ativo',    nivel:2},
+  {cod:'1.1.4',nome:'Estoque de Ingredientes',                  tipo:'ativo',    nivel:2},
+  {cod:'1.1.5',nome:'Estoque de Embalagens',                    tipo:'ativo',    nivel:2},
+  {cod:'1.2',  nome:'Ativo Não Circulante',                     tipo:'ativo',    nivel:1},
+  {cod:'1.2.1',nome:'Máquinas',                                 tipo:'ativo',    nivel:2},
+  {cod:'1.2.2',nome:'Equipamentos',                             tipo:'ativo',    nivel:2},
+  {cod:'1.2.3',nome:'Veículos',                                 tipo:'ativo',    nivel:2},
+  {cod:'1.2.4',nome:'Móveis',                                   tipo:'ativo',    nivel:2},
+  {cod:'1.2.5',nome:'Instalações',                              tipo:'ativo',    nivel:2},
+  {cod:'1.2.6',nome:'(-) Depreciação Acumulada',                tipo:'ativo',    nivel:2},
+  // 2 PASSIVO
+  {cod:'2',    nome:'Passivo e Patrimônio Líquido',             tipo:'passivo',  nivel:0},
+  {cod:'2.1',  nome:'Passivo Circulante',                       tipo:'passivo',  nivel:1},
+  {cod:'2.1.1',nome:'Fornecedores',                             tipo:'passivo',  nivel:2},
+  {cod:'2.1.2',nome:'Salários e Encargos a Pagar',              tipo:'passivo',  nivel:2},
+  {cod:'2.1.3',nome:'Impostos e Taxas a Recolher',              tipo:'passivo',  nivel:2},
+  {cod:'2.1.4',nome:'Outras Obrigações de Curto Prazo',         tipo:'passivo',  nivel:2},
+  {cod:'2.2',  nome:'Passivo Não Circulante',                   tipo:'passivo',  nivel:1},
+  {cod:'2.2.1',nome:'Empréstimos e Financiamentos de Longo Prazo',tipo:'passivo',nivel:2},
+  {cod:'2.3',  nome:'Patrimônio Líquido',                       tipo:'passivo',  nivel:1},
+  {cod:'2.3.1',nome:'Capital Social',                           tipo:'passivo',  nivel:2},
+  {cod:'2.3.2',nome:'Lucros ou Prejuízos Acumulados',           tipo:'passivo',  nivel:2},
+  {cod:'2.3.3',nome:'(-) Retiradas da Sócia (Pró-labore)',      tipo:'passivo',  nivel:2},
+  // 3 RECEITA
+  {cod:'3',    nome:'Receita Bruta',                            tipo:'receita',  nivel:0},
+  {cod:'3.1',  nome:'Receita de Venda de Produtos',             tipo:'receita',  nivel:1},
+  {cod:'3.1.1',nome:'Pix',                                      tipo:'receita',  nivel:2},
+  {cod:'3.1.2',nome:'Dinheiro',                                 tipo:'receita',  nivel:2},
+  {cod:'3.1.3',nome:'Cartão de Crédito',                        tipo:'receita',  nivel:2},
+  {cod:'3.1.4',nome:'Cartão de Débito',                         tipo:'receita',  nivel:2},
+  {cod:'3.1.5',nome:'Ifood',                                    tipo:'receita',  nivel:2},
+  {cod:'3.1.6',nome:'Outras Formas de Pagamento',               tipo:'receita',  nivel:2},
+  {cod:'3.2',  nome:'(-) Deduções de Vendas',                   tipo:'receita',  nivel:1},
+  {cod:'3.2.1',nome:'DAS - Simples Nacional',                   tipo:'receita',  nivel:2},
+  {cod:'3.2.2',nome:'Taxas De Cartões',                         tipo:'receita',  nivel:2},
+  {cod:'3.2.3',nome:'Taxas Ifood',                              tipo:'receita',  nivel:2},
+  {cod:'3.2.4',nome:'Cancelamentos',                            tipo:'receita',  nivel:2},
+  {cod:'3.2.5',nome:'Descontos Concedidos',                     tipo:'receita',  nivel:2},
+  {cod:'3.2.6',nome:'Valores Recebidos Direto Pela Loja',       tipo:'receita',  nivel:2},
+  // 4 CUSTOS E DESPESAS
+  {cod:'4',    nome:'(-) Custos e Despesas',                    tipo:'despesa',  nivel:0},
+  {cod:'4.1',  nome:'(-) Custo de Mercadoria Vendida (CMV)',    tipo:'despesa',  nivel:1},
+  {cod:'4.1.1',nome:'Matérias Primas e Embalagens Consumidas',  tipo:'despesa',  nivel:2},
+  {cod:'4.1.1.1',nome:'Ingredientes Consumidos',                tipo:'despesa',  nivel:3},
+  {cod:'4.1.1.2',nome:'Embalagens Consumidas',                  tipo:'despesa',  nivel:3},
+  {cod:'4.1.2',nome:'Mão de Obra Direta',                       tipo:'despesa',  nivel:2},
+  {cod:'4.1.2.1',nome:'Mão de Obra Direta de Produção',         tipo:'despesa',  nivel:3},
+  {cod:'4.1.2.2',nome:'Encargos Sociais Sobre MOD',             tipo:'despesa',  nivel:3},
+  {cod:'4.1.2.3',nome:'Alimentação Equipe de Produção',         tipo:'despesa',  nivel:3},
+  {cod:'4.1.2.4',nome:'Bonificações Equipe de Produção',        tipo:'despesa',  nivel:3},
+  {cod:'4.1.3',nome:'Custos Indiretos De Fabricação (CIF)',     tipo:'despesa',  nivel:2},
+  {cod:'4.1.3.1',nome:'Energia Elétrica de Produção',           tipo:'despesa',  nivel:3},
+  {cod:'4.1.3.2',nome:'Manutenção de Equipamentos',             tipo:'despesa',  nivel:3},
+  {cod:'4.1.3.3',nome:'Materiais de Limpeza e Higiene',         tipo:'despesa',  nivel:3},
+  {cod:'4.2',  nome:'(-) Despesas Com Vendas',                  tipo:'despesa',  nivel:1},
+  {cod:'4.2.1',nome:'Logística e Entrega',                      tipo:'despesa',  nivel:2},
+  {cod:'4.2.1.1',nome:'Salários de Entregadores',               tipo:'despesa',  nivel:3},
+  {cod:'4.2.1.2',nome:'Encargos Sociais de Entregadores',       tipo:'despesa',  nivel:3},
+  {cod:'4.2.1.3',nome:'Bonificações Entregadores',              tipo:'despesa',  nivel:3},
+  {cod:'4.2.1.4',nome:'Combustível Veículos de Entregas',       tipo:'despesa',  nivel:3},
+  {cod:'4.2.1.5',nome:'Manutenção dos Veículos de Entregas',    tipo:'despesa',  nivel:3},
+  {cod:'4.2.1.6',nome:'Seguro do Veículo de Entrega',           tipo:'despesa',  nivel:3},
+  {cod:'4.2.1.7',nome:'Depreciação do Veículo de Entrega',      tipo:'despesa',  nivel:3},
+  {cod:'4.2.1.8',nome:'Motoboy Freelancer',                     tipo:'despesa',  nivel:3},
+  {cod:'4.2.1.9',nome:'Embalagens Secundárias',                 tipo:'despesa',  nivel:3},
+  {cod:'4.2.2',nome:'Marketing',                                tipo:'despesa',  nivel:2},
+  {cod:'4.2.2.1',nome:'Tráfego Pago',                          tipo:'despesa',  nivel:3},
+  {cod:'4.2.2.2',nome:'Tráfego Orgânico',                      tipo:'despesa',  nivel:3},
+  {cod:'4.2.2.3',nome:'Assessoria De Marketing',                tipo:'despesa',  nivel:3},
+  {cod:'4.2.2.4',nome:'Fotografia e Vídeo De Produtos',         tipo:'despesa',  nivel:3},
+  {cod:'4.2.2.5',nome:'Influenciadores e Parcerias',            tipo:'despesa',  nivel:3},
+  {cod:'4.2.3',nome:'Canais de Vendas',                         tipo:'despesa',  nivel:2},
+  {cod:'4.2.3.1',nome:'Sistemas',                               tipo:'despesa',  nivel:3},
+  {cod:'4.2.4',nome:'Taxas',                                    tipo:'despesa',  nivel:2},
+  {cod:'4.2.4.1',nome:'Taxa Cartão Débito',                     tipo:'despesa',  nivel:3},
+  {cod:'4.2.4.2',nome:'Taxa Cartão Crédito',                    tipo:'despesa',  nivel:3},
+  {cod:'4.2.4.3',nome:'Taxas Ifood',                            tipo:'despesa',  nivel:3},
+  {cod:'4.2.4.4',nome:'Mensalidade Ifood',                      tipo:'despesa',  nivel:3},
+  {cod:'4.2.4.5',nome:'Valores Recebidos Direto Pela Loja',     tipo:'despesa',  nivel:3},
+  {cod:'4.3',  nome:'(-) Despesas Administrativas',             tipo:'despesa',  nivel:1},
+  {cod:'4.3.1',nome:'Pessoal Administrativo',                   tipo:'despesa',  nivel:2},
+  {cod:'4.3.1.1',nome:'Salários Administrativos',               tipo:'despesa',  nivel:3},
+  {cod:'4.3.1.2',nome:'Encargos Sociais Administrativos',       tipo:'despesa',  nivel:3},
+  {cod:'4.3.1.3',nome:'Pró-Labore De Sócios',                  tipo:'despesa',  nivel:3},
+  {cod:'4.3.1.4',nome:'Alimentação ADM',                        tipo:'despesa',  nivel:3},
+  {cod:'4.3.1.5',nome:'Combustível ADM',                        tipo:'despesa',  nivel:3},
+  {cod:'4.3.2',nome:'Ocupação e Instalações',                   tipo:'despesa',  nivel:2},
+  {cod:'4.3.2.1',nome:'Aluguel',                                tipo:'despesa',  nivel:3},
+  {cod:'4.3.2.2',nome:'Energia Elétrica',                       tipo:'despesa',  nivel:3},
+  {cod:'4.3.2.3',nome:'Água',                                   tipo:'despesa',  nivel:3},
+  {cod:'4.3.2.4',nome:'Internet e Telefone',                    tipo:'despesa',  nivel:3},
+  {cod:'4.3.2.5',nome:'Condomínio e IPTU',                      tipo:'despesa',  nivel:3},
+  {cod:'4.3.3',nome:'Despesas Gerais',                          tipo:'despesa',  nivel:2},
+  {cod:'4.3.3.1',nome:'Honorários Contábeis',                   tipo:'despesa',  nivel:3},
+  {cod:'4.3.3.2',nome:'Software / Sistema / Emissor NF',        tipo:'despesa',  nivel:3},
+  {cod:'4.3.3.3',nome:'Material de Escritório',                 tipo:'despesa',  nivel:3},
+  {cod:'4.3.3.4',nome:'Material de Limpeza (adm)',              tipo:'despesa',  nivel:3},
+  {cod:'4.3.3.5',nome:'Manutenções',                            tipo:'despesa',  nivel:3},
+  {cod:'4.3.3.6',nome:'Seguros',                                tipo:'despesa',  nivel:3},
+  {cod:'4.3.3.7',nome:'Depreciação',                            tipo:'despesa',  nivel:3},
+  {cod:'4.3.4',nome:'Impostos e Taxas',                         tipo:'despesa',  nivel:2},
+  {cod:'4.3.4.1',nome:'Alvará e Taxas Municipais',              tipo:'despesa',  nivel:3},
+  {cod:'4.3.4.2',nome:'Outros Tributos',                        tipo:'despesa',  nivel:3},
+  {cod:'4.4',  nome:'(-) Despesas Financeiras',                 tipo:'despesa',  nivel:1},
+  {cod:'4.4.1',nome:'Juros sobre Empréstimos',                  tipo:'despesa',  nivel:2},
+  {cod:'4.4.2',nome:'Tarifas Bancárias',                        tipo:'despesa',  nivel:2},
+  {cod:'4.4.3',nome:'Juros e Multas',                           tipo:'despesa',  nivel:2},
+  {cod:'4.4.4',nome:'IOF',                                      tipo:'despesa',  nivel:2},
+];
+
+// grupos de topo para a UI
 const GRUPOS_PADRAO=[
-  {grupo:'1 - RECEITAS',tipo:'receita',subs:['1.1 Vendas de Produtos','1.2 Prestação de Serviços','1.3 Receitas Financeiras','1.4 Outras Receitas']},
-  {grupo:'2 - CUSTOS',tipo:'despesa',subs:['2.1 CMV - Custo das Mercadorias','2.2 Matérias-Primas','2.3 Embalagens','2.4 Mão de Obra Direta']},
-  {grupo:'3 - DESPESAS OPERACIONAIS',tipo:'despesa',subs:['3.1 Pessoal e Salários','3.2 Aluguel','3.3 Energia e Água','3.4 Internet e Comunicação','3.5 Marketing e Publicidade','3.6 Contador e Assessoria','3.7 Manutenção','3.8 Combustível e Transporte']},
-  {grupo:'4 - DESPESAS FINANCEIRAS',tipo:'despesa',subs:['4.1 Taxas Bancárias','4.2 Taxas de Cartão','4.3 Juros e Multas','4.4 IOF']},
-  {grupo:'5 - IMPOSTOS E TAXAS',tipo:'despesa',subs:['5.1 Simples Nacional','5.2 ICMS','5.3 PIS/COFINS','5.4 IRPJ/CSLL','5.5 Outros Impostos']},
-  {grupo:'6 - INVESTIMENTOS',tipo:'despesa',subs:['6.1 Equipamentos','6.2 Reformas e Benfeitorias','6.3 Software e Sistemas','6.4 Outros Investimentos']},
+  {grupo:'1 - ATIVO',             tipo:'ativo',   cor:'#2563eb', subs:PLANO_CONTAS.filter(c=>c.cod.startsWith('1.')&&c.nivel>=2).map(c=>c.cod+' '+c.nome)},
+  {grupo:'2 - PASSIVO / PL',      tipo:'passivo', cor:'#7c3aed', subs:PLANO_CONTAS.filter(c=>c.cod.startsWith('2.')&&c.nivel>=2).map(c=>c.cod+' '+c.nome)},
+  {grupo:'3 - RECEITAS',          tipo:'receita', cor:'#16a34a', subs:PLANO_CONTAS.filter(c=>c.cod.startsWith('3.')&&c.nivel>=2).map(c=>c.cod+' '+c.nome)},
+  {grupo:'4.1 - CMV',             tipo:'despesa', cor:'#dc2626', subs:PLANO_CONTAS.filter(c=>c.cod.startsWith('4.1')&&c.nivel>=2).map(c=>c.cod+' '+c.nome)},
+  {grupo:'4.2 - DESPESAS VENDAS', tipo:'despesa', cor:'#dc2626', subs:PLANO_CONTAS.filter(c=>c.cod.startsWith('4.2')&&c.nivel>=2).map(c=>c.cod+' '+c.nome)},
+  {grupo:'4.3 - DESPESAS ADM',    tipo:'despesa', cor:'#dc2626', subs:PLANO_CONTAS.filter(c=>c.cod.startsWith('4.3')&&c.nivel>=2).map(c=>c.cod+' '+c.nome)},
+  {grupo:'4.4 - DESPESAS FIN',    tipo:'despesa', cor:'#dc2626', subs:PLANO_CONTAS.filter(c=>c.cod.startsWith('4.4')&&c.nivel>=2).map(c=>c.cod+' '+c.nome)},
 ];
 
 function FinCategorias({uid,db,reload,setM}){
   const{categorias_fin}=db;
   const[expandido,setExpandido]=React.useState({});
-  const toggle=(g)=>setExpandido(p=>({...p,[g]:!p[g]}));
+  const toggle=(g)=>setExpandido(p=>({...p,[g]:p[g]===false?true:false}));
+  const isExp=(g)=>expandido[g]!==false;
 
-  const novaCategoria=(grupo,tipo)=>setM({title:'Nova Categoria',body:React.createElement(CatForm,{uid,grupo,tipo,reload,close:()=>setM(null)})});
+  const novaCategoria=(grupo,tipo)=>setM({title:'Nova Conta',body:React.createElement(CatForm,{uid,grupo,tipo,reload,close:()=>setM(null)})});
+  const excluirCat=async(id,nome)=>{if(!confirm('Excluir "'+nome+'"?'))return;await sb.from('categorias_fin').delete().eq('id',id);toast('Excluída!',false,true);reload();};
 
-  const excluirCat=async(id,nome)=>{
-    if(!confirm('Excluir categoria "'+nome+'"?'))return;
-    await sb.from('categorias_fin').delete().eq('id',id);
-    toast('Excluída!',false,true);reload();
-  };
-
-  // Agrupa categorias customizadas por grupo
   const catsPorGrupo={};
-  (categorias_fin||[]).forEach(c=>{
-    if(!catsPorGrupo[c.grupo])catsPorGrupo[c.grupo]=[];
-    catsPorGrupo[c.grupo].push(c);
-  });
+  (categorias_fin||[]).forEach(c=>{if(!catsPorGrupo[c.grupo])catsPorGrupo[c.grupo]=[];catsPorGrupo[c.grupo].push(c);});
 
-  return React.createElement(PW,{title:'Plano de Contas',sub:'Categorias financeiras para classificação dos lançamentos',
-    actions:[React.createElement('button',{key:'n',style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:()=>novaCategoria('','despesa')},'+ Nova Categoria')]},
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}},
-      GRUPOS_PADRAO.map(g=>{
-        const catsCustom=catsPorGrupo[g.grupo]||[];
-        const exp=expandido[g.grupo]!==false; // aberto por default
-        return React.createElement('div',{key:g.grupo,style:{background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden'}},
-          // Header do grupo
-          React.createElement('div',{
-            onClick:()=>toggle(g.grupo),
-            style:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 16px',cursor:'pointer',borderBottom:exp?'1px solid #f5f5f5':'none',background:g.tipo==='receita'?'#f0fdf4':'#fff5f5'}
-          },
-            React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8}},
-              React.createElement('div',{style:{width:8,height:8,borderRadius:'50%',background:g.tipo==='receita'?'#16a34a':'#dc2626',flexShrink:0}}),
-              React.createElement('span',{style:{fontWeight:700,fontSize:13,color:'#111'}},g.grupo)
-            ),
-            React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8}},
-              React.createElement('button',{
-                onClick:e=>{e.stopPropagation();novaCategoria(g.grupo,g.tipo);},
-                style:{fontSize:11,color:g.tipo==='receita'?'#16a34a':'#dc2626',background:'transparent',border:'none',cursor:'pointer',fontWeight:600}
-              },'+ Add'),
-              React.createElement('span',{style:{fontSize:12,color:'#ccc',transition:'transform 0.2s',display:'inline-block',transform:exp?'rotate(90deg)':'rotate(0deg)'}},'›')
-            )
-          ),
-          // Subcategorias padrão + customizadas
-          exp&&React.createElement('div',{style:{padding:'8px 0'}},
-            // Padrão (read-only)
-            g.subs.map(s=>React.createElement('div',{key:s,style:{display:'flex',alignItems:'center',padding:'7px 16px',borderBottom:'1px solid #fafafa'}},
-              React.createElement('span',{style:{fontSize:11,color:'#888',marginRight:8}}),'',
-              React.createElement('span',{style:{fontSize:13,color:'#555',flex:1}},s),
-              React.createElement('span',{style:{fontSize:10,color:'#ddd',fontWeight:600,letterSpacing:'1px'}},'PADRÃO')
-            )),
-            // Customizadas
-            catsCustom.map(c=>React.createElement('div',{key:c.id,style:{display:'flex',alignItems:'center',padding:'7px 16px',borderBottom:'1px solid #fafafa',background:'#fafeff'}},
-              React.createElement('span',{style:{fontSize:11,color:'#2563eb',marginRight:8}}),'',
-              React.createElement('span',{style:{fontSize:13,color:'#111',flex:1,fontWeight:500}},c.nome),
-              React.createElement('button',{onClick:()=>excluirCat(c.id,c.nome),style:{fontSize:11,color:'#dc2626',background:'#fee2e2',border:'none',borderRadius:6,padding:'2px 8px',cursor:'pointer',fontWeight:600}},'×')
-            ))
-          )
+  const TIPO_CORES={receita:'#16a34a',despesa:'#dc2626',ativo:'#2563eb',passivo:'#7c3aed'};
+  const TIPO_BG={receita:'#f0fdf4',despesa:'#fff5f5',ativo:'#eff6ff',passivo:'#faf5ff'};
+
+  return React.createElement(PW,{title:'Plano de Contas',sub:'Estrutura contábil padrão Moneyy para confeitarias',
+    actions:[React.createElement('button',{key:'n',style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:()=>novaCategoria('','despesa')},'+ Nova Conta')]},
+
+    // tabela plano completo
+    React.createElement('div',{style:{background:'#fff',borderRadius:16,boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden',marginBottom:20}},
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'120px 1fr auto',background:'#fafafa',padding:'10px 16px',borderBottom:'1px solid #f0f0f0'}},
+        React.createElement('span',{style:{fontSize:11,fontWeight:700,color:'#aaa',letterSpacing:'1px',textTransform:'uppercase'}},'Código'),
+        React.createElement('span',{style:{fontSize:11,fontWeight:700,color:'#aaa',letterSpacing:'1px',textTransform:'uppercase'}},'Conta'),
+        React.createElement('span',{style:{fontSize:11,fontWeight:700,color:'#aaa',letterSpacing:'1px',textTransform:'uppercase'}},'Tipo')
+      ),
+      PLANO_CONTAS.map(c=>{
+        const indent=c.nivel*16;
+        const isGroup=c.nivel<=1;
+        const cor=TIPO_CORES[c.tipo]||'#555';
+        const bg=isGroup&&c.nivel===0?TIPO_BG[c.tipo]||'#fafafa':'#fff';
+        return React.createElement('div',{key:c.cod,style:{display:'grid',gridTemplateColumns:'120px 1fr auto',padding:'8px 16px',borderBottom:'1px solid #f9f9f9',background:bg,alignItems:'center'}},
+          React.createElement('span',{style:{fontSize:12,fontWeight:isGroup?700:400,color:isGroup?cor:'#aaa',fontFamily:'monospace'}},c.cod),
+          React.createElement('span',{style:{fontSize:13,fontWeight:isGroup?700:400,color:isGroup?'#111':'#555',paddingLeft:indent}},c.nome),
+          React.createElement('span',{style:{fontSize:10,color:cor,fontWeight:600,letterSpacing:'1px',textTransform:'uppercase',whiteSpace:'nowrap'}},c.tipo)
         );
-      })
+      }),
+      // categorias customizadas
+      (categorias_fin||[]).length>0&&React.createElement('div',null,
+        React.createElement('div',{style:{padding:'10px 16px',background:'#eff6ff',borderTop:'2px solid #dbeafe',display:'flex',justifyContent:'space-between',alignItems:'center'}},
+          React.createElement('span',{style:{fontSize:12,fontWeight:700,color:'#2563eb',letterSpacing:'1px',textTransform:'uppercase'}},'Contas Personalizadas'),
+          React.createElement('span',{style:{fontSize:11,color:'#93c5fd'}},(categorias_fin||[]).length+' conta(s)')
+        ),
+        (categorias_fin||[]).map(c=>React.createElement('div',{key:c.id,style:{display:'grid',gridTemplateColumns:'120px 1fr auto',padding:'8px 16px',borderBottom:'1px solid #f9f9f9',background:'#fafeff',alignItems:'center'}},
+          React.createElement('span',{style:{fontSize:12,color:'#aaa',fontFamily:'monospace'}},c.grupo.split(' ')[0]||'—'),
+          React.createElement('span',{style:{fontSize:13,color:'#111',paddingLeft:24}},c.nome),
+          React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8}},
+            React.createElement('span',{style:{fontSize:10,color:TIPO_CORES[c.tipo]||'#555',fontWeight:600,letterSpacing:'1px',textTransform:'uppercase'}},c.tipo),
+            React.createElement('button',{onClick:()=>excluirCat(c.id,c.nome),style:{fontSize:11,color:'#dc2626',background:'#fee2e2',border:'none',borderRadius:6,padding:'2px 8px',cursor:'pointer',fontWeight:600}},'X')
+          )
+        ))
+      )
     )
   );
 }
