@@ -1097,6 +1097,54 @@ function DateRangePicker({dtIni,dtFim,onChange,onClose}){
   );
 }
 
+function LancDetalhe({l,conta,uid,contas,db,reload,close}){
+  const acent=l.tipo==='receita'?'#16a34a':'#dc2626';
+  const isV=!l.pago&&l.venc&&l.venc<TODAY();
+
+  const confirmar=async()=>{
+    const cid=l.conta_id||(contas[0]&&contas[0].id);
+    await sb.from('lancamentos').update({pago:true,data_pag:TODAY()}).eq('id',l.id);
+    if(cid){const c=contas.find(x=>x.id===cid);if(c)await sb.from('contas_bancarias').update({saldo:l.tipo==='receita'?Number(c.saldo)+Number(l.valor):Number(c.saldo)-Number(l.valor)}).eq('id',cid);}
+    toast('Confirmado!',false,true);reload();close();
+  };
+
+  const row=(label,val)=>val?React.createElement('div',{style:{display:'flex',justifyContent:'space-between',padding:'9px 0',borderBottom:'1px solid #f8f8f8'}},
+    React.createElement('span',{style:{fontSize:12,color:'#aaa',fontWeight:600}},(label||'').toUpperCase()),
+    React.createElement('span',{style:{fontSize:13,color:'#111',fontWeight:500,textAlign:'right',maxWidth:'60%'}},val)
+  ):null;
+
+  return React.createElement('div',null,
+    // Header valor
+    React.createElement('div',{style:{background:l.tipo==='receita'?'#f0fdf4':'#fff5f5',borderRadius:12,padding:'18px',marginBottom:16,textAlign:'center'}},
+      React.createElement('div',{style:{fontSize:11,color:acent,fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:6}},l.tipo==='receita'?'Receita':'Despesa'),
+      React.createElement('div',{style:{fontSize:28,fontWeight:800,color:acent,letterSpacing:'-1px'}},(l.tipo==='receita'?'+':'-')+F(l.valor)),
+      React.createElement('div',{style:{fontSize:12,color:'#aaa',marginTop:4}},l.descricao)
+    ),
+    // Detalhes
+    React.createElement('div',{style:{background:'#fff',borderRadius:12,border:'1px solid #f0f0f0',padding:'4px 14px',marginBottom:14}},
+      row('Categoria',l.categoria),
+      row('Conta',conta&&conta.nome),
+      row('Forma de Pagamento',l.forma_pag),
+      row('Centro de Custo',l.centro_custo),
+      row('Vencimento',FD(l.venc)),
+      row('Competência',FD(l.competencia)),
+      row('Data Pagamento',FD(l.data_pag)),
+      row('Fornecedor',l.fornecedor),
+      l.juros>0&&row('Juros',F(l.juros)),
+      l.multa>0&&row('Multa',F(l.multa)),
+      l.desconto>0&&row('Desconto','-'+F(l.desconto)),
+      row('Parcela',l.parcela),
+      row('Obs.',l.obs),
+      row('Status',l.pago?'Pago':isV?'Vencido':'Pendente')
+    ),
+    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
+      !l.pago&&React.createElement('button',{style:{background:'#16a34a',color:'#fff',padding:'9px 18px',borderRadius:10,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:confirmar},'✓ Confirmar Pagamento'),
+      React.createElement('button',{style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'},onClick:close},'Fechar')
+    )
+  );
+}
+
+
 function FinLancamentos({uid,db,reload,setM}){
   const{lancamentos,contas}=db;
   const hoje=TODAY();
@@ -1164,6 +1212,11 @@ function FinLancamentos({uid,db,reload,setM}){
     if(l.grupo_id){const todos=confirm('Grupo encontrado.\nOK = todos  Cancelar = so este');if(todos)await sb.from('lancamentos').delete().eq('grupo_id',l.grupo_id).eq('user_id',uid);else await sb.from('lancamentos').delete().eq('id',l.id);}
     else await sb.from('lancamentos').delete().eq('id',l.id);
     toast('Excluido!',false,true);reload();
+  };
+
+  const abrirLanc=(l)=>{
+    const conta=(contas||[]).find(c=>c.id===l.conta_id);
+    setM({title:'Lançamento',wide:true,body:React.createElement(LancDetalhe,{l,conta,uid,contas,db,reload,close:()=>setM(null)})});
   };
 
   const badgeBtn=(id,label,itens,cor,bg)=>React.createElement('button',{
@@ -1258,7 +1311,7 @@ function FinLancamentos({uid,db,reload,setM}){
           const isH=!l.pago&&l.venc===hoje;
           const conta=(contas||[]).find(c=>c.id===l.conta_id);
           const parcLabel=l.parcela?((l.recorrente?'Rec ':'')+l.parcela):null;
-          return React.createElement(TR,{key:l.id,cells:[
+          return React.createElement(TR,{key:l.id,onClick:()=>abrirLanc(l),cells:[
             React.createElement('div',null,
               React.createElement('span',{style:{fontSize:13,color:'#555'}},FD(l.data)),
               parcLabel&&React.createElement('div',{style:{fontSize:10,color:'#7c3aed',fontWeight:600,marginTop:2}},parcLabel)
@@ -1483,6 +1536,25 @@ function MonthPicker({value,onChange,label,acent}){
 }
 
 
+// ── FLOATING LABEL FIELD (module-level, stable ref) ──
+function FloatField({label,acent,children}){
+  const cor=acent||'#dc2626';
+  return React.createElement('div',{style:{position:'relative',marginBottom:10}},
+    React.createElement('label',{style:{position:'absolute',top:7,left:14,fontSize:9,color:cor,fontWeight:700,letterSpacing:'1.2px',textTransform:'uppercase',pointerEvents:'none',zIndex:1}},label),
+    children
+  );
+}
+
+function FloatInput({label,acent,value,onChange,type,placeholder,readOnly,style:extraStyle}){
+  const cor=acent||'#dc2626';
+  const base={width:'100%',background:'#fff',border:'1.5px solid #e2e2e2',borderRadius:10,padding:'24px 14px 8px 14px',fontSize:13,color:'#111',outline:'none',boxSizing:'border-box',display:'block',...(extraStyle||{})};
+  return React.createElement('div',{style:{position:'relative',marginBottom:10}},
+    React.createElement('label',{style:{position:'absolute',top:7,left:14,fontSize:9,color:cor,fontWeight:700,letterSpacing:'1.2px',textTransform:'uppercase',pointerEvents:'none',zIndex:1}},label),
+    React.createElement('input',{style:base,type:type||'text',value:value??'',onChange,placeholder:placeholder||'',readOnly:readOnly||false})
+  );
+}
+
+
 function LancForm({uid,tipo,db,reload,close}){
   const{contas,categorias_fin,centros_custo}=db;
   const isRec=tipo==='receita';
@@ -1532,18 +1604,7 @@ function LancForm({uid,tipo,db,reload,close}){
   const selBase={...inpBase,appearance:'none',WebkitAppearance:'none',cursor:'pointer',paddingRight:32};
   const chevron={position:'absolute',right:12,bottom:10,pointerEvents:'none',color:'#aaa',fontSize:11};
 
-  const Field=({label,children})=>React.createElement('div',{style:fieldStyle},
-    React.createElement('label',{style:lbFloat},label),
-    children
-  );
-  const SelField=({label,v,set,opts,ph})=>React.createElement('div',{style:{...fieldStyle,position:'relative'}},
-    React.createElement('label',{style:lbFloat},label),
-    React.createElement('select',{style:selBase,value:v,onChange:e=>set(e.target.value)},
-      ph&&React.createElement('option',{value:''},ph),
-      opts.map(o=>React.createElement('option',{key:o.v||o,value:o.v||o},o.l||o))
-    ),
-    React.createElement('span',{style:chevron},'▾')
-  );
+  // Field and SelField are defined at module level below
 
   const salvar=async()=>{
     if(!desc||!valor){toast('Preencha descricao e valor',true);return;}
@@ -1595,12 +1656,8 @@ function LancForm({uid,tipo,db,reload,close}){
   return React.createElement('div',{style:{minWidth:500}},
     // ── LINHA 1: Descricao + Valor ──
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1.8fr 1fr',gap:10,marginBottom:0}},
-      React.createElement(Field,{label:'Descricao *'},
-        React.createElement('input',{style:inpBase,type:'text',placeholder:'',value:desc,onChange:e=>setDesc(e.target.value)})
-      ),
-      React.createElement(Field,{label:'Valor *'},
-        React.createElement('input',{style:inpBase,type:'number',step:'0.01',placeholder:'',value:valor,onChange:e=>setValor(e.target.value)})
-      )
+      React.createElement(FloatInput,{label:'Descricao *',acent,value:desc,onChange:e=>setDesc(e.target.value)}),
+      React.createElement(FloatInput,{label:'Valor *',acent,type:'number',step:'0.01',value:valor,onChange:e=>setValor(e.target.value)})
     ),
     // ── LINHA 2: Conta + Vencimento + Competencia ──
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}},
@@ -1614,9 +1671,7 @@ function LancForm({uid,tipo,db,reload,close}){
     ),
     // ── LINHA 3: Fornecedor + Forma de pagamento ──
     !isTransf&&React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}},
-      React.createElement(Field,{label:'Fornecedor'},
-        React.createElement('input',{style:inpBase,type:'text',placeholder:'',value:fornecedor,onChange:e=>setFornecedor(e.target.value)})
-      ),
+      React.createElement(FloatInput,{label:'Fornecedor',acent,value:fornecedor,onChange:e=>setFornecedor(e.target.value)}),
       React.createElement(CustomSelect,{label:'Forma de pagamento',value:formaPag,onChange:setFormaPag,options:FORMAS,placeholder:'—',acent})
     ),
     // ── LINHA 4: Categoria + Centro de custo ──
@@ -1643,13 +1698,10 @@ function LancForm({uid,tipo,db,reload,close}){
     // ── LINHA DATA PAG + JUROS + MULTA + DESCONTO + TOTAL ──
     pago&&React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1.2fr 1fr 1fr 1fr 1fr',gap:10,marginBottom:14}},
       React.createElement(MiniDatePicker,{label:'Data de pagamento *',value:dataPag,onChange:setDataPag,acent}),
-      React.createElement(Field,{label:'Juros'},React.createElement('input',{style:inpBase,type:'number',step:'0.01',placeholder:'',value:juros,onChange:e=>setJuros(e.target.value)})),
-      React.createElement(Field,{label:'Multa'},React.createElement('input',{style:inpBase,type:'number',step:'0.01',placeholder:'',value:multa,onChange:e=>setMulta(e.target.value)})),
-      React.createElement(Field,{label:'Desconto'},React.createElement('input',{style:inpBase,type:'number',step:'0.01',placeholder:'',value:desconto,onChange:e=>setDesconto(e.target.value)})),
-      React.createElement('div',{style:{...fieldStyle}},
-        React.createElement('label',{style:lbFloat},'Valor total'),
-        React.createElement('div',{style:{...inpBase,display:'flex',alignItems:'center',background:'#f9f9f9',fontWeight:700,color:acent}},F(totalFinal))
-      )
+      React.createElement(FloatInput,{label:'Juros',acent,type:'number',step:'0.01',value:juros,onChange:e=>setJuros(e.target.value)}),
+      React.createElement(FloatInput,{label:'Multa',acent,type:'number',step:'0.01',value:multa,onChange:e=>setMulta(e.target.value)}),
+      React.createElement(FloatInput,{label:'Desconto',acent,type:'number',step:'0.01',value:desconto,onChange:e=>setDesconto(e.target.value)}),
+      React.createElement(FloatField,{label:'Valor total',acent},React.createElement('div',{style:{width:'100%',background:'#f9f9f9',border:'1.5px solid #e2e2e2',borderRadius:10,padding:'24px 14px 8px 14px',fontSize:13,fontWeight:700,color:acent,boxSizing:'border-box'}},F(totalFinal)))
     ),
     React.createElement('div',{style:{height:1,background:'#f0f0f0',marginBottom:14}}),
     // ── TIPO DE LANCAMENTO ──
@@ -1666,11 +1718,11 @@ function LancForm({uid,tipo,db,reload,close}){
       ),
       // config parcelado
       tipoLanc==='Parcelado'&&React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}},
-        React.createElement(Field,{label:'Num. parcelas'},React.createElement('input',{style:inpBase,type:'number',min:2,max:120,value:numParc,onChange:e=>setNumParc(Math.max(2,parseInt(e.target.value)||2))})),
+        React.createElement(FloatInput,{label:'Num. parcelas',acent,type:'number',value:numParc,onChange:e=>setNumParc(Math.max(2,parseInt(e.target.value)||2))}),
         React.createElement(CustomSelect,{label:'Frequencia',value:freqParc,onChange:setFreqParc,options:FREQS.map(f=>({v:f.v,l:f.l})),acent})
       ),
       tipoLanc==='Recorrente'&&React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}},
-        React.createElement(Field,{label:'Num. repeticoes'},React.createElement('input',{style:inpBase,type:'number',min:1,max:120,value:numRep,onChange:e=>setNumRep(Math.max(1,parseInt(e.target.value)||12))})),
+        React.createElement(FloatInput,{label:'Num. repeticoes',acent,type:'number',value:numRep,onChange:e=>setNumRep(Math.max(1,parseInt(e.target.value)||12))}),
         React.createElement(CustomSelect,{label:'Frequencia',value:freqRec,onChange:setFreqRec,options:FREQS.map(f=>({v:f.v,l:f.l})),acent})
       ),
       tipoLanc==='Unico'&&React.createElement('div',{style:{display:'flex',alignItems:'center',padding:'0 8px'}},
