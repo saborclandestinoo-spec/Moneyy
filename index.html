@@ -1215,8 +1215,8 @@ function FinLancamentos({uid,db,reload,setM}){
   };
 
   const abrirLanc=(l)=>{
-    const conta=(contas||[]).find(c=>c.id===l.conta_id);
-    setM({title:'Lançamento',wide:true,body:React.createElement(LancDetalhe,{l,conta,uid,contas,db,reload,close:()=>setM(null)})});
+    const titulo=l.tipo==='receita'?'Editar Receita':l.tipo==='despesa'?'Editar Despesa':'Editar Lançamento';
+    setM({title:titulo,wide:true,body:React.createElement(LancForm,{uid,tipo:l.tipo,db,reload,inicial:l,close:()=>setM(null)})});
   };
 
   const badgeBtn=(id,label,itens,cor,bg)=>React.createElement('button',{
@@ -1555,30 +1555,30 @@ function FloatInput({label,acent,value,onChange,type,placeholder,readOnly,style:
 }
 
 
-function LancForm({uid,tipo,db,reload,close}){
+function LancForm({uid,tipo,db,reload,close,inicial}){
   const{contas,categorias_fin,centros_custo}=db;
   const isRec=tipo==='receita';
   const isTransf=tipo==='transferencia';
   const acent=isRec?'#16a34a':isTransf?'#2563eb':'#dc2626';
 
   // state
-  const[desc,setDesc]=React.useState('');
-  const[valor,setValor]=React.useState('');
-  const[contaId,setContaId]=React.useState(contas&&contas[0]&&contas[0].id||'');
+  const[desc,setDesc]=React.useState(inicial&&inicial.descricao||'');
+  const[valor,setValor]=React.useState(inicial&&String(inicial.valor||'')||'');
+  const[contaId,setContaId]=React.useState(inicial&&inicial.conta_id||contas&&contas[0]&&contas[0].id||'');
   const[contaDestId,setContaDestId]=React.useState(contas&&contas[1]?contas[1].id:contas&&contas[0]?contas[0].id:'');
-  const[venc,setVenc]=React.useState(TODAY());
-  const[competencia,setCompetencia]=React.useState('');
+  const[venc,setVenc]=React.useState(inicial&&inicial.venc||TODAY());
+  const[competencia,setCompetencia]=React.useState(inicial&&inicial.competencia||'');
   const compEfetivo=competencia||venc;
-  const[fornecedor,setFornecedor]=React.useState('');
-  const[formaPag,setFormaPag]=React.useState('');
-  const[cat,setCat]=React.useState('');
-  const[centroCusto,setCentroCusto]=React.useState('');
-  const[pago,setPago]=React.useState(false);
-  const[dataPag,setDataPag]=React.useState(TODAY());
-  const[juros,setJuros]=React.useState('');
-  const[multa,setMulta]=React.useState('');
-  const[desconto,setDesconto]=React.useState('');
-  const[tipoLanc,setTipoLanc]=React.useState('Unico');
+  const[fornecedor,setFornecedor]=React.useState(inicial&&inicial.fornecedor||'');
+  const[formaPag,setFormaPag]=React.useState(inicial&&inicial.forma_pag||'');
+  const[cat,setCat]=React.useState(inicial&&inicial.categoria||'');
+  const[centroCusto,setCentroCusto]=React.useState(inicial&&inicial.centro_custo||'');
+  const[pago,setPago]=React.useState(inicial&&inicial.pago||false);
+  const[dataPag,setDataPag]=React.useState(inicial&&inicial.data_pag||TODAY());
+  const[juros,setJuros]=React.useState(inicial&&inicial.juros||'');
+  const[multa,setMulta]=React.useState(inicial&&inicial.multa||'');
+  const[desconto,setDesconto]=React.useState(inicial&&inicial.desconto||'');
+  const[tipoLanc,setTipoLanc]=React.useState(inicial&&inicial.recorrente?'Recorrente':inicial&&inicial.parcela&&!inicial.recorrente?'Parcelado':'Unico');
   const[numParc,setNumParc]=React.useState(2);
   const[freqParc,setFreqParc]=React.useState('mensal');
   const[numRep,setNumRep]=React.useState(12);
@@ -1641,13 +1641,30 @@ function LancForm({uid,tipo,db,reload,close}){
       if(cD)await sb.from('contas_bancarias').update({saldo:Number(cD.saldo)+vl}).eq('id',contaDestId);
       toast('Transferencia realizada!',false,true);reload();close();setLd(false);return;
     }
-    const{error}=await sb.from('lancamentos').insert(rows);
+    let error;
+    if(inicial&&inicial.id&&rows.length===1){
+      // UPDATE existing
+      const{error:e}=await sb.from('lancamentos').update(rows[0]).eq('id',inicial.id);
+      error=e;
+      // Reverse old saldo effect if was pago, apply new
+      if(!error&&inicial.pago&&contaId){
+        const conta=(contas||[]).find(c=>c.id===contaId);
+        if(conta){
+          const oldDelta=inicial.tipo==='receita'?-Number(inicial.valor):Number(inicial.valor);
+          const newDelta=isRec?totalFinal:-totalFinal;
+          await sb.from('contas_bancarias').update({saldo:Number(conta.saldo)+oldDelta+newDelta}).eq('id',contaId);
+        }
+      }
+    }else{
+      const{error:e}=await sb.from('lancamentos').insert(rows);
+      error=e;
+    }
     if(error){toast('Erro: '+error.message,true);setLd(false);return;}
-    if(pago&&contaId){
+    if(pago&&contaId&&!(inicial&&inicial.id)){
       const conta=(contas||[]).find(c=>c.id===contaId);
       if(conta){const delta=isRec?totalFinal:-totalFinal;await sb.from('contas_bancarias').update({saldo:Number(conta.saldo)+delta}).eq('id',contaId);}
     }
-    const msg=tipoLanc==='Unico'?'Lancamento criado!':tipoLanc==='Parcelado'?numParc+' parcelas!':numRep+' recorrencias!';
+    const msg=inicial&&inicial.id?'Lançamento atualizado!':tipoLanc==='Unico'?'Lancamento criado!':tipoLanc==='Parcelado'?numParc+' parcelas!':numRep+' recorrencias!';
     toast(msg,false,true);reload();close();setLd(false);
   };
 
@@ -1743,7 +1760,7 @@ function LancForm({uid,tipo,db,reload,close}){
         style:{background:acent,color:'#fff',padding:'10px 24px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer',boxShadow:'0 3px 10px rgba(0,0,0,0.12)'},
         onClick:salvar
       },ld?React.createElement('div',{style:{width:14,height:14,border:'2px solid rgba(255,255,255,0.3)',borderTopColor:'#fff',borderRadius:'50%',animation:'spin 0.7s linear infinite',display:'inline-block'}}):
-        isTransf?'Transferir':tipoLanc==='Unico'?'Salvar':tipoLanc==='Parcelado'?'Criar '+numParc+'x':'Criar '+numRep+'x'
+        isTransf?'Transferir':inicial&&inicial.id?'Salvar alterações':tipoLanc==='Unico'?'Salvar':tipoLanc==='Parcelado'?'Criar '+numParc+'x':'Criar '+numRep+'x'
       )
     )
   );
@@ -2110,7 +2127,7 @@ function FinCentros({uid,db,reload,setM}){
 
 function CentroForm({uid,reload,close}){
   const[nome,setNome]=React.useState('');
-  const[desc,setDesc]=React.useState('');
+  const[desc,setDesc]=React.useState(inicial&&inicial.descricao||'');
   const[ld,setLd]=React.useState(false);
   const inpS={width:'100%',background:'#f5f5f5',border:'none',borderRadius:10,padding:'10px 13px',fontSize:13,marginBottom:13,color:'#111'};
   const lbS={fontSize:10,color:'#aaa',fontWeight:600,letterSpacing:'1.5px',textTransform:'uppercase',display:'block',marginBottom:6};
