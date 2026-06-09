@@ -10,6 +10,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body,#root{height:100%;font-family:'Poppins',sans-serif;background:#f8f8f8;color:#1a1a1a}
@@ -757,6 +758,165 @@ const uid_gen=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
 
 
 // ── DATE PICKER COMPONENT ──
+// ── XLSX EXPORT / IMPORT ──
+function exportarLancamentos(list, contas, dtIni, dtFim){
+  const rows = list.map(l => ({
+    'Data':          l.data||'',
+    'Vencimento':    l.venc||'',
+    'Tipo':          l.tipo||'',
+    'Descricao':     l.desc||'',
+    'Categoria':     l.categoria||'',
+    'Conta':         (contas||[]).find(c=>c.id===l.conta_id)&&(contas||[]).find(c=>c.id===l.conta_id).nome||'',
+    'Forma Pagto':   l.forma_pag||'',
+    'Valor':         Number(l.valor||0),
+    'Pago':          l.pago?'Sim':'Nao',
+    'Data Pagto':    l.data_pag||'',
+    'Parcela':       l.parcela||'',
+    'Obs':           l.obs||'',
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  // Larguras das colunas
+  ws['!cols'] = [{wch:12},{wch:12},{wch:10},{wch:40},{wch:25},{wch:20},{wch:16},{wch:14},{wch:6},{wch:12},{wch:8},{wch:30}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Lancamentos');
+  const periodo = dtIni.replace(/-/g,'') + '_' + dtFim.replace(/-/g,'');
+  XLSX.writeFile(wb, 'lancamentos_'+periodo+'.xlsx');
+  toast('Exportado! '+rows.length+' lancamentos', false, true);
+}
+
+function gerarModeloImport(){
+  const rows = [
+    {'Data':'2026-06-01','Vencimento':'2026-06-01','Tipo':'despesa','Descricao':'Aluguel Junho','Categoria':'3.2 Aluguel','Conta':'','Forma Pagto':'Transferencia','Valor':1500,'Pago':'Sim','Obs':''},
+    {'Data':'2026-06-05','Vencimento':'2026-06-10','Tipo':'receita','Descricao':'Venda cookies','Categoria':'1.1 Vendas de Produtos','Conta':'','Forma Pagto':'PIX','Valor':350,'Pago':'Nao','Obs':'Pedido 123'},
+  ];
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [{wch:12},{wch:12},{wch:10},{wch:40},{wch:25},{wch:20},{wch:16},{wch:10},{wch:6},{wch:30}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Lancamentos');
+  XLSX.writeFile(wb, 'modelo_importacao.xlsx');
+  toast('Modelo baixado!', false, true);
+}
+
+async function importarLancamentos(uid, arquivo, contas, reload, onDone){
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const wb = XLSX.read(e.target.result, {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {defval:''});
+      if(!rows.length){toast('Arquivo vazio',true);return;}
+
+      const mapeiaData = (v) => {
+        if(!v)return null;
+        const s = String(v).trim();
+        // formato YYYY-MM-DD
+        if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+        // formato DD/MM/YYYY
+        if(/^\d{2}\/\d{2}\/\d{4}$/.test(s)){const[d,m,y]=s.split('/');return y+'-'+m+'-'+d;}
+        // numero serial do excel
+        if(!isNaN(s)){const d=new Date((+s-25569)*86400000);return d.toISOString().split('T')[0];}
+        return null;
+      };
+
+      const lancToInsert = rows.map(r => ({
+        user_id: uid,
+        tipo:     (String(r['Tipo']||'despesa')).toLowerCase().includes('rec')?'receita':'despesa',
+        desc:     String(r['Descricao']||r['Descrição']||r['descricao']||'Sem descricao'),
+        valor:    parseFloat(String(r['Valor']||0).replace(',','.'))||0,
+        categoria:String(r['Categoria']||r['categoria']||''),
+        forma_pag:String(r['Forma Pagto']||r['Forma de Pagamento']||''),
+        data:     mapeiaData(r['Data']||r['data'])||TODAY(),
+        venc:     mapeiaData(r['Vencimento']||r['vencimento'])||mapeiaData(r['Data']||r['data'])||TODAY(),
+        data_pag: mapeiaData(r['Data Pagto']||r['Data Pagamento'])||null,
+        pago:     String(r['Pago']||'').toLowerCase()==='sim'||String(r['Pago']||'')==='true',
+        obs:      String(r['Obs']||r['Observacao']||r['Observação']||''),
+        conta_id: null, // conta por nome abaixo
+      })).filter(l=>l.desc&&l.valor>0);
+
+      // Tentar mapear conta por nome
+      lancToInsert.forEach((l,i) => {
+        const nomeConta = String(rows[i]['Conta']||'').toLowerCase();
+        if(nomeConta){
+          const c = (contas||[]).find(c=>(c.nome||'').toLowerCase().includes(nomeConta)||nomeConta.includes((c.nome||'').toLowerCase()));
+          if(c)l.conta_id = c.id;
+        }
+      });
+
+      if(!lancToInsert.length){toast('Nenhum lancamento valido encontrado',true);return;}
+      const {error} = await sb.from('lancamentos').insert(lancToInsert);
+      if(error){toast('Erro: '+error.message,true);return;}
+      toast(lancToInsert.length+' lancamentos importados!',false,true);
+      reload();
+      onDone();
+    } catch(err){
+      toast('Erro ao processar arquivo: '+err.message,true);
+    }
+  };
+  reader.readAsArrayBuffer(arquivo);
+}
+
+function ImportModal({uid, contas, reload, close}){
+  const[file,setFile]=React.useState(null);
+  const[preview,setPreview]=React.useState([]);
+  const[loading,setLoading]=React.useState(false);
+
+  const onFile=(e)=>{
+    const f=e.target.files[0];
+    if(!f)return;
+    setFile(f);
+    // preview
+    const r=new FileReader();
+    r.onload=(ev)=>{
+      const wb=XLSX.read(ev.target.result,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+      setPreview(rows.slice(0,5));
+    };
+    r.readAsArrayBuffer(f);
+  };
+
+  return React.createElement('div',null,
+    React.createElement('div',{style:{background:'#fffbeb',border:'1px solid #fef3c7',borderRadius:10,padding:'10px 14px',marginBottom:14,fontSize:12,color:'#92400e'}},
+      'Colunas esperadas: Data, Vencimento, Tipo (receita/despesa), Descricao, Categoria, Conta, Forma Pagto, Valor, Pago (Sim/Nao), Obs. ',
+      React.createElement('button',{onClick:gerarModeloImport,style:{color:'#dc2626',fontWeight:700,background:'none',border:'none',cursor:'pointer',fontSize:12,textDecoration:'underline'}},'Baixar modelo')
+    ),
+    React.createElement('label',{style:{display:'block',background:'#f9f9fb',border:'2px dashed #e0e0e0',borderRadius:12,padding:'28px',textAlign:'center',cursor:'pointer',marginBottom:14}},
+      React.createElement('div',{style:{fontSize:14,color:'#aaa',marginBottom:6}},'Clique para selecionar o arquivo .xlsx ou .csv'),
+      file&&React.createElement('div',{style:{fontSize:13,color:'#16a34a',fontWeight:600,marginTop:8}},file.name+' — '+preview.length+' linhas (preview)'),
+      React.createElement('input',{type:'file',accept:'.xlsx,.xls,.csv',onChange:onFile,style:{display:'none'}})
+    ),
+    preview.length>0&&React.createElement('div',{style:{background:'#f9f9fb',borderRadius:10,padding:'10px',marginBottom:14,overflowX:'auto'}},
+      React.createElement('div',{style:{fontSize:11,color:'#aaa',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:7}},'Preview (primeiras '+preview.length+' linhas)'),
+      React.createElement('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:11}},
+        React.createElement('thead',null,
+          React.createElement('tr',null,
+            Object.keys(preview[0]||{}).slice(0,7).map(k=>React.createElement('th',{key:k,style:{padding:'4px 8px',textAlign:'left',color:'#888',fontWeight:600,borderBottom:'1px solid #eee'}},k))
+          )
+        ),
+        React.createElement('tbody',null,
+          preview.map((row,i)=>React.createElement('tr',{key:i},
+            Object.values(row).slice(0,7).map((v,j)=>React.createElement('td',{key:j,style:{padding:'4px 8px',color:'#555',borderBottom:'1px solid #f5f5f5'}},String(v).slice(0,20)))
+          ))
+        )
+      )
+    ),
+    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
+      React.createElement('button',{style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'},onClick:close},'Cancelar'),
+      React.createElement('button',{
+        style:{background:file?'#dc2626':'#ccc',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},
+        disabled:!file||loading,
+        onClick:async()=>{
+          if(!file)return;
+          setLoading(true);
+          await importarLancamentos(uid,file,contas,reload,close);
+          setLoading(false);
+        }
+      },loading?'Importando...':'Importar '+preview.length+' lancamentos')
+    )
+  );
+}
+
+
 function DateRangePicker({dtIni,dtFim,onChange,onClose}){
   const hoje=TODAY();
   const parse=(s)=>{const p=s.split('-');return{y:+p[0],m:+p[1]-1,d:+p[2]};};
@@ -966,6 +1126,8 @@ function FinLancamentos({uid,db,reload,setM}){
 
   return React.createElement(PW,{title:'Lancamentos',sub:periodoLabel,
     actions:[
+      React.createElement('button',{key:'imp',style:{background:'#f5f5f5',color:'#555',padding:'8px 14px',borderRadius:9,fontSize:12,fontWeight:500,border:'none',cursor:'pointer'},onClick:()=>setM({title:'Importar Lancamentos (.xlsx)',body:React.createElement(ImportModal,{uid,contas,reload,close:()=>setM(null)})})},'Importar'),
+      React.createElement('button',{key:'exp',style:{background:'#f5f5f5',color:'#16a34a',padding:'8px 14px',borderRadius:9,fontSize:12,fontWeight:600,border:'none',cursor:'pointer'},onClick:()=>exportarLancamentos(list,contas,dtIni,dtFim)},'Exportar .xlsx'),
       React.createElement('button',{key:'add',style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:()=>setM({title:'Adicionar',body:React.createElement('div',{style:{display:'flex',gap:10}},React.createElement('button',{style:{flex:1,padding:'16px',borderRadius:12,background:'#dcfce7',color:'#16a34a',fontWeight:700,fontSize:15,border:'none',cursor:'pointer'},onClick:()=>{setM(null);novo('receita');}},'+  Receita'),React.createElement('button',{style:{flex:1,padding:'16px',borderRadius:12,background:'#fee2e2',color:'#dc2626',fontWeight:700,fontSize:15,border:'none',cursor:'pointer'},onClick:()=>{setM(null);novo('despesa');}},'+  Despesa'))})},'+ Adicionar'),
     ]},
 
