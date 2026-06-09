@@ -1283,6 +1283,139 @@ function FinLancamentos({uid,db,reload,setM}){
 }
 
 
+// ── MINI DATE PICKER ──
+function MiniDatePicker({value,onChange,label,acent}){
+  const[open,setOpen]=React.useState(false);
+  const ref=React.useRef(null);
+  const cor=acent||'#dc2626';
+
+  React.useEffect(()=>{
+    if(!open)return;
+    const h=(e)=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
+    document.addEventListener('mousedown',h);
+    return()=>document.removeEventListener('mousedown',h);
+  },[open]);
+
+  const today=TODAY();
+  const parsed=value?value.split('-').map(Number):null;
+  const[view,setView]=React.useState(()=>{
+    if(parsed)return{y:parsed[0],m:parsed[1]-1};
+    const d=new Date();return{y:d.getFullYear(),m:d.getMonth()};
+  });
+
+  const navM=(d)=>setView(p=>{let m=p.m+d,y=p.y;if(m<0){m=11;y--;}else if(m>11){m=0;y++;}return{y,m};});
+  const fmt=(y,m,d)=>y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+  const DIAS=['D','S','T','Q','Q','S','S'];
+  const MESES=['Janeiro','Fevereiro','Marco','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+  const primeiroDia=new Date(view.y,view.m,1).getDay();
+  const totalDias=new Date(view.y,view.m+1,0).getDate();
+  const cells=[];
+  for(let i=0;i<primeiroDia;i++)cells.push(null);
+  for(let d=1;d<=totalDias;d++)cells.push(d);
+
+  const displayVal=value?value.split('-').reverse().join('/'):'';
+  const fieldStyle={position:'relative',marginBottom:10};
+  const lbFloat={position:'absolute',top:7,left:14,fontSize:9,color:cor,fontWeight:700,letterSpacing:'1.2px',textTransform:'uppercase',pointerEvents:'none',zIndex:1};
+  const inpBase={width:'100%',background:'#fff',border:'1.5px solid #e2e2e2',borderRadius:10,padding:'24px 14px 8px 14px',fontSize:13,color:'#111',outline:'none',boxSizing:'border-box',cursor:'pointer',userSelect:'none'};
+
+  return React.createElement('div',{ref,style:{...fieldStyle,position:'relative'}},
+    React.createElement('label',{style:lbFloat},label||'Data'),
+    React.createElement('div',{
+      onClick:()=>setOpen(p=>!p),
+      style:{...inpBase,display:'flex',alignItems:'center',justifyContent:'space-between',borderColor:open?cor:'#e2e2e2',transition:'border-color 0.15s'}
+    },
+      React.createElement('span',{style:{color:displayVal?'#111':'#bbb'}},displayVal||'dd/mm/aaaa'),
+      React.createElement('span',{style:{fontSize:14,color:'#bbb'}})
+    ),
+    open&&React.createElement('div',{style:{
+      position:'absolute',top:'calc(100% + 4px)',left:0,zIndex:999,
+      background:'#fff',borderRadius:14,boxShadow:'0 8px 32px rgba(0,0,0,0.15)',
+      border:'1px solid #f0f0f0',minWidth:270,padding:'14px'
+    }},
+      // Header mes
+      React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}},
+        React.createElement('span',{style:{fontSize:13,fontWeight:700,color:'#111'}},MESES[view.m]+' '+view.y),
+        React.createElement('div',{style:{display:'flex',gap:4}},
+          React.createElement('button',{onClick:()=>navM(-1),style:{width:28,height:28,borderRadius:8,background:'#f5f5f5',border:'none',cursor:'pointer',fontSize:14,color:'#555',display:'flex',alignItems:'center',justifyContent:'center'}},'‹'),
+          React.createElement('button',{onClick:()=>navM(1),style:{width:28,height:28,borderRadius:8,background:'#f5f5f5',border:'none',cursor:'pointer',fontSize:14,color:'#555',display:'flex',alignItems:'center',justifyContent:'center'}},'›')
+        )
+      ),
+      // Cabecalho semana
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(7,1fr)',marginBottom:4}},
+        DIAS.map((d,i)=>React.createElement('div',{key:i,style:{textAlign:'center',fontSize:11,color:'#aaa',fontWeight:600,padding:'3px 0'}},d))
+      ),
+      // Dias
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2}},
+        cells.map((d,i)=>{
+          if(!d)return React.createElement('div',{key:i});
+          const ds=fmt(view.y,view.m,d);
+          const sel=ds===value;
+          const isT=ds===today;
+          return React.createElement('button',{key:i,onClick:()=>{onChange(ds);setOpen(false);},
+            style:{textAlign:'center',fontSize:12,padding:'6px 0',borderRadius:8,border:'none',cursor:'pointer',
+              background:sel?cor:isT?cor+'18':'transparent',
+              color:sel?'#fff':isT?cor:'#333',fontWeight:sel||isT?700:400}
+          },String(d));
+        })
+      ),
+      // Footer
+      React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginTop:10,paddingTop:8,borderTop:'1px solid #f5f5f5'}},
+        React.createElement('button',{onClick:()=>{onChange('');setOpen(false);},style:{fontSize:12,color:'#aaa',background:'none',border:'none',cursor:'pointer',fontWeight:600}},'Limpar'),
+        React.createElement('button',{onClick:()=>{onChange(today);setOpen(false);},style:{fontSize:12,color:cor,background:'none',border:'none',cursor:'pointer',fontWeight:700}},'Hoje')
+      )
+    )
+  );
+}
+
+// ── MINI MONTH PICKER ──
+function MonthPicker({value,onChange,label,acent}){
+  const[open,setOpen]=React.useState(false);
+  const ref=React.useRef(null);
+  const cor=acent||'#dc2626';
+  React.useEffect(()=>{
+    if(!open)return;
+    const h=(e)=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
+    document.addEventListener('mousedown',h);
+    return()=>document.removeEventListener('mousedown',h);
+  },[open]);
+  const curY=value?parseInt(value.split('-')[0]):new Date().getFullYear();
+  const curM=value?parseInt(value.split('-')[1])-1:-1;
+  const[viewY,setViewY]=React.useState(curY);
+  const MESES=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const displayVal=value?MESES[parseInt(value.split('-')[1])-1]+'/'+value.split('-')[0]:'';
+  const fieldStyle={position:'relative',marginBottom:10};
+  const lbFloat={position:'absolute',top:7,left:14,fontSize:9,color:cor,fontWeight:700,letterSpacing:'1.2px',textTransform:'uppercase',pointerEvents:'none',zIndex:1};
+  const inpBase={width:'100%',background:'#fff',border:'1.5px solid #e2e2e2',borderRadius:10,padding:'24px 14px 8px 14px',fontSize:13,color:'#111',outline:'none',boxSizing:'border-box',cursor:'pointer'};
+  return React.createElement('div',{ref,style:{...fieldStyle,position:'relative'}},
+    React.createElement('label',{style:lbFloat},label||'Competencia'),
+    React.createElement('div',{onClick:()=>setOpen(p=>!p),style:{...inpBase,display:'flex',alignItems:'center',justifyContent:'space-between',borderColor:open?cor:'#e2e2e2'}},
+      React.createElement('span',{style:{color:displayVal?'#111':'#bbb'}},displayVal||'mm/aaaa'),
+      React.createElement('span',{style:{fontSize:14,color:'#bbb'}})
+    ),
+    open&&React.createElement('div',{style:{position:'absolute',top:'calc(100% + 4px)',left:0,zIndex:999,background:'#fff',borderRadius:14,boxShadow:'0 8px 32px rgba(0,0,0,0.15)',border:'1px solid #f0f0f0',padding:'14px',minWidth:240}},
+      React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}},
+        React.createElement('button',{onClick:()=>setViewY(y=>y-1),style:{width:28,height:28,borderRadius:8,background:'#f5f5f5',border:'none',cursor:'pointer',color:'#555'}},'‹'),
+        React.createElement('span',{style:{fontSize:13,fontWeight:700,color:'#111'}},viewY),
+        React.createElement('button',{onClick:()=>setViewY(y=>y+1),style:{width:28,height:28,borderRadius:8,background:'#f5f5f5',border:'none',cursor:'pointer',color:'#555'}},'›')
+      ),
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6}},
+        MESES.map((m,i)=>{
+          const sel=viewY===curY&&i===curM;
+          return React.createElement('button',{key:i,onClick:()=>{onChange(viewY+'-'+String(i+1).padStart(2,'0'));setOpen(false);},
+            style:{padding:'8px 4px',borderRadius:8,border:'none',cursor:'pointer',fontSize:12,fontWeight:sel?700:400,
+              background:sel?cor:'#f5f5f5',color:sel?'#fff':'#555'}
+          },m);
+        })
+      ),
+      React.createElement('div',{style:{marginTop:8,paddingTop:8,borderTop:'1px solid #f5f5f5',textAlign:'center'}},
+        React.createElement('button',{onClick:()=>{onChange('');setOpen(false);},style:{fontSize:12,color:'#aaa',background:'none',border:'none',cursor:'pointer'}},'Limpar')
+      )
+    )
+  );
+}
+
+
 function LancForm({uid,tipo,db,reload,close}){
   const{contas,categorias_fin}=db;
   const isRec=tipo==='receita';
@@ -1296,6 +1429,7 @@ function LancForm({uid,tipo,db,reload,close}){
   const[contaDestId,setContaDestId]=React.useState(contas&&contas[1]?contas[1].id:contas&&contas[0]?contas[0].id:'');
   const[venc,setVenc]=React.useState(TODAY());
   const[competencia,setCompetencia]=React.useState('');
+  const compEfetivo=competencia||venc.slice(0,7);
   const[fornecedor,setFornecedor]=React.useState('');
   const[formaPag,setFormaPag]=React.useState('');
   const[cat,setCat]=React.useState('');
@@ -1348,7 +1482,7 @@ function LancForm({uid,tipo,db,reload,close}){
     if(!desc||!valor){toast('Preencha descricao e valor',true);return;}
     setLd(true);
     const base={user_id:uid,tipo:isTransf?'despesa':tipo,desc,valor:totalFinal,categoria:cat,conta_id:contaId||null,
-      forma_pag:formaPag,data:venc,venc,competencia:competencia||null,fornecedor:fornecedor||null,
+      forma_pag:formaPag,data:venc,venc,competencia:compEfetivo||null,fornecedor:fornecedor||null,
       centro_custo:centroCusto||null,pago,obs:'',juros:jv||null,multa:mv||null,desconto:dv||null};
     let rows=[];
     if(tipoLanc==='Parcelado'){
@@ -1408,8 +1542,8 @@ function LancForm({uid,tipo,db,reload,close}){
         : React.createElement(SelField,{label:'Conta *',v:contaId,set:setContaId,opts:[{v:'',l:'—'},...contas.map(c=>({v:c.id,l:c.nome}))]}),
       isTransf
         ? React.createElement(SelField,{label:'Conta Destino',v:contaDestId,set:setContaDestId,opts:contas.map(c=>({v:c.id,l:c.nome})),ph:'—'})
-        : React.createElement(Field,{label:'Vencimento *'},React.createElement('input',{style:inpBase,type:'date',value:venc,onChange:e=>setVenc(e.target.value)})),
-      React.createElement(Field,{label:'Competencia'},React.createElement('input',{style:inpBase,type:'month',value:competencia,onChange:e=>setCompetencia(e.target.value)}))
+        : React.createElement(MiniDatePicker,{label:'Vencimento *',value:venc,onChange:setVenc,acent}),
+      React.createElement(MonthPicker,{label:'Competencia',value:competencia,onChange:setCompetencia,acent})
     ),
     // ── LINHA 3: Fornecedor + Forma de pagamento ──
     !isTransf&&React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}},
@@ -1448,7 +1582,7 @@ function LancForm({uid,tipo,db,reload,close}){
     ),
     // ── LINHA DATA PAG + JUROS + MULTA + DESCONTO + TOTAL ──
     pago&&React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1.2fr 1fr 1fr 1fr 1fr',gap:10,marginBottom:14}},
-      React.createElement(Field,{label:'Data de pagamento *'},React.createElement('input',{style:inpBase,type:'date',value:dataPag,onChange:e=>setDataPag(e.target.value)})),
+      React.createElement(MiniDatePicker,{label:'Data de pagamento *',value:dataPag,onChange:setDataPag,acent}),
       React.createElement(Field,{label:'Juros'},React.createElement('input',{style:inpBase,type:'number',step:'0.01',placeholder:'',value:juros,onChange:e=>setJuros(e.target.value)})),
       React.createElement(Field,{label:'Multa'},React.createElement('input',{style:inpBase,type:'number',step:'0.01',placeholder:'',value:multa,onChange:e=>setMulta(e.target.value)})),
       React.createElement(Field,{label:'Desconto'},React.createElement('input',{style:inpBase,type:'number',step:'0.01',placeholder:'',value:desconto,onChange:e=>setDesconto(e.target.value)})),
@@ -1460,12 +1594,15 @@ function LancForm({uid,tipo,db,reload,close}){
     React.createElement('div',{style:{height:1,background:'#f0f0f0',marginBottom:14}}),
     // ── TIPO DE LANCAMENTO ──
     !isTransf&&React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 2fr',gap:10,marginBottom:14}},
-      React.createElement('div',{style:{position:'relative',marginBottom:0}},
-        React.createElement('label',{style:lbFloat},'Tipo de lancamento *'),
-        React.createElement('select',{style:selBase,value:tipoLanc,onChange:e=>setTipoLanc(e.target.value)},
-          TIPOS_LANC.map(t=>React.createElement('option',{key:t,value:t},t))
-        ),
-        React.createElement('span',{style:chevron},'▾')
+      React.createElement('div',{style:{marginBottom:0}},
+        React.createElement('div',{style:{fontSize:9,color:acent,fontWeight:700,letterSpacing:'1.2px',textTransform:'uppercase',marginBottom:8}},'Tipo de lancamento *'),
+        React.createElement('div',{style:{display:'flex',gap:5}},
+          TIPOS_LANC.map(t=>React.createElement('button',{key:t,onClick:()=>setTipoLanc(t),style:{
+            padding:'7px 14px',borderRadius:20,fontSize:12,fontWeight:600,border:'none',cursor:'pointer',
+            background:tipoLanc===t?acent:'#f5f5f5',color:tipoLanc===t?'#fff':'#777',
+            boxShadow:tipoLanc===t?'0 3px 10px rgba(0,0,0,0.12)':'none',transition:'all 0.15s'
+          }},t))
+        )
       ),
       // config parcelado
       tipoLanc==='Parcelado'&&React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}},
