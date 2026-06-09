@@ -1283,6 +1283,69 @@ function FinLancamentos({uid,db,reload,setM}){
 }
 
 
+// ── CUSTOM SELECT (dropdown proprio sem select nativo) ──
+function CustomSelect({label,value,onChange,options,placeholder,acent}){
+  const[open,setOpen]=React.useState(false);
+  const ref=React.useRef(null);
+  const cor=acent||'#dc2626';
+
+  React.useEffect(()=>{
+    if(!open)return;
+    const h=(e)=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
+    document.addEventListener('mousedown',h);
+    return()=>document.removeEventListener('mousedown',h);
+  },[open]);
+
+  const selected=options.find(o=>(o.v!==undefined?o.v:o)===value);
+  const displayLabel=selected?(selected.l!==undefined?selected.l:selected):(placeholder||'—');
+  const isEmpty=!value&&value!=='0';
+
+  const lbFloat={position:'absolute',top:7,left:14,fontSize:9,color:cor,fontWeight:700,
+    letterSpacing:'1.2px',textTransform:'uppercase',pointerEvents:'none',zIndex:1};
+  const boxStyle={width:'100%',background:'#fff',border:'1.5px solid '+(open?cor:'#e2e2e2'),
+    borderRadius:10,padding:'24px 36px 8px 14px',fontSize:13,color:isEmpty?'#bbb':'#111',
+    cursor:'pointer',userSelect:'none',position:'relative',boxSizing:'border-box',
+    display:'flex',alignItems:'center',minHeight:52,transition:'border-color 0.15s'};
+
+  return React.createElement('div',{ref,style:{position:'relative',marginBottom:10}},
+    React.createElement('label',{style:lbFloat},label),
+    React.createElement('div',{style:boxStyle,onClick:()=>setOpen(p=>!p)},
+      React.createElement('span',{style:{flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},displayLabel),
+      React.createElement('span',{style:{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',
+        fontSize:11,color:'#bbb',transition:'transform 0.2s',
+        display:'inline-block',rotate:open?'180deg':'0deg'}
+      },'▾')
+    ),
+    open&&React.createElement('div',{style:{
+      position:'absolute',top:'calc(100% + 4px)',left:0,right:0,zIndex:999,
+      background:'#fff',borderRadius:12,boxShadow:'0 8px 32px rgba(0,0,0,0.14)',
+      border:'1px solid #f0f0f0',maxHeight:240,overflowY:'auto',
+      animation:'fadeUp 0.12s ease'
+    }},
+      placeholder&&React.createElement('div',{
+        onClick:()=>{onChange('');setOpen(false);},
+        style:{padding:'10px 14px',fontSize:13,color:'#bbb',cursor:'pointer',
+          borderBottom:'1px solid #f8f8f8',background:'#fafafa',fontStyle:'italic'}
+      },placeholder),
+      options.map((o,i)=>{
+        const v=o.v!==undefined?o.v:o;
+        const l=o.l!==undefined?o.l:o;
+        const active=v===value;
+        return React.createElement('div',{
+          key:v||i,
+          onClick:()=>{onChange(v);setOpen(false);},
+          style:{padding:'10px 14px',fontSize:13,cursor:'pointer',
+            color:active?cor:'#111',fontWeight:active?700:400,
+            background:active?cor+'10':'#fff',
+            borderBottom:i<options.length-1?'1px solid #fafafa':'none',
+            transition:'background 0.1s'}
+        },l);
+      })
+    )
+  );
+}
+
+
 // ── MINI DATE PICKER ──
 function MiniDatePicker({value,onChange,label,acent}){
   const[open,setOpen]=React.useState(false);
@@ -1538,10 +1601,10 @@ function LancForm({uid,tipo,db,reload,close}){
     // ── LINHA 2: Conta + Vencimento + Competencia ──
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}},
       isTransf
-        ? React.createElement(SelField,{label:'Conta Origem',v:contaId,set:setContaId,opts:contas.map(c=>({v:c.id,l:c.nome})),ph:'—'})
-        : React.createElement(SelField,{label:'Conta *',v:contaId,set:setContaId,opts:[{v:'',l:'—'},...contas.map(c=>({v:c.id,l:c.nome}))]}),
+        ? React.createElement(CustomSelect,{label:'Conta Origem',value:contaId,onChange:setContaId,options:contas.map(c=>({v:c.id,l:c.nome})),acent})
+        : React.createElement(CustomSelect,{label:'Conta *',value:contaId,onChange:setContaId,options:contas.map(c=>({v:c.id,l:c.nome})),placeholder:'—',acent}),
       isTransf
-        ? React.createElement(SelField,{label:'Conta Destino',v:contaDestId,set:setContaDestId,opts:contas.map(c=>({v:c.id,l:c.nome})),ph:'—'})
+        ? React.createElement(CustomSelect,{label:'Conta Destino',value:contaDestId,onChange:setContaDestId,options:contas.map(c=>({v:c.id,l:c.nome})),acent})
         : React.createElement(MiniDatePicker,{label:'Vencimento *',value:venc,onChange:setVenc,acent}),
       React.createElement(MiniDatePicker,{label:'Competencia',value:competencia,onChange:setCompetencia,acent})
     ),
@@ -1550,20 +1613,13 @@ function LancForm({uid,tipo,db,reload,close}){
       React.createElement(Field,{label:'Fornecedor'},
         React.createElement('input',{style:inpBase,type:'text',placeholder:'',value:fornecedor,onChange:e=>setFornecedor(e.target.value)})
       ),
-      React.createElement(SelField,{label:'Forma de pagamento',v:formaPag,set:setFormaPag,opts:FORMAS,ph:'—'})
+      React.createElement(CustomSelect,{label:'Forma de pagamento',value:formaPag,onChange:setFormaPag,options:FORMAS,placeholder:'—',acent})
     ),
     // ── LINHA 4: Categoria + Centro de custo ──
     !isTransf&&React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}},
-      React.createElement('div',{style:{position:'relative',marginBottom:12}},
-        React.createElement('label',{style:lbFloat},'Categoria *'),
-        React.createElement('select',{style:selBase,value:cat,onChange:e=>setCat(e.target.value)},
-          React.createElement('option',{value:''},'Selecione uma categoria'),
-          cats.map(c=>React.createElement('option',{key:c,value:c},c))
-        ),
-        React.createElement('span',{style:chevron},'▾')
-      ),
-      React.createElement(SelField,{label:'Centro de custo',v:centroCusto,set:setCentroCusto,
-        opts:['Producao','Vendas','Administrativo','Marketing','Logistica','Geral'],ph:'—'})
+      React.createElement(CustomSelect,{label:'Categoria *',value:cat,onChange:setCat,options:cats,placeholder:'Selecione uma categoria',acent}),
+      React.createElement(CustomSelect,{label:'Centro de custo',value:centroCusto,onChange:setCentroCusto,
+        options:['Producao','Vendas','Administrativo','Marketing','Logistica','Geral'],placeholder:'—',acent})
     ),
     // + Adicionar categoria link
     !isTransf&&React.createElement('div',{style:{marginBottom:14}},
@@ -1607,11 +1663,11 @@ function LancForm({uid,tipo,db,reload,close}){
       // config parcelado
       tipoLanc==='Parcelado'&&React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}},
         React.createElement(Field,{label:'Num. parcelas'},React.createElement('input',{style:inpBase,type:'number',min:2,max:120,value:numParc,onChange:e=>setNumParc(Math.max(2,parseInt(e.target.value)||2))})),
-        React.createElement(SelField,{label:'Frequencia',v:freqParc,set:setFreqParc,opts:FREQS.map(f=>({v:f.v,l:f.l}))})
+        React.createElement(CustomSelect,{label:'Frequencia',value:freqParc,onChange:setFreqParc,options:FREQS.map(f=>({v:f.v,l:f.l})),acent})
       ),
       tipoLanc==='Recorrente'&&React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}},
         React.createElement(Field,{label:'Num. repeticoes'},React.createElement('input',{style:inpBase,type:'number',min:1,max:120,value:numRep,onChange:e=>setNumRep(Math.max(1,parseInt(e.target.value)||12))})),
-        React.createElement(SelField,{label:'Frequencia',v:freqRec,set:setFreqRec,opts:FREQS.map(f=>({v:f.v,l:f.l}))})
+        React.createElement(CustomSelect,{label:'Frequencia',value:freqRec,onChange:setFreqRec,options:FREQS.map(f=>({v:f.v,l:f.l})),acent})
       ),
       tipoLanc==='Unico'&&React.createElement('div',{style:{display:'flex',alignItems:'center',padding:'0 8px'}},
         tipoLanc==='Parcelado'?React.createElement('span',{style:{fontSize:12,color:'#888'}},numParc+' x '+F(v)+' = '+F(v*numParc)):null
