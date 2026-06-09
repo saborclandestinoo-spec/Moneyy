@@ -144,6 +144,7 @@ const FIN_SUBS=[
   {id:'fin_contas',l:'Contas'},
   {id:'fin_categorias',l:'Plano de Contas'},
   {id:'fin_centros',l:'Centro de Custo'},
+  {id:'fin_formas',l:'Formas de Pagamento'},
 ];
 const FIN_PAGES=new Set(FIN_SUBS.map(s=>s.id));
 
@@ -2125,6 +2126,126 @@ function FinCentros({uid,db,reload,setM}){
   );
 }
 
+// ── FORMAS DE PAGAMENTO ──
+const FORMAS_PADRAO_DEF=[
+  {nome:'PIX',           taxa_pct:0,    dias:0,  cor:'#16a34a'},
+  {nome:'Cartao Credito',taxa_pct:3.26, dias:30, cor:'#f59e0b'},
+  {nome:'Cartao Debito', taxa_pct:1.39, dias:1,  cor:'#f59e0b'},
+  {nome:'Dinheiro',      taxa_pct:0,    dias:0,  cor:'#6b7280'},
+  {nome:'Transferencia', taxa_pct:0,    dias:0,  cor:'#2563eb'},
+  {nome:'Boleto',        taxa_pct:0,    dias:2,  cor:'#7c3aed'},
+  {nome:'iFood',         taxa_pct:0,    dias:14, cor:'#dc2626'},
+  {nome:'Cartao Online', taxa_pct:3.5,  dias:14, cor:'#f59e0b'},
+];
+
+function FinFormas({uid,db,reload,setM}){
+  const{formas_pag,contas}=db;
+  const[saving,setSaving]=React.useState({});
+
+  // merge padrao + cadastradas
+  const formasMap={};
+  (formas_pag||[]).forEach(f=>formasMap[f.nome]=f);
+
+  const todas=FORMAS_PADRAO_DEF.map(p=>({
+    ...p,
+    ...(formasMap[p.nome]||{}),
+    id:formasMap[p.nome]&&formasMap[p.nome].id||null,
+    conta_id:formasMap[p.nome]&&formasMap[p.nome].conta_id||'',
+    taxa_pct:formasMap[p.nome]?formasMap[p.nome].taxa_pct:p.taxa_pct,
+    dias:formasMap[p.nome]?formasMap[p.nome].dias:p.dias,
+  }));
+
+  const[local,setLocal]=React.useState(()=>Object.fromEntries(todas.map(f=>[f.nome,{conta_id:f.conta_id||'',taxa_pct:f.taxa_pct,dias:f.dias}])));
+
+  const upd=(nome,k,v)=>setLocal(p=>({...p,[nome]:{...p[nome],[k]:v}}));
+
+  const salvarForma=async(nome)=>{
+    setSaving(p=>({...p,[nome]:true}));
+    const d=local[nome];
+    const existing=formasMap[nome];
+    if(existing&&existing.id){
+      await sb.from('formas_pagamento').update({conta_id:d.conta_id||null,taxa_pct:parseFloat(d.taxa_pct)||0,dias:parseInt(d.dias)||0}).eq('id',existing.id);
+    }else{
+      await sb.from('formas_pagamento').insert({user_id:uid,nome,conta_id:d.conta_id||null,taxa_pct:parseFloat(d.taxa_pct)||0,dias:parseInt(d.dias)||0,status:'ativa'});
+    }
+    toast(nome+' salvo!',false,true);
+    setSaving(p=>({...p,[nome]:false}));
+    reload();
+  };
+
+  const salvarTodas=async()=>{
+    for(const nome of Object.keys(local)){
+      await salvarForma(nome);
+    }
+    toast('Todas as formas salvas!',false,true);
+    reload();
+  };
+
+  const inpS={background:'#f5f5f5',border:'none',borderRadius:8,padding:'8px 11px',fontSize:13,color:'#111',outline:'none',width:'100%'};
+
+  return React.createElement(PW,{title:'Formas de Pagamento',sub:'Configure a conta de destino, taxa e prazo para cada forma de pagamento',
+    actions:[
+      React.createElement('button',{key:'s',style:{background:'#dc2626',color:'#fff',padding:'8px 18px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:salvarTodas},'Salvar Todas')
+    ]},
+
+    // Info box
+    React.createElement('div',{style:{background:'#eff6ff',borderRadius:12,padding:'12px 16px',marginBottom:18,fontSize:13,color:'#2563eb'}},
+      'Configure aqui para onde vai cada pagamento. Ao receber um pedido via Cardapio Web, o lancamento vai automaticamente para a conta correta.'
+    ),
+
+    // Cards por forma
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(340px,1fr))',gap:14}},
+      todas.map(f=>{
+        const loc=local[f.nome]||{conta_id:'',taxa_pct:f.taxa_pct,dias:f.dias};
+        const contaSel=(contas||[]).find(c=>c.id===loc.conta_id);
+        const isSaved=!!formasMap[f.nome];
+        return React.createElement('div',{key:f.nome,style:{background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden'}},
+          // Header
+          React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10,padding:'14px 16px',borderBottom:'1px solid #f5f5f5',background:'#fafafa'}},
+            React.createElement('div',{style:{width:10,height:10,borderRadius:'50%',background:f.cor,flexShrink:0}}),
+            React.createElement('span',{style:{fontWeight:700,fontSize:14,color:'#111',flex:1}},f.nome),
+            isSaved&&React.createElement('span',{style:{fontSize:10,background:'#dcfce7',color:'#16a34a',padding:'2px 8px',borderRadius:20,fontWeight:700,letterSpacing:'0.5px'}},'Configurado')
+          ),
+          // Campos
+          React.createElement('div',{style:{padding:'14px 16px'}},
+            // Conta destino
+            React.createElement('div',{style:{marginBottom:12}},
+              React.createElement('label',{style:{fontSize:10,color:'#aaa',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',display:'block',marginBottom:6}},'Conta de Destino'),
+              React.createElement('select',{style:inpS,value:loc.conta_id,onChange:e=>upd(f.nome,'conta_id',e.target.value)},
+                React.createElement('option',{value:''},'— Selecione uma conta —'),
+                (contas||[]).map(c=>React.createElement('option',{key:c.id,value:c.id},c.nome+' ('+F(c.saldo)+')'))
+              )
+            ),
+            // Taxa + Prazo
+            React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}},
+              React.createElement('div',null,
+                React.createElement('label',{style:{fontSize:10,color:'#aaa',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',display:'block',marginBottom:6}},'Taxa (%)'),
+                React.createElement('input',{style:inpS,type:'number',step:'0.01',min:'0',value:loc.taxa_pct,onChange:e=>upd(f.nome,'taxa_pct',e.target.value),placeholder:'0.00'})
+              ),
+              React.createElement('div',null,
+                React.createElement('label',{style:{fontSize:10,color:'#aaa',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',display:'block',marginBottom:6}},'Prazo (dias)'),
+                React.createElement('input',{style:inpS,type:'number',min:'0',value:loc.dias,onChange:e=>upd(f.nome,'dias',e.target.value),placeholder:'0'})
+              )
+            ),
+            // Preview
+            React.createElement('div',{style:{background:'#f9f9fb',borderRadius:9,padding:'9px 12px',marginBottom:12,fontSize:12,color:'#888'}},
+              loc.taxa_pct>0
+                ? 'Venda de R$100 → Líquido R$'+(100-100*loc.taxa_pct/100).toFixed(2)+' · Cai em conta em '+(loc.dias||0)+' dias'
+                : 'Sem taxa · Cai em conta em '+(loc.dias||0)+' dia(s)'
+            ),
+            // Botão salvar
+            React.createElement('button',{
+              style:{width:'100%',background:isSaved?'#f5f5f5':'#dc2626',color:isSaved?'#555':'#fff',padding:'9px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},
+              onClick:()=>salvarForma(f.nome)
+            },saving[f.nome]?'Salvando...':(isSaved?'Atualizar':'Salvar'))
+          )
+        );
+      })
+    )
+  );
+}
+
+
 function CentroForm({uid,reload,close}){
   const[nome,setNome]=React.useState('');
   const[desc,setDesc]=React.useState(inicial&&inicial.descricao||'');
@@ -2214,7 +2335,7 @@ function ContaForm({uid,reload,close}){
 // ── APP ──
 function App(){
   const[user,setUser]=useState(null);const[page,setPage]=useState('pedidos');
-  const[db,setDb]=useState({pedidos:[],estoque:[],contas:[],receber:[],pagar:[],movs:[],lancamentos:[],categorias_fin:[],centros_custo:[]});
+  const[db,setDb]=useState({pedidos:[],estoque:[],contas:[],receber:[],pagar:[],movs:[],lancamentos:[],categorias_fin:[],centros_custo:[],formas_pag:[]});
   const[modal,setModal]=useState(null);const[col,setCol]=useState(false);const[loading,setLoading]=useState(false);
 
   useEffect(()=>{
@@ -2227,7 +2348,7 @@ function App(){
     if(!user)return;
     setLoading(true);
     const uid=user.id;
-    const[ped,est,con,rec,pag,mov,lanc,catfin,centros]=await Promise.all([
+    const[ped,est,con,rec,pag,mov,lanc,catfin,centros,formasPag]=await Promise.all([
       sb.from('pedidos').select('*').eq('user_id',uid).order('criado_em',{ascending:false}),
       sb.from('estoque').select('*').eq('user_id',uid).order('nome'),
       sb.from('contas_bancarias').select('*').eq('user_id',uid).eq('ativo',true).order('criado_em'),
@@ -2237,6 +2358,7 @@ function App(){
       sb.from('lancamentos').select('*').eq('user_id',uid).order('data',{ascending:false}).limit(500),
       sb.from('categorias_fin').select('*').eq('user_id',uid).order('nome'),
       sb.from('centros_custo').select('*').eq('user_id',uid).order('nome'),
+      sb.from('formas_pagamento').select('*').eq('user_id',uid).order('nome'),
     ]);
     const contas=con.data||[];
     if(contas.length===0){
@@ -2245,9 +2367,9 @@ function App(){
         {user_id:uid,nome:'Caixa',tipo:'Caixa',banco:'',saldo:0,cor:'#f59e0b',ativo:true},
       ]);
       const{data:nc}=await sb.from('contas_bancarias').select('*').eq('user_id',uid);
-      setDb({pedidos:ped.data||[],estoque:est.data||[],contas:nc||[],receber:rec.data||[],pagar:pag.data||[],movs:mov.data||[],lancamentos:lanc.data||[],categorias_fin:catfin.data||[],centros_custo:centros.data||[]});
+      setDb({pedidos:ped.data||[],estoque:est.data||[],contas:nc||[],receber:rec.data||[],pagar:pag.data||[],movs:mov.data||[],lancamentos:lanc.data||[],categorias_fin:catfin.data||[],centros_custo:centros.data||[],formas_pag:formasPag.data||[]});
     }else{
-      setDb({pedidos:ped.data||[],estoque:est.data||[],contas,receber:rec.data||[],pagar:pag.data||[],movs:mov.data||[],lancamentos:lanc.data||[],categorias_fin:catfin.data||[],centros_custo:centros.data||[]});
+      setDb({pedidos:ped.data||[],estoque:est.data||[],contas,receber:rec.data||[],pagar:pag.data||[],movs:mov.data||[],lancamentos:lanc.data||[],categorias_fin:catfin.data||[],centros_custo:centros.data||[],formas_pag:formasPag.data||[]});
     }
     setLoading(false);
   },[user]);
@@ -2271,6 +2393,7 @@ function App(){
     fin_contas:()=>React.createElement(FinContas,{uid,db,reload,setM:setModal}),
     fin_categorias:()=>React.createElement(FinCategorias,{uid,db,reload,setM:setModal}),
     fin_centros:()=>React.createElement(FinCentros,{uid,db,reload,setM:setModal}),
+    fin_formas:()=>React.createElement(FinFormas,{uid,db,reload,setM:setModal}),
   };
   const PC=PAGES[page]||PAGES.pedidos;
 
