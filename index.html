@@ -140,6 +140,7 @@ const FIN_SUBS=[
   {id:'fin_movs',l:'Movimentações'},
   {id:'fin_contas',l:'Contas'},
   {id:'fin_categorias',l:'Plano de Contas'},
+  {id:'fin_centros',l:'Centro de Custo'},
 ];
 const FIN_PAGES=new Set(FIN_SUBS.map(s=>s.id));
 
@@ -1480,7 +1481,7 @@ function MonthPicker({value,onChange,label,acent}){
 
 
 function LancForm({uid,tipo,db,reload,close}){
-  const{contas,categorias_fin}=db;
+  const{contas,categorias_fin,centros_custo}=db;
   const isRec=tipo==='receita';
   const isTransf=tipo==='transferencia';
   const acent=isRec?'#16a34a':isTransf?'#2563eb':'#dc2626';
@@ -1619,7 +1620,7 @@ function LancForm({uid,tipo,db,reload,close}){
     !isTransf&&React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}},
       React.createElement(CustomSelect,{label:'Categoria *',value:cat,onChange:setCat,options:cats,placeholder:'Selecione uma categoria',acent}),
       React.createElement(CustomSelect,{label:'Centro de custo',value:centroCusto,onChange:setCentroCusto,
-        options:['Producao','Vendas','Administrativo','Marketing','Logistica','Geral'],placeholder:'—',acent})
+        options:[...(centros_custo||[]).map(c=>({v:c.id,l:c.nome})),...(centros_custo||[]).length===0?['Producao','Vendas','Administrativo','Marketing','Logistica','Geral'].map(n=>({v:n,l:n})):[]], placeholder:'—',acent})
     ),
     // + Adicionar categoria link
     !isTransf&&React.createElement('div',{style:{marginBottom:14}},
@@ -1926,6 +1927,156 @@ function FinCategorias({uid,db,reload,setM}){
   );
 }
 
+// ── CENTROS DE CUSTO ──
+const CENTROS_PADRAO=[
+  {nome:'Produção',desc:'Custos diretos de fabricação e produção'},
+  {nome:'Vendas',desc:'Despesas relacionadas a vendas e comercial'},
+  {nome:'Administrativo',desc:'Despesas administrativas e gestão'},
+  {nome:'Marketing',desc:'Publicidade, redes sociais e divulgação'},
+  {nome:'Logística',desc:'Entregas, frete e distribuição'},
+  {nome:'Financeiro',desc:'Taxas, juros e despesas financeiras'},
+];
+
+function FinCentros({uid,db,reload,setM}){
+  const{centros_custo,lancamentos}=db;
+
+  const novo=()=>setM({title:'Novo Centro de Custo',body:React.createElement(CentroForm,{uid,reload,close:()=>setM(null)})});
+  const excluir=async(id,nome)=>{
+    if(!confirm('Excluir "'+nome+'"?'))return;
+    await sb.from('centros_custo').delete().eq('id',id);
+    toast('Excluído!',false,true);reload();
+  };
+
+  // gastos por centro (periodo atual)
+  const mes=TODAY().slice(0,7);
+  const gastosPorCentro={};
+  (lancamentos||[]).filter(l=>l.tipo==='despesa'&&l.data&&l.data.slice(0,7)===mes&&l.centro_custo).forEach(l=>{
+    const k=l.centro_custo;
+    gastosPorCentro[k]=(gastosPorCentro[k]||0)+Number(l.valor);
+  });
+
+  const todosNomes=[...CENTROS_PADRAO.map(c=>c.nome),...(centros_custo||[]).map(c=>c.nome)];
+  const totalMes=Object.values(gastosPorCentro).reduce((s,v)=>s+v,0);
+
+  return React.createElement(PW,{title:'Centro de Custo',sub:'Classifique seus lançamentos por centro de custo',
+    actions:[React.createElement('button',{key:'n',style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:novo},'+ Novo Centro')]},
+
+    // Cards dos centros
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))',gap:14,marginBottom:20}},
+      // Padrões
+      CENTROS_PADRAO.map(c=>{
+        const gasto=gastosPorCentro[c.nome]||0;
+        const pct=totalMes>0?Math.round(gasto/totalMes*100):0;
+        return React.createElement('div',{key:c.nome,style:{background:'#fff',borderRadius:14,padding:'18px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+          React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}},
+            React.createElement('div',null,
+              React.createElement('div',{style:{fontWeight:700,fontSize:14,color:'#111',marginBottom:3}},c.nome),
+              React.createElement('div',{style:{fontSize:11,color:'#aaa'}},c.desc)
+            ),
+            React.createElement('span',{style:{fontSize:10,color:'#bbb',fontWeight:600,letterSpacing:'1px',textTransform:'uppercase',background:'#f5f5f5',padding:'3px 8px',borderRadius:20}},'Padrão')
+          ),
+          React.createElement('div',{style:{marginBottom:8}},
+            React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:5}},
+              React.createElement('span',{style:{fontSize:12,color:'#aaa'}},'Despesas este mês'),
+              React.createElement('span',{style:{fontSize:13,fontWeight:700,color:gasto>0?'#dc2626':'#ccc'}},gasto>0?F(gasto):'R$ 0,00')
+            ),
+            React.createElement('div',{style:{height:4,background:'#f5f5f5',borderRadius:4,overflow:'hidden'}},
+              React.createElement('div',{style:{height:'100%',width:pct+'%',background:'#dc2626',borderRadius:4,transition:'width 0.4s ease'}})
+            ),
+            pct>0&&React.createElement('div',{style:{fontSize:10,color:'#aaa',marginTop:3,textAlign:'right'}},pct+'% do total')
+          )
+        );
+      }),
+      // Customizados
+      (centros_custo||[]).map(c=>{
+        const gasto=gastosPorCentro[c.id]||gastosPorCentro[c.nome]||0;
+        const pct=totalMes>0?Math.round(gasto/totalMes*100):0;
+        return React.createElement('div',{key:c.id,style:{background:'#fff',borderRadius:14,padding:'18px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)',borderLeft:'3px solid #dc2626'}},
+          React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}},
+            React.createElement('div',null,
+              React.createElement('div',{style:{fontWeight:700,fontSize:14,color:'#111',marginBottom:3}},c.nome),
+              c.desc&&React.createElement('div',{style:{fontSize:11,color:'#aaa'}},c.desc)
+            ),
+            React.createElement('button',{onClick:()=>excluir(c.id,c.nome),style:{fontSize:11,color:'#dc2626',background:'#fee2e2',border:'none',borderRadius:6,padding:'3px 9px',cursor:'pointer',fontWeight:600}},'×')
+          ),
+          React.createElement('div',{style:{marginBottom:4}},
+            React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:5}},
+              React.createElement('span',{style:{fontSize:12,color:'#aaa'}},'Despesas este mês'),
+              React.createElement('span',{style:{fontSize:13,fontWeight:700,color:gasto>0?'#dc2626':'#ccc'}},gasto>0?F(gasto):'R$ 0,00')
+            ),
+            React.createElement('div',{style:{height:4,background:'#f5f5f5',borderRadius:4,overflow:'hidden'}},
+              React.createElement('div',{style:{height:'100%',width:pct+'%',background:'#dc2626',borderRadius:4}})
+            )
+          )
+        );
+      })
+    ),
+
+    // Tabela resumo do mês
+    React.createElement('div',{style:{background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden'}},
+      React.createElement('div',{style:{padding:'14px 18px',borderBottom:'1px solid #f5f5f5',display:'flex',justifyContent:'space-between',alignItems:'center'}},
+        React.createElement('span',{style:{fontWeight:700,fontSize:14,color:'#111'}},'Resumo do Mês'),
+        React.createElement('span',{style:{fontSize:13,color:'#dc2626',fontWeight:700}},F(totalMes)+' total')
+      ),
+      React.createElement('table',{style:{width:'100%',borderCollapse:'collapse'}},
+        React.createElement('thead',null,
+          React.createElement('tr',null,
+            ['Centro','Despesas no Mês','% do Total','Lançamentos'].map(h=>
+              React.createElement('th',{key:h,style:{padding:'9px 18px',textAlign:'left',fontSize:10,fontWeight:700,color:'#aaa',textTransform:'uppercase',letterSpacing:'1px',background:'#fafafa',borderBottom:'1px solid #f0f0f0'}},h)
+            )
+          )
+        ),
+        React.createElement('tbody',null,
+          todosNomes.filter(n=>gastosPorCentro[n]>0).sort((a,b)=>gastosPorCentro[b]-gastosPorCentro[a]).map(n=>
+            React.createElement('tr',{key:n,style:{borderBottom:'1px solid #f8f8f8'}},
+              React.createElement('td',{style:{padding:'11px 18px',fontSize:13,fontWeight:600,color:'#111'}},n),
+              React.createElement('td',{style:{padding:'11px 18px',fontSize:13,fontWeight:700,color:'#dc2626'}},F(gastosPorCentro[n])),
+              React.createElement('td',{style:{padding:'11px 18px',fontSize:13,color:'#888'}},
+                React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8}},
+                  React.createElement('div',{style:{width:80,height:5,background:'#f5f5f5',borderRadius:4,overflow:'hidden'}},
+                    React.createElement('div',{style:{height:'100%',width:Math.round(gastosPorCentro[n]/totalMes*100)+'%',background:'#dc2626',borderRadius:4}})
+                  ),
+                  React.createElement('span',null,Math.round(gastosPorCentro[n]/totalMes*100)+'%')
+                )
+              ),
+              React.createElement('td',{style:{padding:'11px 18px',fontSize:13,color:'#aaa'}},
+                (lancamentos||[]).filter(l=>l.tipo==='despesa'&&l.data&&l.data.slice(0,7)===mes&&(l.centro_custo===n)).length
+              )
+            )
+          ),
+          Object.keys(gastosPorCentro).length===0&&React.createElement('tr',null,
+            React.createElement('td',{colSpan:4,style:{padding:'30px',textAlign:'center',color:'#ccc',fontSize:13}},'Nenhum lançamento com centro de custo neste mês')
+          )
+        )
+      )
+    )
+  );
+}
+
+function CentroForm({uid,reload,close}){
+  const[nome,setNome]=React.useState('');
+  const[desc,setDesc]=React.useState('');
+  const[ld,setLd]=React.useState(false);
+  const inpS={width:'100%',background:'#f5f5f5',border:'none',borderRadius:10,padding:'10px 13px',fontSize:13,marginBottom:13,color:'#111'};
+  const lbS={fontSize:10,color:'#aaa',fontWeight:600,letterSpacing:'1.5px',textTransform:'uppercase',display:'block',marginBottom:6};
+  return React.createElement('div',null,
+    React.createElement('label',{style:lbS},'Nome do Centro *'),
+    React.createElement('input',{style:inpS,type:'text',placeholder:'Ex: Confeitaria Zona Norte',value:nome,onChange:e=>setNome(e.target.value)}),
+    React.createElement('label',{style:lbS},'Descrição'),
+    React.createElement('input',{style:inpS,type:'text',placeholder:'Opcional',value:desc,onChange:e=>setDesc(e.target.value)}),
+    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
+      React.createElement('button',{style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'},onClick:close},'Cancelar'),
+      React.createElement('button',{style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:async()=>{
+        if(!nome){toast('Informe o nome',true);return;}
+        setLd(true);
+        await sb.from('centros_custo').insert({user_id:uid,nome,desc});
+        toast('Centro criado!',false,true);reload();close();setLd(false);
+      }},ld?'...':'Criar')
+    )
+  );
+}
+
+
 function CatForm({uid,grupo,tipo,reload,close}){
   const[nome,setNome]=React.useState('');
   const[grp,setGrp]=React.useState(grupo||GRUPOS_PADRAO[0].grupo);
@@ -1991,7 +2142,7 @@ function ContaForm({uid,reload,close}){
 // ── APP ──
 function App(){
   const[user,setUser]=useState(null);const[page,setPage]=useState('pedidos');
-  const[db,setDb]=useState({pedidos:[],estoque:[],contas:[],receber:[],pagar:[],movs:[],lancamentos:[],categorias_fin:[]});
+  const[db,setDb]=useState({pedidos:[],estoque:[],contas:[],receber:[],pagar:[],movs:[],lancamentos:[],categorias_fin:[],centros_custo:[]});
   const[modal,setModal]=useState(null);const[col,setCol]=useState(false);const[loading,setLoading]=useState(false);
 
   useEffect(()=>{
@@ -2004,7 +2155,7 @@ function App(){
     if(!user)return;
     setLoading(true);
     const uid=user.id;
-    const[ped,est,con,rec,pag,mov,lanc,catfin]=await Promise.all([
+    const[ped,est,con,rec,pag,mov,lanc,catfin,centros]=await Promise.all([
       sb.from('pedidos').select('*').eq('user_id',uid).order('criado_em',{ascending:false}),
       sb.from('estoque').select('*').eq('user_id',uid).order('nome'),
       sb.from('contas_bancarias').select('*').eq('user_id',uid).eq('ativo',true).order('criado_em'),
@@ -2013,6 +2164,7 @@ function App(){
       sb.from('movimentacoes').select('*').eq('user_id',uid).order('data_movimentacao',{ascending:false}),
       sb.from('lancamentos').select('*').eq('user_id',uid).order('data',{ascending:false}).limit(500),
       sb.from('categorias_fin').select('*').eq('user_id',uid).order('nome'),
+      sb.from('centros_custo').select('*').eq('user_id',uid).order('nome'),
     ]);
     const contas=con.data||[];
     if(contas.length===0){
@@ -2021,9 +2173,9 @@ function App(){
         {user_id:uid,nome:'Caixa',tipo:'Caixa',banco:'',saldo:0,cor:'#f59e0b',ativo:true},
       ]);
       const{data:nc}=await sb.from('contas_bancarias').select('*').eq('user_id',uid);
-      setDb({pedidos:ped.data||[],estoque:est.data||[],contas:nc||[],receber:rec.data||[],pagar:pag.data||[],movs:mov.data||[],lancamentos:lanc.data||[],categorias_fin:catfin.data||[]});
+      setDb({pedidos:ped.data||[],estoque:est.data||[],contas:nc||[],receber:rec.data||[],pagar:pag.data||[],movs:mov.data||[],lancamentos:lanc.data||[],categorias_fin:catfin.data||[],centros_custo:centros.data||[]});
     }else{
-      setDb({pedidos:ped.data||[],estoque:est.data||[],contas,receber:rec.data||[],pagar:pag.data||[],movs:mov.data||[],lancamentos:lanc.data||[],categorias_fin:catfin.data||[]});
+      setDb({pedidos:ped.data||[],estoque:est.data||[],contas,receber:rec.data||[],pagar:pag.data||[],movs:mov.data||[],lancamentos:lanc.data||[],categorias_fin:catfin.data||[],centros_custo:centros.data||[]});
     }
     setLoading(false);
   },[user]);
@@ -2046,6 +2198,7 @@ function App(){
     fin_movs:()=>React.createElement(FinMovs,{uid,db,reload,setM:setModal}),
     fin_contas:()=>React.createElement(FinContas,{uid,db,reload,setM:setModal}),
     fin_categorias:()=>React.createElement(FinCategorias,{uid,db,reload,setM:setModal}),
+    fin_centros:()=>React.createElement(FinCentros,{uid,db,reload,setM:setModal}),
   };
   const PC=PAGES[page]||PAGES.pedidos;
 
