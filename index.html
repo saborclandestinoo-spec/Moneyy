@@ -917,6 +917,53 @@ function ImportModal({uid, contas, reload, close}){
 }
 
 
+function AddDropdown({novo}){
+  const[open,setOpen]=React.useState(false);
+  const ref=React.useRef(null);
+
+  React.useEffect(()=>{
+    if(!open)return;
+    const handler=(e)=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
+    document.addEventListener('mousedown',handler);
+    return()=>document.removeEventListener('mousedown',handler);
+  },[open]);
+
+  const items=[
+    {label:'Despesa', cor:'#dc2626', bg:'#fff5f5', icon:'—', tipo:'despesa'},
+    {label:'Receita', cor:'#16a34a', bg:'#f0fdf4', icon:'+', tipo:'receita'},
+    {label:'Transferência', cor:'#2563eb', bg:'#eff6ff', icon:'⇄', tipo:'transferencia'},
+  ];
+
+  return React.createElement('div',{ref,style:{position:'relative'}},
+    React.createElement('button',{
+      onClick:()=>setOpen(p=>!p),
+      style:{display:'flex',alignItems:'center',gap:7,background:'#fff',color:'#111',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'1px solid #e8e8e8',cursor:'pointer',boxShadow:'0 1px 4px rgba(0,0,0,0.07)'}
+    },
+      '+ Adicionar',
+      React.createElement('span',{style:{fontSize:10,color:'#aaa',marginLeft:2}},open?'▲':'▼')
+    ),
+    open&&React.createElement('div',{style:{
+      position:'absolute',top:'calc(100% + 6px)',right:0,
+      background:'#fff',borderRadius:12,boxShadow:'0 8px 32px rgba(0,0,0,0.14)',
+      border:'1px solid #f0f0f0',minWidth:180,zIndex:200,overflow:'hidden',
+      animation:'fadeUp 0.12s ease'
+    }},
+      items.map(it=>React.createElement('button',{
+        key:it.tipo,
+        onClick:()=>{setOpen(false);if(it.tipo==='transferencia'){novo('transferencia');}else{novo(it.tipo);}},
+        style:{display:'flex',alignItems:'center',gap:12,width:'100%',padding:'12px 16px',
+          background:'#fff',border:'none',cursor:'pointer',textAlign:'left',
+          borderBottom:'1px solid #fafafa',transition:'background 0.1s'}
+      },
+        React.createElement('span',{style:{width:24,height:24,borderRadius:6,background:it.bg,color:it.cor,
+          display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:800,flexShrink:0}},it.icon),
+        React.createElement('span',{style:{fontSize:14,fontWeight:600,color:it.cor}},it.label)
+      ))
+    )
+  );
+}
+
+
 function DateRangePicker({dtIni,dtFim,onChange,onClose}){
   const hoje=TODAY();
   const parse=(s)=>{const p=s.split('-');return{y:+p[0],m:+p[1]-1,d:+p[2]};};
@@ -1083,7 +1130,10 @@ function FinLancamentos({uid,db,reload,setM}){
   const pagos=allPer.filter(l=>!!l.pago);
   const totalPer=allPer.reduce((s,l)=>s+Number(l.valor),0);
 
-  const novo=(tipo)=>setM({title:tipo==='receita'?'+ Nova Receita':'+ Nova Despesa',body:React.createElement(LancForm,{uid,tipo,db,reload,close:()=>setM(null)})});
+  const novo=(tipo)=>{
+    const titles={receita:'+ Nova Receita',despesa:'+ Nova Despesa',transferencia:'+ Transferência'};
+    setM({title:titles[tipo]||'+ Lançamento',body:React.createElement(LancForm,{uid,tipo,db,reload,close:()=>setM(null)})});
+  };
 
   const confirmar=(l)=>setM({title:'Confirmar',body:
     React.createElement('div',null,
@@ -1128,7 +1178,7 @@ function FinLancamentos({uid,db,reload,setM}){
     actions:[
       React.createElement('button',{key:'imp',style:{background:'#f5f5f5',color:'#555',padding:'8px 14px',borderRadius:9,fontSize:12,fontWeight:500,border:'none',cursor:'pointer'},onClick:()=>setM({title:'Importar Lancamentos (.xlsx)',body:React.createElement(ImportModal,{uid,contas,reload,close:()=>setM(null)})})},'Importar'),
       React.createElement('button',{key:'exp',style:{background:'#f5f5f5',color:'#16a34a',padding:'8px 14px',borderRadius:9,fontSize:12,fontWeight:600,border:'none',cursor:'pointer'},onClick:()=>exportarLancamentos(list,contas,dtIni,dtFim)},'Exportar .xlsx'),
-      React.createElement('button',{key:'add',style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:()=>setM({title:'Adicionar',body:React.createElement('div',{style:{display:'flex',gap:10}},React.createElement('button',{style:{flex:1,padding:'16px',borderRadius:12,background:'#dcfce7',color:'#16a34a',fontWeight:700,fontSize:15,border:'none',cursor:'pointer'},onClick:()=>{setM(null);novo('receita');}},'+  Receita'),React.createElement('button',{style:{flex:1,padding:'16px',borderRadius:12,background:'#fee2e2',color:'#dc2626',fontWeight:700,fontSize:15,border:'none',cursor:'pointer'},onClick:()=>{setM(null);novo('despesa');}},'+  Despesa'))})},'+ Adicionar'),
+      React.createElement(AddDropdown,{key:'add',novo}),
     ]},
 
     // BARRA DE FILTROS
@@ -1173,10 +1223,7 @@ function FinLancamentos({uid,db,reload,setM}){
       React.createElement('button',{onClick:()=>setShowFiltro(p=>!p),style:{padding:'11px 16px',background:showFiltro?'#fff5f5':'none',border:'none',fontSize:13,color:showFiltro?'#dc2626':'#555',cursor:'pointer',fontWeight:showFiltro?600:400,display:'flex',alignItems:'center',gap:5,whiteSpace:'nowrap'}},
         '+ Filtro',filCat?React.createElement('span',{style:{background:'#dc2626',color:'#fff',borderRadius:20,fontSize:9,padding:'1px 5px',fontWeight:700,marginLeft:2}},'1'):null
       ),
-      // Adicionar botoes
-      sep,
-      React.createElement('button',{onClick:()=>novo('receita'),style:{padding:'11px 12px',background:'none',border:'none',fontSize:13,color:'#16a34a',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}},'+Receita'),
-      React.createElement('button',{onClick:()=>novo('despesa'),style:{padding:'11px 12px',background:'none',border:'none',fontSize:13,color:'#dc2626',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}},'+Despesa'),
+
     ),
 
     // Filtro extras
@@ -1241,6 +1288,7 @@ function LancForm({uid,tipo,db,reload,close}){
   const[valor,setValor]=React.useState('');
   const[cat,setCat]=React.useState(tipo==='receita'?'3.1.1 Pix':'4.3.2.1 Aluguel');
   const[contaId,setContaId]=React.useState(contas&&contas[0]&&contas[0].id||'');
+  const[contaDestId,setContaDestId]=React.useState(contas&&contas[1]&&contas[1].id||contas&&contas[0]&&contas[0].id||'');
   const[formaPag,setFormaPag]=React.useState('PIX');
   const[venc,setVenc]=React.useState(TODAY());
   const[pago,setPago]=React.useState(false);
@@ -1258,6 +1306,7 @@ function LancForm({uid,tipo,db,reload,close}){
   const cats=[...catsPadrao,...catsCustom];
   const FREQS=[{v:'semanal',l:'Semanal'},{v:'quinzenal',l:'Quinzenal'},{v:'mensal',l:'Mensal'},{v:'bimestral',l:'Bimestral'},{v:'trimestral',l:'Trimestral'},{v:'semestral',l:'Semestral'},{v:'anual',l:'Anual'}];
   const isRec=tipo==='receita';
+  const isTransf=tipo==='transferencia';
   const v=parseFloat(String(valor||'0').replace(',','.'));
 
   const salvar=async()=>{
@@ -1290,7 +1339,46 @@ function LancForm({uid,tipo,db,reload,close}){
     reload();close();setLd(false);
   };
 
-  const btnTipo=(v2)=>({padding:'8px',borderRadius:9,fontSize:12,fontWeight:600,border:'none',cursor:'pointer',flex:1,background:tipoLanc===v2?(isRec?'#16a34a':'#dc2626'):'#f5f5f5',color:tipoLanc===v2?'#fff':'#888'});
+  // TRANSFERENCIA: early return with special form
+  if(isTransf){
+    const inpS={width:'100%',background:'#f5f5f5',border:'none',borderRadius:10,padding:'10px 13px',fontSize:13,marginBottom:13,color:'#111'};
+    const lbS={fontSize:10,color:'#aaa',fontWeight:600,letterSpacing:'1.5px',textTransform:'uppercase',display:'block',marginBottom:6};
+    return React.createElement('div',null,
+      React.createElement('div',{style:{background:'#eff6ff',borderRadius:11,padding:'10px 14px',marginBottom:14,fontSize:12,color:'#2563eb'}},'Transferencia entre contas — debita a origem e credita o destino'),
+      React.createElement('label',{style:lbS},'Valor (R$)'),
+      React.createElement('input',{style:inpS,type:'number',step:'0.01',placeholder:'0.00',value:valor,onChange:e=>setValor(e.target.value)}),
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 12px'}},
+        React.createElement('div',null,React.createElement('label',{style:lbS},'Conta Origem'),React.createElement('select',{style:inpS,value:contaId,onChange:e=>setContaId(e.target.value)},contas.map(c=>React.createElement('option',{key:c.id,value:c.id},c.nome+' ('+F(c.saldo)+')')))),
+        React.createElement('div',null,React.createElement('label',{style:lbS},'Conta Destino'),React.createElement('select',{style:inpS,value:contaDestId,onChange:e=>setContaDestId(e.target.value)},contas.map(c=>React.createElement('option',{key:c.id,value:c.id},c.nome+' ('+F(c.saldo)+')'))))
+      ),
+      React.createElement('label',{style:lbS},'Data'),
+      React.createElement('input',{style:inpS,type:'date',value:venc,onChange:e=>setVenc(e.target.value)}),
+      React.createElement('label',{style:lbS},'Descricao (opcional)'),
+      React.createElement('input',{style:inpS,type:'text',placeholder:'Ex: Transferencia Nubank → Stone',value:desc,onChange:e=>setDesc(e.target.value)}),
+      React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
+        React.createElement('button',{style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'},onClick:close},'Cancelar'),
+        React.createElement('button',{style:{background:'#2563eb',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:async()=>{
+          const vl=parseFloat(String(valor).replace(',','.'));
+          if(!vl){toast('Informe o valor',true);return;}
+          if(contaId===contaDestId){toast('Selecione contas diferentes',true);return;}
+          setLd(true);
+          const dtxt=desc||('Transferencia '+venc);
+          await sb.from('lancamentos').insert([
+            {user_id:uid,tipo:'despesa',desc:dtxt,valor:vl,categoria:'Transferencia',conta_id:contaId,forma_pag:'Transferencia',data:venc,venc,pago:true,data_pag:venc,obs:'Transferencia para '+(contas.find(c=>c.id===contaDestId)&&contas.find(c=>c.id===contaDestId).nome||'')},
+            {user_id:uid,tipo:'receita',desc:dtxt,valor:vl,categoria:'Transferencia',conta_id:contaDestId,forma_pag:'Transferencia',data:venc,venc,pago:true,data_pag:venc,obs:'Transferencia de '+(contas.find(c=>c.id===contaId)&&contas.find(c=>c.id===contaId).nome||'')},
+          ]);
+          // atualiza saldos
+          const cOri=contas.find(c=>c.id===contaId);
+          const cDest=contas.find(c=>c.id===contaDestId);
+          if(cOri)await sb.from('contas_bancarias').update({saldo:Number(cOri.saldo)-vl}).eq('id',contaId);
+          if(cDest)await sb.from('contas_bancarias').update({saldo:Number(cDest.saldo)+vl}).eq('id',contaDestId);
+          toast('Transferencia realizada!',false,true);reload();close();setLd(false);
+        }},ld?React.createElement('div',{style:{width:14,height:14,border:'2px solid rgba(255,255,255,0.3)',borderTopColor:'#fff',borderRadius:'50%',animation:'spin 0.7s linear infinite',display:'inline-block'}}):'Transferir')
+      )
+    );
+  }
+
+    const btnTipo=(v2)=>({padding:'8px',borderRadius:9,fontSize:12,fontWeight:600,border:'none',cursor:'pointer',flex:1,background:tipoLanc===v2?(isRec?'#16a34a':'#dc2626'):'#f5f5f5',color:tipoLanc===v2?'#fff':'#888'});
   const inpS={width:'100%',background:'#f5f5f5',border:'none',borderRadius:10,padding:'10px 13px',fontSize:13,marginBottom:13,color:'#111'};
   const selS={...inpS};
   const lbS={fontSize:10,color:'#aaa',fontWeight:600,letterSpacing:'1.5px',textTransform:'uppercase',display:'block',marginBottom:6};
