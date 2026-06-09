@@ -415,7 +415,7 @@ function NovoEst({uid,reload,close}){
       React.createElement(Inp,{label:'Custo Unit. (R$)',v:custo,set:setCusto,type:'number',ph:'0.00'}),
       React.createElement(Inp,{label:'Fornecedor',v:forn,set:setForn,ph:'Nome'})
     ),
-    React.createElement(Inp,{label:'Validade',v:val,set:setVal,type:'date'}),
+    React.createElement(MiniDatePicker,{label:'Validade',value:val,onChange:setVal}),
     React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
       React.createElement('button',{style:C.ghost,onClick:close},'Cancelar'),
       React.createElement('button',{style:C.btn,onClick:async()=>{
@@ -539,7 +539,7 @@ function ConfRecModal({uid,r,contas,reload,close}){
       )
     ),
     React.createElement(G2,null,
-      React.createElement(Inp,{label:'Data',v:dt,set:setDt,type:'date'}),
+      React.createElement(MiniDatePicker,{label:'Data',value:dt,onChange:setDt}),
       React.createElement(Inp,{label:'Obs.',v:obs,set:setObs,ph:'Opcional'})
     ),
     React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
@@ -658,7 +658,7 @@ function PagForm({uid,reload,close}){
       React.createElement(Inp,{label:'Valor (R$)',v:val,set:setVal,type:'number',ph:'0.00'})
     ),
     React.createElement(Inp,{label:'Descrição',v:desc,set:setDesc,ph:'Ex: Aluguel Junho/2026'}),
-    React.createElement(Inp,{label:'Vencimento',v:venc,set:setVenc,type:'date'}),
+    React.createElement(MiniDatePicker,{label:'Vencimento',value:venc,onChange:setVenc}),
     React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
       React.createElement('button',{style:C.ghost,onClick:close},'Cancelar'),
       React.createElement('button',{style:C.btn,onClick:async()=>{
@@ -723,7 +723,7 @@ function MovForm({uid,db,reload,close}){
     ),
     React.createElement(G2,null,
       React.createElement(Inp,{label:'Valor (R$)',v:val,set:setVal,type:'number'}),
-      React.createElement(Inp,{label:'Data',v:dt,set:setDt,type:'date'})
+      React.createElement(MiniDatePicker,{label:'Data',value:dt,onChange:setDt})
     ),
     React.createElement(Inp,{label:'Descrição',v:desc,set:setDesc,ph:'Descrição'}),
     React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
@@ -1429,7 +1429,7 @@ function LancForm({uid,tipo,db,reload,close}){
   const[contaDestId,setContaDestId]=React.useState(contas&&contas[1]?contas[1].id:contas&&contas[0]?contas[0].id:'');
   const[venc,setVenc]=React.useState(TODAY());
   const[competencia,setCompetencia]=React.useState('');
-  const compEfetivo=competencia||venc.slice(0,7);
+  const compEfetivo=competencia||venc;
   const[fornecedor,setFornecedor]=React.useState('');
   const[formaPag,setFormaPag]=React.useState('');
   const[cat,setCat]=React.useState('');
@@ -1543,7 +1543,7 @@ function LancForm({uid,tipo,db,reload,close}){
       isTransf
         ? React.createElement(SelField,{label:'Conta Destino',v:contaDestId,set:setContaDestId,opts:contas.map(c=>({v:c.id,l:c.nome})),ph:'—'})
         : React.createElement(MiniDatePicker,{label:'Vencimento *',value:venc,onChange:setVenc,acent}),
-      React.createElement(MonthPicker,{label:'Competencia',value:competencia,onChange:setCompetencia,acent})
+      React.createElement(MiniDatePicker,{label:'Competencia',value:competencia,onChange:setCompetencia,acent})
     ),
     // ── LINHA 3: Fornecedor + Forma de pagamento ──
     !isTransf&&React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}},
