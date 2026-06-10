@@ -348,15 +348,15 @@ function PedKDS({uid,db,reload,setM}){
     )]},
     fila.length===0
       ? React.createElement('div',{style:{textAlign:'center',padding:'60px',color:'#ccc',fontSize:14}},'✅ Nenhum pedido na fila')
-      : React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:14}},
+      : React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:10}},
           fila.map((p,i)=>{
             const itens=p.itens||p.raw?.items||[];
             const mins=p.raw?.created_at?Math.floor((Date.now()-new Date(p.raw.created_at).getTime())/60000):0;
             const urgente=mins>20;
             return React.createElement('div',{key:p.id,style:{background:'#fff',borderRadius:14,boxShadow:urgente?'0 0 0 2px #dc2626':'0 2px 12px rgba(0,0,0,0.08)',overflow:'hidden'}},
-              React.createElement('div',{style:{background:urgente?'#dc2626':'#1e293b',padding:'10px 14px',display:'flex',justifyContent:'space-between',alignItems:'center'}},
+              React.createElement('div',{style:{background:urgente?'#dc2626':'#1e293b',padding:'8px 12px',display:'flex',justifyContent:'space-between',alignItems:'center'}},
                 React.createElement('div',null,
-                  React.createElement('div',{style:{fontWeight:800,fontSize:16,color:'#fff'}},'#'+p.pedido_id),
+                  React.createElement('div',{style:{fontWeight:800,fontSize:14,color:'#fff'}},'#'+p.pedido_id),
                   React.createElement('div',{style:{fontSize:11,color:'rgba(255,255,255,0.7)'}},p.cliente||'—')
                 ),
                 React.createElement('div',{style:{textAlign:'right'}},
@@ -364,16 +364,16 @@ function PedKDS({uid,db,reload,setM}){
                   p.canal==='ifood'&&React.createElement('div',{style:{fontSize:10,color:'#fb923c',fontWeight:600}},'iFood')
                 )
               ),
-              React.createElement('div',{style:{padding:'12px 14px'}},
+              React.createElement('div',{style:{padding:'10px 12px'}},
                 itens.map((it,j)=>React.createElement('div',{key:j,style:{display:'flex',justifyContent:'space-between',padding:'5px 0',borderBottom:j<itens.length-1?'1px solid #f5f5f5':'none'}},
-                  React.createElement('span',{style:{fontSize:13,color:'#111'}},
+                  React.createElement('span',{style:{fontSize:12,color:'#111'}},
                     React.createElement('strong',null,(it.quantity||it.qty||1)+'x '),
                     (it.name||it.nome||'?')
                   ),
                   it.observation&&React.createElement('span',{style:{fontSize:11,color:'#f59e0b',fontStyle:'italic'}},it.observation)
                 )),
                 React.createElement('button',{
-                  style:{width:'100%',marginTop:12,padding:'10px',background:'#16a34a',color:'#fff',borderRadius:10,border:'none',fontWeight:700,fontSize:14,cursor:'pointer'},
+                  style:{width:'100%',marginTop:8,padding:'8px',background:'#16a34a',color:'#fff',borderRadius:10,border:'none',fontWeight:700,fontSize:14,cursor:'pointer'},
                   onClick:()=>marcarPronto(p)
                 },'✓ Pronto')
               )
@@ -533,8 +533,16 @@ function PedidosCW({uid,db,setDb,reload,setM,cfg,setCfg}){
 
   const list=React.useMemo(()=>{
     let r=pedidos_cw||[];
-    // filtra pela data selecionada
-    r=r.filter(p=>p.data_pedido===syncDate);
+    // filtra pela data — aceita data_pedido ou converte created_at para BRT
+    r=r.filter(p=>{
+      if(p.data_pedido===syncDate)return true;
+      const raw=p.raw||{};
+      if(raw.created_at){
+        const dtBRT=new Date(raw.created_at).toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});
+        return dtBRT===syncDate;
+      }
+      return false;
+    });
     if(fil)r=r.filter(p=>p.status===fil);
     if(busca){const b=busca.toLowerCase();r=r.filter(p=>(p.cliente||'').toLowerCase().includes(b)||(p.pedido_id||'').includes(b));}
     return r;
@@ -542,7 +550,12 @@ function PedidosCW({uid,db,setDb,reload,setM,cfg,setCfg}){
 
   const counts=React.useMemo(()=>{
     const c={total:0,confirmados:0,entregues:0,cancelados:0,faturamento:0};
-    (pedidos_cw||[]).filter(p=>p.data_pedido===syncDate).forEach(p=>{
+    (pedidos_cw||[]).filter(p=>{
+      if(p.data_pedido===syncDate)return true;
+      const raw=p.raw||{};
+      if(raw.created_at){const dtBRT=new Date(raw.created_at).toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});return dtBRT===syncDate;}
+      return false;
+    }).forEach(p=>{
       c.total++;
       if(p.status==='confirmed'||p.status==='released'||p.status==='ready')c.confirmados++;
       if(p.status==='delivered'||p.status==='closed'){c.entregues++;c.faturamento+=Number(p.total||0);}
