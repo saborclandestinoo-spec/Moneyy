@@ -544,6 +544,7 @@ function PedidosCW({uid,db,setDb,reload,setM,cfg,setCfg}){
     });
     if(fil)r=r.filter(p=>p.status===fil);
     if(busca){const b=busca.toLowerCase();r=r.filter(p=>(p.cliente||'').toLowerCase().includes(b)||(p.pedido_id||'').includes(b));}
+    r.sort((a,b)=>Number(b.pedido_id||0)-Number(a.pedido_id||0));
     return r;
   },[pedidos_cw,fil,busca,hoje]);
 
@@ -622,53 +623,139 @@ function PedidoCWDetalhe({p,contas,formas_pag,uid,reload,close}){
   const pags=p.pagamentos||raw.payments||[];
   const itens=raw.items||p.itens||[];
   const statusLabel=CW_STATUS[p.status]||p.status||'—';
-  const stC=p.status==='delivered'||p.status==='closed'?'green':p.status==='canceled'?'red':p.status==='confirmed'||p.status==='ready'?'blue':'amber';
-  return React.createElement('div',null,
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:14}},
-      [['Pedido','#'+p.pedido_id],['Cliente',p.cliente||'—'],['Data',FD(p.data_pedido)],['Canal',p.canal||'Direto'],['Status',null],['Total',null]].map(([l,v])=>
-        React.createElement('div',{key:l,style:{background:'#f8f9fc',borderRadius:10,padding:'10px 13px'}},
-          React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:600,letterSpacing:'1px',textTransform:'uppercase',marginBottom:3}},l),
-          l==='Status'?React.createElement(Badge,{t:statusLabel,c:stC}):
-          l==='Total'?React.createElement('div',{style:{fontWeight:800,fontSize:16,color:'#dc2626'}},F(p.total)):
-          React.createElement('div',{style:{fontSize:14,fontWeight:600}},v)
+  const stC=p.status==='delivered'||p.status==='closed'?'green':p.status==='canceled'?'red':['confirmed','ready','released'].includes(p.status)?'blue':'amber';
+  const dtFmt=raw.created_at?new Date(raw.created_at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'}):'—';
+  const addr=raw.delivery_address||{};
+  const addrStr=[addr.street,addr.number,addr.complement,addr.neighborhood,addr.city,addr.state].filter(Boolean).join(', ');
+  const subtotal=itens.reduce((s,it)=>s+Number(it.total_price||0),0);
+  const taxaEntrega=Number(raw.delivery_fee||0);
+  const adicional=Number(raw.additional_fee||0);
+  const total=Number(p.total||0);
+
+  const secTitle=(icon,title,extra)=>React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 0 6px',borderBottom:'1px solid #f0f0f0',marginBottom:8}},
+    React.createElement('div',{style:{display:'flex',alignItems:'center',gap:7}},
+      React.createElement('span',{style:{fontSize:14}},icon),
+      React.createElement('span',{style:{fontWeight:700,fontSize:13,color:'#111'}},title)
+    ),
+    extra&&React.createElement('div',null,extra)
+  );
+
+  return React.createElement('div',{style:{minWidth:480}},
+    // Header
+    React.createElement('div',{style:{marginBottom:16}},
+      React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}},
+        React.createElement('div',null,
+          React.createElement('div',{style:{fontWeight:800,fontSize:18,color:'#111'}},'Pedido Nº '+p.pedido_id),
+          React.createElement('div',{style:{fontSize:12,color:'#aaa'}},'Feito às '+dtFmt+' · #'+p.source_id)
+        ),
+        React.createElement(Badge,{t:statusLabel,c:stC})
+      ),
+      // Tags
+      React.createElement('div',{style:{display:'flex',gap:6,flexWrap:'wrap'}},
+        [['Tipo',raw.order_type==='delivery'?'Delivery':raw.order_type==='takeout'?'Retirada':'Mesa'],
+         ['Canal',(p.canal||'Direto')],
+         raw.sales_channel==='ifood'&&['','iFood'],
+         raw.customer_origin&&['Origem',raw.customer_origin],
+        ].filter(Boolean).map(([l,v])=>v&&React.createElement('span',{key:l+v,style:{fontSize:11,background:'#f5f5f5',color:'#555',padding:'3px 9px',borderRadius:20,fontWeight:500}},(l?l+': ':'')+v))
+      ),
+      // Status timeline
+      raw.status&&React.createElement('div',{style:{background:'#fffbeb',borderRadius:9,padding:'8px 12px',marginTop:10,fontSize:12,color:'#92400e',fontWeight:600}},
+        '● '+statusLabel+(raw.updated_at?' · atualizado '+new Date(raw.updated_at).toLocaleString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'}):'')
+      )
+    ),
+
+    // Cliente
+    React.createElement('div',{style:{background:'#f8f9fc',borderRadius:12,padding:'12px 14px',marginBottom:12}},
+      secTitle('👤','Cliente'),
+      React.createElement('div',{style:{display:'flex',justifyContent:'space-between'}},
+        React.createElement('div',null,
+          React.createElement('div',{style:{fontWeight:600,fontSize:14}},raw.customer?.name||p.cliente||'—'),
+          raw.customer?.phone&&React.createElement('div',{style:{fontSize:12,color:'#aaa',marginTop:2}},'('+raw.customer.ddi+') '+raw.customer.phone)
+        ),
+        React.createElement('div',{style:{fontSize:11,color:'#aaa',textAlign:'right'}},
+          React.createElement('div',null,'Novo Cliente')
         )
       )
     ),
-    // Itens
-    itens.length>0&&React.createElement('div',{style:{background:'#f8f9fc',borderRadius:12,padding:'13px',marginBottom:12}},
-      React.createElement('div',{style:{fontSize:11,color:'#dc2626',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:9}},'Itens'),
-      itens.map((it,i)=>React.createElement('div',{key:i,style:{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:i<itens.length-1?'1px solid #eee':'none'}},
-        React.createElement('span',{style:{fontSize:13,color:'#555'}},(it.quantity||it.qty||1)+'x '+(it.name||it.nome||'?')),
-        React.createElement('span',{style:{fontWeight:700}},F((it.price||it.unit_price||0)*(it.quantity||it.qty||1)))
-      )),
-      React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginTop:10,paddingTop:10,borderTop:'1px solid #eee'}},
-        React.createElement('span',{style:{fontWeight:700}},'Total'),
-        React.createElement('span',{style:{fontWeight:800,fontSize:16,color:'#dc2626'}},F(p.total))
+
+    // Endereço (só delivery)
+    raw.order_type==='delivery'&&addrStr&&React.createElement('div',{style:{background:'#f8f9fc',borderRadius:12,padding:'12px 14px',marginBottom:12}},
+      secTitle('🏠','Endereço de entrega'),
+      React.createElement('div',{style:{fontSize:13,color:'#555',lineHeight:1.7}},addrStr),
+      raw.delivery_address?.reference&&React.createElement('div',{style:{fontSize:12,color:'#aaa',marginTop:4,fontStyle:'italic'}},raw.delivery_address.reference),
+      raw.delivered_by&&React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6,marginTop:8,padding:'6px 10px',background:'#eff6ff',borderRadius:8,fontSize:12,color:'#2563eb'}},
+        '🛵 Entrega própria',
+        taxaEntrega>0&&React.createElement('span',{style:{marginLeft:'auto',fontWeight:700}},'Taxa: '+F(taxaEntrega))
+      ),
+      raw.schedule&&React.createElement('div',{style:{fontSize:12,color:'#555',marginTop:8}},
+        '📅 Agendado para: '+new Date(raw.schedule.scheduled_date_time_start).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'})
       )
     ),
+
+    // Itens
+    React.createElement('div',{style:{background:'#f8f9fc',borderRadius:12,padding:'12px 14px',marginBottom:12}},
+      secTitle('📋','Itens do pedido',React.createElement('span',{style:{fontSize:12,color:'#aaa'}},itens.length+' item(s)')),
+      itens.map((it,i)=>React.createElement('div',{key:i,style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',padding:'8px 0',borderBottom:i<itens.length-1?'1px solid #eee':'none'}},
+        React.createElement('div',{style:{flex:1}},
+          React.createElement('div',{style:{display:'flex',gap:8,alignItems:'center'}},
+            React.createElement('span',{style:{background:'#e0e0e0',borderRadius:6,padding:'1px 7px',fontSize:12,fontWeight:700,color:'#555'}},(it.quantity||it.qty||1)+'x'),
+            React.createElement('span',{style:{fontSize:13,fontWeight:500,color:'#111'}},it.name||it.nome||'?')
+          ),
+          it.observation&&React.createElement('div',{style:{fontSize:11,color:'#f59e0b',marginTop:3,marginLeft:28}},it.observation),
+          (it.options||[]).map((op,j)=>React.createElement('div',{key:j,style:{fontSize:11,color:'#888',marginTop:2,marginLeft:28}},'+ '+op.name))
+        ),
+        React.createElement('span',{style:{fontWeight:700,fontSize:13,whiteSpace:'nowrap'}},F(it.total_price||0))
+      )),
+      // Totais
+      React.createElement('div',{style:{marginTop:10,paddingTop:10,borderTop:'1px solid #e0e0e0'}},
+        React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:12,color:'#888',marginBottom:4}},
+          React.createElement('span',null,'Subtotal'),React.createElement('span',null,F(subtotal))
+        ),
+        taxaEntrega>0&&React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:12,color:'#888',marginBottom:4}},
+          React.createElement('span',null,'Taxa de entrega'),React.createElement('span',null,'+ '+F(taxaEntrega))
+        ),
+        adicional>0&&React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:12,color:'#888',marginBottom:4}},
+          React.createElement('span',null,'Taxa adicional'),React.createElement('span',null,'+ '+F(adicional))
+        ),
+        (raw.discounts||[]).map((d,i)=>React.createElement('div',{key:i,style:{display:'flex',justifyContent:'space-between',fontSize:12,color:'#16a34a',marginBottom:4}},
+          React.createElement('span',null,'Desconto '+d.sponsorship),React.createElement('span',null,'- '+F(d.total))
+        )),
+        React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontWeight:800,fontSize:15,marginTop:6,paddingTop:6,borderTop:'1px solid #e0e0e0'}},
+          React.createElement('span',null,'Total'),React.createElement('span',{style:{color:'#dc2626'}},F(total))
+        )
+      )
+    ),
+
     // Pagamentos
-    pags.length>0&&React.createElement('div',{style:{background:'#f8f9fc',borderRadius:12,padding:'13px',marginBottom:12}},
-      React.createElement('div',{style:{fontSize:11,color:'#aaa',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:9}},'Pagamentos'),
+    pags.length>0&&React.createElement('div',{style:{background:'#f8f9fc',borderRadius:12,padding:'12px 14px',marginBottom:12}},
+      secTitle('💰','Formas de pagamento'),
       pags.map((pg,i)=>{
         const pmNome=PM_MAP_CW[(pg.payment_method||'').toLowerCase()]||pg.payment_method||'—';
-        const val=Number(pg.value||pg.total||pg.valor||0);
-        const forma=(formas_pag||[]).find(f=>(f.nome||'').toLowerCase().includes(pmNome.toLowerCase().split(' ')[0]));
-        const taxa=forma&&forma.taxa_pct?val*(forma.taxa_pct/100):0;
-        return React.createElement('div',{key:i,style:{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:i<pags.length-1?'1px solid #eee':'none'}},
+        const val=Number(pg.value||pg.total||0);
+        return React.createElement('div',{key:i,style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:i<pags.length-1?'1px solid #eee':'none'}},
           React.createElement('div',null,
             React.createElement('div',{style:{fontWeight:600,fontSize:13}},pmNome),
-            taxa>0&&React.createElement('div',{style:{fontSize:11,color:'#aaa'}},'Taxa: '+F(taxa)+' · Líq: '+F(val-taxa))
+            pg.card_brand&&React.createElement('div',{style:{fontSize:11,color:'#aaa'}},pg.card_brand)
           ),
-          React.createElement('span',{style:{fontWeight:700}},F(val))
+          React.createElement('div',{style:{textAlign:'right'}},
+            React.createElement('div',{style:{fontWeight:700}},F(val)),
+            pg.change_for&&React.createElement('div',{style:{fontSize:11,color:'#aaa'}},'Troco para: '+F(pg.change_for))
+          )
         );
       })
     ),
-    p.lanc_gerado&&React.createElement('div',{style:{background:'#f0fdf4',borderRadius:10,padding:'10px 14px',marginBottom:14,fontSize:12,color:'#16a34a'}},'✓ Lançamentos financeiros já gerados'),
-    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
+
+    // Obs
+    raw.observation&&React.createElement('div',{style:{background:'#fffbeb',borderRadius:10,padding:'10px 14px',marginBottom:12,fontSize:13,color:'#92400e'}},
+      React.createElement('span',{style:{fontWeight:700}},'Obs: '),raw.observation
+    ),
+
+    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:4}},
       React.createElement('button',{style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'},onClick:close},'Fechar')
     )
   );
 }
+
 
 function CWConfigModal({uid,cfg,setCfg,close}){
   const[token,setToken]=React.useState(cfg.cw_token||'');
