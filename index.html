@@ -249,7 +249,7 @@ const PM_MAP_CW={money:'Dinheiro',cash:'Dinheiro',pix:'PIX',pix_auto:'PIX',
   credit_card:'Cartão Crédito',debit_card:'Cartão Débito',
   online_credit_card:'Cartão Online',ifood:'iFood'};
 
-function PedidosCW({uid,db,reload,setM,cfg,setCfg}){
+function PedidosCW({uid,db,setDb,reload,setM,cfg,setCfg}){
   const{pedidos_cw,contas,formas_pag}=db;
   const[fil,setFil]=React.useState('');
   const[busca,setBusca]=React.useState('');
@@ -294,7 +294,8 @@ function PedidosCW({uid,db,reload,setM,cfg,setCfg}){
         sb.from('pedidos_cw').select('*').eq('user_id',uid).order('data_pedido',{ascending:false}).limit(200),
         sb.from('lancamentos').select('*').eq('user_id',uid).order('data',{ascending:false}).limit(500),
       ]);
-      if(novPed||novLanc)setDb(prev=>({...prev,...(novPed?{pedidos_cw:novPed}:{}),...(novLanc?{lancamentos:novLanc}:{})}));
+      if(setDb&&(novPed||novLanc))setDb(prev=>({...prev,...(novPed?{pedidos_cw:novPed}:{}),...(novLanc?{lancamentos:novLanc}:{})}));
+      else if(novPed||novLanc)reload();
     }catch(e){
       setSyncStatus('Erro: '+e.message);
       toast('Erro: '+e.message,true);
@@ -2624,7 +2625,7 @@ function App(){
 
   const uid=user.id;
   const PAGES={
-    pedidos:()=>React.createElement(PedidosCW,{uid,db,reload,setM:setModal,cfg,setCfg}),
+    pedidos:()=>React.createElement(PedidosCW,{uid,db,setDb,reload,setM:setModal,cfg,setCfg}),
     estoque:()=>React.createElement(Estoque,{uid,db,reload,setM:setModal}),
     fin_visao:()=>React.createElement(FinVisao,{uid,db,reload,setM:setModal}),
     fin_lancamentos:()=>React.createElement(FinLancamentos,{uid,db,reload,setM:setModal}),
