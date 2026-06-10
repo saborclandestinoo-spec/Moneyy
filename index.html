@@ -593,6 +593,7 @@ function PedidosCW({uid,db,setDb,reload,setM,cfg,setCfg}){
           {v:'waiting_to_catch',l:'Esperando retirada',bg:'#ede9fe',c:'#4c1d95'},
           {v:'ready',l:'Pronto',bg:'#d1fae5',c:'#065f46'},
           {v:'delivered',l:'Entregues',bg:'#f0fdf4',c:'#16a34a'},
+          {v:'closed',l:'Finalizado',bg:'#f0fdf4',c:'#16a34a'},
           {v:'canceled',l:'Cancelados',bg:'#fee2e2',c:'#991b1b'},
         ].map(({v,l,bg,c})=>{
           const cnt=v===''?list.length:(pedidos_cw||[]).filter(p=>{
@@ -621,7 +622,7 @@ function PedidosCW({uid,db,setDb,reload,setM,cfg,setCfg}){
     ),
 
     React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
-      React.createElement(Tbl,{cols:['Nº','Cliente','Pagamento','Total','Data/Hora','Canal','Status'],
+      React.createElement(Tbl,{cols:['Nº','Cliente','Pagamento','Total','Hora','Entregador','Status'],
         rows:list.map(p=>{
           const pags=p.pagamentos||[];
           const pagNome=pags.length?(PM_MAP_CW[(pags[0].payment_method||'').toLowerCase()]||pags[0].payment_method||'—'):'—';
@@ -629,15 +630,40 @@ function PedidosCW({uid,db,setDb,reload,setM,cfg,setCfg}){
           const dtFmt=raw.created_at?new Date(raw.created_at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'}):FD(p.data_pedido);
           const canal=p.canal||'';
           const statusLabel=CW_STATUS[p.status]||p.status||'—';
-          const stC=p.status==='delivered'||p.status==='closed'?'green':p.status==='canceled'?'red':p.status==='confirmed'||p.status==='ready'||p.status==='released'?'blue':'amber';
+          const ST_STYLE={
+            waiting_confirmation:{bg:'#fef9c3',c:'#713f12'},
+            confirmed:{bg:'#dbeafe',c:'#1e40af'},
+            released:{bg:'#dcfce7',c:'#14532d'},
+            waiting_to_catch:{bg:'#ede9fe',c:'#4c1d95'},
+            ready:{bg:'#d1fae5',c:'#065f46'},
+            delivered:{bg:'#f0fdf4',c:'#16a34a'},
+            closed:{bg:'#f0fdf4',c:'#16a34a'},
+            canceled:{bg:'#fee2e2',c:'#991b1b'},
+            canceling:{bg:'#fee2e2',c:'#991b1b'},
+            scheduled_confirmed:{bg:'#fef3c7',c:'#92400e'},
+          };
+          const ss=ST_STYLE[p.status]||{bg:'#f5f5f5',c:'#555'};
+          const stBadge=React.createElement('span',{style:{fontSize:11,fontWeight:700,color:ss.c,background:ss.bg,padding:'3px 10px',borderRadius:20,whiteSpace:'nowrap'}},statusLabel);
+          // entregador do raw
+          const entregador=(()=>{
+            const raw2=p.raw||{};
+            // delivered_by_user ou user no item
+            if(raw2.delivered_by_user?.name)return raw2.delivered_by_user.name;
+            if(raw2.delivery?.deliveryman?.name)return raw2.delivery?.deliveryman?.name;
+            if(raw2.deliveryman?.name)return raw2.deliveryman?.name;
+            // pega do primeiro item com user
+            const itWithUser=(raw2.items||[]).find(it=>it.user?.name);
+            if(itWithUser)return itWithUser.user.name;
+            return raw2.delivered_by==='merchant'?'Próprio':'—';
+          })();
           return React.createElement(TR,{key:p.id,onClick:()=>verPedido(p),cells:[
             React.createElement('span',{style:{fontWeight:700,color:'#dc2626',fontSize:12}},'#'+p.pedido_id),
             React.createElement('span',{style:{fontWeight:600}},p.cliente||'—'),
             React.createElement('span',{style:{fontSize:12}},pagNome),
             React.createElement('span',{style:{fontWeight:700}},F(p.total)),
             React.createElement('span',{style:{fontSize:11,color:'#aaa'}},dtFmt),
-            canal?React.createElement('span',{style:{fontSize:10,background:canal==='ifood'?'#fee2e2':'#f5f5f5',color:canal==='ifood'?'#dc2626':'#666',padding:'2px 7px',borderRadius:20,fontWeight:600}},(canal==='ifood'?'iFood':canal).slice(0,10)):React.createElement('span',{style:{color:'#ddd'}},'—'),
-            React.createElement(Badge,{t:statusLabel,c:stC}),
+            React.createElement('span',{style:{fontSize:11,color:'#555'}},entregador),
+            stBadge,
           ]});
         }),
         empty:cfg.cw_token?'Nenhum pedido hoje. Aguardando webhook do Cardápio Web...':'Configure o token para receber pedidos.'
@@ -712,7 +738,8 @@ function PedidoCWDetalhe({p,contas,formas_pag,uid,reload,close}){
       React.createElement('div',{style:{fontSize:13,color:'#555',lineHeight:1.7}},addrStr),
       raw.delivery_address?.reference&&React.createElement('div',{style:{fontSize:12,color:'#aaa',marginTop:4,fontStyle:'italic'}},raw.delivery_address.reference),
       raw.delivered_by&&React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6,marginTop:8,padding:'6px 10px',background:'#eff6ff',borderRadius:8,fontSize:12,color:'#2563eb'}},
-        '🛵 Entrega própria',
+        '🛵 '+(raw.delivered_by==='merchant'?'Entrega própria':'Entrega '+raw.delivered_by),
+        raw.delivered_by_user?.name&&React.createElement('span',{style:{fontWeight:700,marginLeft:4}},raw.delivered_by_user.name),
         taxaEntrega>0&&React.createElement('span',{style:{marginLeft:'auto',fontWeight:700}},'Taxa: '+F(taxaEntrega))
       ),
       raw.schedule&&React.createElement('div',{style:{fontSize:12,color:'#555',marginTop:8}},
