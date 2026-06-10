@@ -232,10 +232,18 @@ function Sidebar({page,setPage,user,logout,col,setCol}){
 // ── PEDIDOS ──
 // ── PEDIDOS CARDÁPIO WEB ──
 const CW_STATUS={
-  waiting_confirmation:'Aguardando',pending_payment:'Ag. Pagamento',
-  confirmed:'Confirmado',ready:'Pronto',delivered:'Entregue',
-  canceled:'Cancelado',closed:'Finalizado',released:'Liberado',
-  waiting_to_catch:'Ag. Retirada',canceling:'Cancelando',
+  waiting_confirmation:'Aguardando',
+  pending_payment:'Ag. Pagamento',
+  pending_online_payment:'Ag. Pag. Online',
+  scheduled_confirmed:'Agendado',
+  confirmed:'Confirmado',
+  ready:'Pronto',
+  released:'Liberado',
+  waiting_to_catch:'Ag. Retirada',
+  delivered:'Entregue',
+  canceling:'Cancelando',
+  canceled:'Cancelado',
+  closed:'Finalizado',
 };
 const PM_MAP_CW={money:'Dinheiro',cash:'Dinheiro',pix:'PIX',pix_auto:'PIX',
   credit_card:'Cartão Crédito',debit_card:'Cartão Débito',
