@@ -256,21 +256,23 @@ function PedidosCW({uid,db,setDb,reload,setM,cfg,setCfg}){
 
   const list=React.useMemo(()=>{
     let r=pedidos_cw||[];
+    // filtra pela data selecionada
+    r=r.filter(p=>p.data_pedido===syncDate);
     if(fil)r=r.filter(p=>p.status===fil);
     if(busca){const b=busca.toLowerCase();r=r.filter(p=>(p.cliente||'').toLowerCase().includes(b)||(p.pedido_id||'').includes(b));}
     return r;
-  },[pedidos_cw,fil,busca]);
+  },[pedidos_cw,fil,busca,syncDate]);
 
   const counts=React.useMemo(()=>{
     const c={total:0,confirmados:0,entregues:0,cancelados:0,faturamento:0};
-    (pedidos_cw||[]).forEach(p=>{
+    (pedidos_cw||[]).filter(p=>p.data_pedido===syncDate).forEach(p=>{
       c.total++;
-      if(p.status==='confirmed')c.confirmados++;
+      if(p.status==='confirmed'||p.status==='released'||p.status==='ready')c.confirmados++;
       if(p.status==='delivered'||p.status==='closed'){c.entregues++;c.faturamento+=Number(p.total||0);}
       if(p.status==='canceled')c.cancelados++;
     });
     return c;
-  },[pedidos_cw]);
+  },[pedidos_cw,syncDate]);
 
   const abrirConfig=()=>setM({title:'Configuração Cardápio Web',body:React.createElement(CWConfigModal,{uid,cfg,setCfg,close:()=>setM(null)})});
 
