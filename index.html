@@ -281,7 +281,12 @@ function PedidosCW({uid,db,reload,setM,cfg,setCfg}){
       const json=await res.json();
       setSyncStatus((json.total||0)+' pedidos de '+FD(syncDate));
       toast((json.total||0)+' pedidos sincronizados!',false,true);
-      reload();
+      // Atualiza só pedidos_cw e lancamentos sem reload completo
+      const[{data:novPed},{data:novLanc}]=await Promise.all([
+        sb.from('pedidos_cw').select('*').eq('user_id',uid).order('data_pedido',{ascending:false}).limit(200),
+        sb.from('lancamentos').select('*').eq('user_id',uid).order('data',{ascending:false}).limit(500),
+      ]);
+      if(novPed||novLanc)setDb(prev=>({...prev,...(novPed?{pedidos_cw:novPed}:{}),...(novLanc?{lancamentos:novLanc}:{})}));
     }catch(e){
       setSyncStatus('Erro: '+e.message);
       toast('Erro: '+e.message,true);
@@ -2584,18 +2589,24 @@ function App(){
   // Realtime — atualiza pedidos automaticamente quando chega novo pedido
   useEffect(()=>{
     if(!user)return;
+    let debounce=null;
     const channel=sb.channel('pedidos_realtime')
       .on('postgres_changes',{
-        event:'*',
+        event:'INSERT',
         schema:'public',
         table:'pedidos_cw',
         filter:'user_id=eq.'+user.id
-      },()=>{
-        reload();
-        toast('Novo pedido recebido!',false,true);
+      },async(payload)=>{
+        // Só atualiza pedidos_cw, sem reload completo
+        clearTimeout(debounce);
+        debounce=setTimeout(async()=>{
+          const{data}=await sb.from('pedidos_cw').select('*').eq('user_id',user.id).order('data_pedido',{ascending:false}).limit(200);
+          if(data)setDb(prev=>({...prev,pedidos_cw:data}));
+          toast('Novo pedido recebido!',false,true);
+        },1000);
       })
       .subscribe();
-    return()=>sb.removeChannel(channel);
+    return()=>{clearTimeout(debounce);sb.removeChannel(channel);};
   },[user]);
 
   const logout=async()=>{await sb.auth.signOut();setUser(null);};
