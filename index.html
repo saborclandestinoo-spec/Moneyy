@@ -83,7 +83,7 @@ function Modal({m,close}){
         React.createElement('h3',{style:{fontSize:15,fontWeight:700,color:'#111'}},m.title),
         React.createElement('button',{onClick:close,style:{width:28,height:28,borderRadius:8,background:'#f5f5f5',color:'#666',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center',border:'none',cursor:'pointer',lineHeight:1}},'×')
       ),
-      React.createElement('div',{style:{padding:'18px 20px'}},m.body)
+      React.createElement('div',{style:{padding:'18px 20px',overflowY:'auto',maxHeight:'calc(90vh - 60px)'}},m.body)
     )
   );
 }
@@ -584,10 +584,38 @@ function PedidosCW({uid,db,setDb,reload,setM,cfg,setCfg}){
     ),
 
     React.createElement('div',{style:{display:'flex',gap:5,marginBottom:14,flexWrap:'wrap',alignItems:'center',justifyContent:'space-between'}},
-      React.createElement('div',{style:{display:'flex',gap:5,flexWrap:'wrap'}},
-        [['','Todos'],['waiting_confirmation','Aguardando'],['confirmed','Em andamento'],['ready','Prontos'],['delivered','Entregues'],['canceled','Cancelados']].map(([v,l])=>
-          React.createElement('button',{key:v,onClick:()=>setFil(v),style:{padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,background:fil===v?'#dc2626':'#f5f5f5',color:fil===v?'#fff':'#666',border:'none',cursor:'pointer'}},l)
-        )
+      React.createElement('div',{style:{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}},
+        [
+          {v:'',l:'Todos',bg:'#f5f5f5',c:'#555'},
+          {v:'waiting_confirmation',l:'Aguardando',bg:'#fef9c3',c:'#713f12'},
+          {v:'confirmed',l:'Em preparação',bg:'#dbeafe',c:'#1e40af'},
+          {v:'released',l:'Saiu para entrega',bg:'#dcfce7',c:'#14532d'},
+          {v:'waiting_to_catch',l:'Esperando retirada',bg:'#ede9fe',c:'#4c1d95'},
+          {v:'ready',l:'Pronto',bg:'#d1fae5',c:'#065f46'},
+          {v:'delivered',l:'Entregues',bg:'#f0fdf4',c:'#16a34a'},
+          {v:'canceled',l:'Cancelados',bg:'#fee2e2',c:'#991b1b'},
+        ].map(({v,l,bg,c})=>{
+          const cnt=v===''?list.length:(pedidos_cw||[]).filter(p=>{
+            const isHoje=p.data_pedido===hoje||(p.raw?.created_at&&new Date(p.raw.created_at).toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'})===hoje);
+            return isHoje&&p.status===v;
+          }).length;
+          if(v!==''&&cnt===0)return null;
+          const active=fil===v;
+          return React.createElement('button',{key:v,onClick:()=>setFil(v),style:{
+            display:'flex',alignItems:'center',gap:6,
+            padding:'5px 12px 5px 8px',borderRadius:20,fontSize:12,fontWeight:600,
+            background:active?c:bg,color:active?'#fff':c,
+            border:'1.5px solid '+(active?c:bg),
+            cursor:'pointer',transition:'all 0.15s'
+          }},
+            React.createElement('span',{style:{
+              background:active?'rgba(255,255,255,0.25)':c,color:active?c:'#fff',
+              borderRadius:'50%',width:20,height:20,display:'flex',alignItems:'center',
+              justifyContent:'center',fontSize:11,fontWeight:800,flexShrink:0
+            }},cnt),
+            l
+          );
+        }).filter(Boolean)
       ),
       React.createElement('input',{placeholder:'Buscar cliente ou nº...',value:busca,onChange:e=>setBusca(e.target.value),style:{background:'#f5f5f5',border:'none',borderRadius:9,padding:'7px 12px',fontSize:12,color:'#111',outline:'none',width:200}})
     ),
