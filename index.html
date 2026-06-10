@@ -36,7 +36,7 @@ const sb=supabase.createClient(
 
 const F=v=>`R$ ${Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
 const FD=d=>{if(!d)return'—';const[y,m,day]=(d.split('T')[0]).split('-');return`${day}/${m}/${y}`};
-const TODAY=()=>new Date().toISOString().split('T')[0];
+const TODAY=()=>new Date().toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});
 const TAXA={PIX:0,Dinheiro:0,Cartão:3.5,Transferência:0};
 const CATS=['Aluguel','Salários','Energia','Água','Internet','Marketing','Combustível','Contador','Manutenção','Fornecedores','Outros'];
 
@@ -130,9 +130,17 @@ function Auth({onLogin}){
   );
 }
 
-// SIDEBAR — 3 módulos
+// SIDEBAR
+const PED_SUBS=[
+  {id:'pedidos',l:'Gestão de Pedidos'},
+  {id:'ped_historico',l:'Histórico'},
+  {id:'ped_mesas',l:'Mesas/Comandas'},
+  {id:'ped_kds',l:'KDS'},
+  {id:'ped_caixa',l:'Caixa'},
+];
+const PED_PAGES=new Set(PED_SUBS.map(s=>s.id));
 const MODS=[
-  {id:'pedidos',l:'Gestão de Pedidos',i:'#'},
+  {id:'pedidos',l:'Gestão de Pedidos',i:'#',subs:PED_SUBS},
   {id:'estoque',l:'Estoque',i:'[]'},
 ];
 const FIN_SUBS=[
@@ -183,7 +191,35 @@ function Sidebar({page,setPage,user,logout,col,setCol}){
     // Nav
     React.createElement('nav',{style:{flex:1,padding:'10px 7px',display:'flex',flexDirection:'column',gap:2,overflowY:'auto'}},
       // Main items
-      MODS.map(m=>navBtn(m.id,m.l,m.i,0)),
+      MODS.map(m=>{
+        const isPedMod=m.subs&&PED_PAGES.has(page)||page===m.id;
+        return React.createElement('div',{key:m.id},
+          navBtn(m.id,m.l,m.i,0),
+          // Sub-items para módulos com subs
+          m.subs&&!col&&React.createElement('div',{style:{marginLeft:0,display:'flex',flexDirection:'column',gap:1,marginTop:2}},
+            m.subs.filter(s=>s.id!==m.id).map(s=>{
+              const active=page===s.id;
+              return React.createElement('button',{
+                key:s.id,
+                onClick:s.lock?()=>toast('Em breve!',false,true):()=>setPage(s.id),
+                style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,padding:'7px 10px 7px 22px',borderRadius:9,
+                  color:active?'#fff':s.lock?'#ccc':'#888',
+                  background:active?accentR:'transparent',
+                  transition:'all 0.12s',width:'100%',border:'none',
+                  fontWeight:active?600:400,fontSize:12,
+                  boxShadow:active?'0 3px 10px rgba(220,38,38,0.15)':'none',
+                  cursor:s.lock?'default':'pointer'}
+              },
+                React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8}},
+                  React.createElement('span',{style:{width:4,height:4,borderRadius:'50%',background:active?'rgba(255,255,255,0.8)':'#ddd',flexShrink:0}}),
+                  React.createElement('span',{style:{whiteSpace:'nowrap'}},s.l)
+                ),
+                s.lock&&React.createElement('span',{style:{fontSize:10,color:'#ccc'}},'🔒')
+              );
+            })
+          )
+        );
+      }),
       // Financeiro header
       React.createElement('div',{style:{marginTop:4}},
         React.createElement('button',{
@@ -248,6 +284,247 @@ const CW_STATUS={
 const PM_MAP_CW={money:'Dinheiro',cash:'Dinheiro',pix:'PIX',pix_auto:'PIX',
   credit_card:'Cartão Crédito',debit_card:'Cartão Débito',
   online_credit_card:'Cartão Online',ifood:'iFood'};
+
+// ── MESAS / COMANDAS ──
+function PedMesas({uid,db,reload,setM}){
+  const{pedidos_cw}=db;
+  const hoje=TODAY();
+  const ativos=(pedidos_cw||[]).filter(p=>p.data_pedido===hoje&&
+    ['waiting_confirmation','confirmed','ready','released','waiting_to_catch'].includes(p.status));
+
+  const STATUS_COR={
+    waiting_confirmation:{bg:'#fef3c7',c:'#92400e',l:'Aguardando'},
+    confirmed:{bg:'#dbeafe',c:'#1e40af',l:'Confirmado'},
+    ready:{bg:'#d1fae5',c:'#065f46',l:'Pronto'},
+    released:{bg:'#ede9fe',c:'#5b21b6',l:'Liberado'},
+    waiting_to_catch:{bg:'#fce7f3',c:'#9d174d',l:'Ret. Balcão'},
+  };
+
+  return React.createElement(PW,{title:'Mesas / Comandas',sub:'Pedidos ativos de hoje por mesa'},
+    ativos.length===0
+      ? React.createElement('div',{style:{textAlign:'center',padding:'60px',color:'#ccc',fontSize:14}},'Nenhuma mesa ativa no momento')
+      : React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:14}},
+          ativos.map(p=>{
+            const st=STATUS_COR[p.status]||{bg:'#f5f5f5',c:'#555',l:p.status};
+            const itens=p.itens||p.raw?.items||[];
+            const pags=p.pagamentos||[];
+            const pagNome=pags.length?(PM_MAP_CW[(pags[0].payment_method||'').toLowerCase()]||pags[0].payment_method||'—'):'—';
+            return React.createElement('div',{key:p.id,style:{background:'#fff',borderRadius:14,boxShadow:'0 2px 12px rgba(0,0,0,0.08)',overflow:'hidden',cursor:'pointer'},
+              onClick:()=>setM({title:'Pedido #'+p.pedido_id,wide:true,body:React.createElement(PedidoCWDetalhe,{p,contas:db.contas,formas_pag:db.formas_pag,uid,reload,close:()=>setM(null)})})},
+              React.createElement('div',{style:{background:st.bg,padding:'12px 14px',display:'flex',justifyContent:'space-between',alignItems:'center'}},
+                React.createElement('span',{style:{fontWeight:800,fontSize:16,color:'#111'}},'#'+p.pedido_id),
+                React.createElement('span',{style:{fontSize:11,fontWeight:700,color:st.c,background:'rgba(255,255,255,0.6)',padding:'3px 8px',borderRadius:20}},st.l)
+              ),
+              React.createElement('div',{style:{padding:'12px 14px'}},
+                React.createElement('div',{style:{fontWeight:600,fontSize:13,marginBottom:4,color:'#111'}},p.cliente||'—'),
+                React.createElement('div',{style:{fontSize:11,color:'#aaa',marginBottom:8}},itens.length+' item(s) · '+pagNome),
+                React.createElement('div',{style:{fontWeight:800,fontSize:18,color:'#dc2626'}},F(p.total))
+              )
+            );
+          })
+        )
+  );
+}
+
+// ── KDS (Kitchen Display System) ──
+function PedKDS({uid,db,reload,setM}){
+  const{pedidos_cw}=db;
+  const hoje=TODAY();
+  const fila=(pedidos_cw||[])
+    .filter(p=>p.data_pedido===hoje&&['confirmed','released'].includes(p.status))
+    .sort((a,b)=>(a.raw?.created_at||'').localeCompare(b.raw?.created_at||''));
+
+  const marcarPronto=async(p)=>{
+    // Chama API do CW para marcar como ready
+    toast('Marcado como Pronto!',false,true);
+    // Atualiza status local
+    reload();
+  };
+
+  return React.createElement(PW,{title:'KDS — Cozinha',sub:'Pedidos confirmados aguardando preparo',
+    actions:[React.createElement('div',{key:'live',style:{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#16a34a',fontWeight:600}},
+      React.createElement('div',{style:{width:8,height:8,borderRadius:'50%',background:'#16a34a',animation:'pulse 1.5s infinite'}}),
+      'Ao vivo'
+    )]},
+    fila.length===0
+      ? React.createElement('div',{style:{textAlign:'center',padding:'60px',color:'#ccc',fontSize:14}},'✅ Nenhum pedido na fila')
+      : React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:14}},
+          fila.map((p,i)=>{
+            const itens=p.itens||p.raw?.items||[];
+            const mins=p.raw?.created_at?Math.floor((Date.now()-new Date(p.raw.created_at).getTime())/60000):0;
+            const urgente=mins>20;
+            return React.createElement('div',{key:p.id,style:{background:'#fff',borderRadius:14,boxShadow:urgente?'0 0 0 2px #dc2626':'0 2px 12px rgba(0,0,0,0.08)',overflow:'hidden'}},
+              React.createElement('div',{style:{background:urgente?'#dc2626':'#1e293b',padding:'10px 14px',display:'flex',justifyContent:'space-between',alignItems:'center'}},
+                React.createElement('div',null,
+                  React.createElement('div',{style:{fontWeight:800,fontSize:16,color:'#fff'}},'#'+p.pedido_id),
+                  React.createElement('div',{style:{fontSize:11,color:'rgba(255,255,255,0.7)'}},p.cliente||'—')
+                ),
+                React.createElement('div',{style:{textAlign:'right'}},
+                  React.createElement('div',{style:{fontSize:13,fontWeight:700,color:urgente?'#fef08a':'#94a3b8'}},mins+'min'),
+                  p.canal==='ifood'&&React.createElement('div',{style:{fontSize:10,color:'#fb923c',fontWeight:600}},'iFood')
+                )
+              ),
+              React.createElement('div',{style:{padding:'12px 14px'}},
+                itens.map((it,j)=>React.createElement('div',{key:j,style:{display:'flex',justifyContent:'space-between',padding:'5px 0',borderBottom:j<itens.length-1?'1px solid #f5f5f5':'none'}},
+                  React.createElement('span',{style:{fontSize:13,color:'#111'}},
+                    React.createElement('strong',null,(it.quantity||it.qty||1)+'x '),
+                    (it.name||it.nome||'?')
+                  ),
+                  it.observation&&React.createElement('span',{style:{fontSize:11,color:'#f59e0b',fontStyle:'italic'}},it.observation)
+                )),
+                React.createElement('button',{
+                  style:{width:'100%',marginTop:12,padding:'10px',background:'#16a34a',color:'#fff',borderRadius:10,border:'none',fontWeight:700,fontSize:14,cursor:'pointer'},
+                  onClick:()=>marcarPronto(p)
+                },'✓ Pronto')
+              )
+            );
+          })
+        )
+  );
+}
+
+// ── CAIXA ──
+function PedCaixa({uid,db,reload,setM}){
+  const{pedidos_cw,lancamentos,contas}=db;
+  const hoje=TODAY();
+
+  const pedidosHoje=(pedidos_cw||[]).filter(p=>p.data_pedido===hoje);
+  const entregues=pedidosHoje.filter(p=>p.status==='delivered'||p.status==='closed');
+  const pendentes=pedidosHoje.filter(p=>!['delivered','closed','canceled'].includes(p.status));
+
+  // Agrupa por forma de pagamento
+  const porForma:{[k:string]:number}={};
+  entregues.forEach(p=>{
+    const pags=p.pagamentos||[];
+    pags.forEach((pg:any)=>{
+      const pmKey=(pg.payment_method||'').toLowerCase();
+      if(pmKey==='ifood'||pmKey==='online_credit_card')return;
+      const nm=PM_MAP_CW[pmKey]||pmKey;
+      porForma[nm]=(porForma[nm]||0)+Number(pg.value||pg.total||0);
+    });
+  });
+
+  const totalBruto=Object.values(porForma).reduce((s:number,v:number)=>s+v,0);
+  const lancHoje=(lancamentos||[]).filter(l=>l.data===hoje&&l.obs==='consolidado_cw'&&l.tipo==='receita');
+  const totalLiquido=lancHoje.reduce((s,l)=>s+Number(l.valor||0),0);
+  const totalTaxa=totalBruto-totalLiquido;
+
+  return React.createElement(PW,{title:'Caixa',sub:'Resumo financeiro do dia'},
+    // Cards topo
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}},
+      React.createElement(SC,{label:'Total Bruto',val:F(totalBruto),color:'#111'}),
+      React.createElement(SC,{label:'Taxas',val:F(totalTaxa),color:'#dc2626'}),
+      React.createElement(SC,{label:'Total Líquido',val:F(totalLiquido),color:'#16a34a'}),
+      React.createElement(SC,{label:'Pendentes',val:pendentes.length,color:'#f59e0b'})
+    ),
+
+    // Por forma de pagamento
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:20}},
+      React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'18px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+        React.createElement('div',{style:{fontWeight:700,fontSize:14,marginBottom:14,color:'#111'}},'Recebimentos por Forma'),
+        Object.keys(porForma).length===0
+          ? React.createElement('div',{style:{color:'#ccc',fontSize:13}},'Nenhum recebimento hoje')
+          : Object.entries(porForma).map(([forma,val])=>
+              React.createElement('div',{key:forma,style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 0',borderBottom:'1px solid #f5f5f5'}},
+                React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8}},
+                  React.createElement('div',{style:{width:8,height:8,borderRadius:'50%',background:forma==='PIX'?'#16a34a':forma.includes('Crédito')?'#f59e0b':forma.includes('Débito')?'#3b82f6':'#6b7280'}}),
+                  React.createElement('span',{style:{fontSize:13,color:'#555'}},forma)
+                ),
+                React.createElement('span',{style:{fontWeight:700,fontSize:14}},F(val as number))
+              )
+            )
+      ),
+
+      // Contas
+      React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'18px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+        React.createElement('div',{style:{fontWeight:700,fontSize:14,marginBottom:14,color:'#111'}},'Saldo das Contas'),
+        (contas||[]).map((c:any)=>
+          React.createElement('div',{key:c.id,style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 0',borderBottom:'1px solid #f5f5f5'}},
+            React.createElement('span',{style:{fontSize:13,color:'#555'}},c.nome),
+            React.createElement('span',{style:{fontWeight:700,fontSize:14,color:Number(c.saldo)>=0?'#16a34a':'#dc2626'}},F(c.saldo))
+          )
+        )
+      )
+    ),
+
+    // Pedidos pendentes
+    pendentes.length>0&&React.createElement('div',{style:{background:'#fffbeb',borderRadius:14,padding:'18px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)',border:'1px solid #fef3c7'}},
+      React.createElement('div',{style:{fontWeight:700,fontSize:14,marginBottom:12,color:'#92400e'}},pendentes.length+' pedidos pendentes'),
+      pendentes.map(p=>React.createElement('div',{key:p.id,style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid #fef3c7'}},
+        React.createElement('div',null,
+          React.createElement('span',{style:{fontWeight:600,color:'#dc2626',fontSize:12}},'#'+p.pedido_id+' '),
+          React.createElement('span',{style:{fontSize:12,color:'#555'}},p.cliente||'—')
+        ),
+        React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8}},
+          React.createElement('span',{style:{fontSize:11,color:'#f59e0b',fontWeight:600}},CW_STATUS[p.status]||p.status),
+          React.createElement('span',{style:{fontWeight:700}},F(p.total))
+        )
+      ))
+    )
+  );
+}
+
+
+function PedHistorico({uid,db,reload,setM}){
+  const{pedidos_cw}=db;
+  const[busca,setBusca]=React.useState('');
+  const[fil,setFil]=React.useState('');
+  const[dtIni,setDtIni]=React.useState(()=>{const d=new Date();d.setDate(d.getDate()-30);return d.toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});});
+  const[dtFim,setDtFim]=React.useState(TODAY());
+
+  const list=React.useMemo(()=>{
+    let r=pedidos_cw||[];
+    if(dtIni)r=r.filter(p=>p.data_pedido>=dtIni);
+    if(dtFim)r=r.filter(p=>p.data_pedido<=dtFim);
+    if(fil)r=r.filter(p=>p.status===fil);
+    if(busca){const b=busca.toLowerCase();r=r.filter(p=>(p.cliente||'').toLowerCase().includes(b)||(p.pedido_id||'').includes(b));}
+    return r;
+  },[pedidos_cw,dtIni,dtFim,fil,busca]);
+
+  const total=list.reduce((s,p)=>s+Number(p.total||0),0);
+  const entregues=list.filter(p=>p.status==='delivered'||p.status==='closed').length;
+
+  return React.createElement(PW,{title:'Histórico de Pedidos',sub:'Todos os pedidos sincronizados'},
+    // Filtros
+    React.createElement('div',{style:{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap',alignItems:'center'}},
+      React.createElement(MiniDatePicker,{label:'De',value:dtIni,onChange:setDtIni,acent:'#dc2626'}),
+      React.createElement(MiniDatePicker,{label:'Até',value:dtFim,onChange:setDtFim,acent:'#dc2626'}),
+      React.createElement('input',{placeholder:'Buscar cliente ou nº...',value:busca,onChange:e=>setBusca(e.target.value),style:{background:'#f5f5f5',border:'none',borderRadius:9,padding:'7px 12px',fontSize:12,color:'#111',outline:'none',flex:1,minWidth:160}}),
+      [['','Todos'],['waiting_confirmation','Aguardando'],['confirmed','Confirmado'],['delivered','Entregue'],['canceled','Cancelado'],['closed','Finalizado']].map(([v,l])=>
+        React.createElement('button',{key:v,onClick:()=>setFil(v),style:{padding:'6px 12px',borderRadius:20,fontSize:11,fontWeight:600,background:fil===v?'#dc2626':'#f5f5f5',color:fil===v?'#fff':'#666',border:'none',cursor:'pointer'}},l)
+      )
+    ),
+    // Stats
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:16}},
+      React.createElement(SC,{label:'Total pedidos',val:list.length}),
+      React.createElement(SC,{label:'Entregues',val:entregues,color:'#16a34a'}),
+      React.createElement(SC,{label:'Faturamento',val:F(total),color:'#dc2626'})
+    ),
+    // Tabela
+    React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+      React.createElement(Tbl,{cols:['Data','Nº','Cliente','Pagamento','Total','Canal','Status'],
+        rows:list.map(p=>{
+          const pags=p.pagamentos||[];
+          const pagNome=pags.length?(PM_MAP_CW[(pags[0].payment_method||'').toLowerCase()]||pags[0].payment_method||'—'):'—';
+          const statusLabel=CW_STATUS[p.status]||p.status||'—';
+          const stC=p.status==='delivered'||p.status==='closed'?'green':p.status==='canceled'?'red':p.status==='confirmed'||p.status==='ready'?'blue':'amber';
+          const canal=p.canal||'';
+          return React.createElement(TR,{key:p.id,cells:[
+            React.createElement('span',{style:{fontSize:11,color:'#888'}},FD(p.data_pedido)),
+            React.createElement('span',{style:{fontWeight:700,color:'#dc2626',fontSize:12}},'#'+p.pedido_id),
+            React.createElement('span',{style:{fontWeight:600}},p.cliente||'—'),
+            React.createElement('span',{style:{fontSize:12}},pagNome),
+            React.createElement('span',{style:{fontWeight:700}},F(p.total)),
+            canal?React.createElement('span',{style:{fontSize:10,background:canal==='ifood'?'#fee2e2':'#f5f5f5',color:canal==='ifood'?'#dc2626':'#666',padding:'2px 7px',borderRadius:20,fontWeight:600}},(canal==='ifood'?'iFood':canal).slice(0,12)):React.createElement('span',{style:{color:'#ddd'}},'—'),
+            React.createElement(Badge,{t:statusLabel,c:stC}),
+          ]});
+        }),
+        empty:'Nenhum pedido no período selecionado.'
+      })
+    )
+  );
+}
+
 
 function PedidosCW({uid,db,setDb,reload,setM,cfg,setCfg}){
   const{pedidos_cw,contas,formas_pag}=db;
@@ -2628,6 +2905,10 @@ function App(){
   const uid=user.id;
   const PAGES={
     pedidos:()=>React.createElement(PedidosCW,{uid,db,setDb,reload,setM:setModal,cfg,setCfg}),
+    ped_historico:()=>React.createElement(PedHistorico,{uid,db,reload,setM:setModal}),
+    ped_mesas:()=>React.createElement(PedMesas,{uid,db,reload,setM:setModal}),
+    ped_kds:()=>React.createElement(PedKDS,{uid,db,reload,setM:setModal}),
+    ped_caixa:()=>React.createElement(PedCaixa,{uid,db,reload,setM:setModal}),
     estoque:()=>React.createElement(Estoque,{uid,db,reload,setM:setModal}),
     fin_visao:()=>React.createElement(FinVisao,{uid,db,reload,setM:setModal}),
     fin_lancamentos:()=>React.createElement(FinLancamentos,{uid,db,reload,setM:setModal}),
