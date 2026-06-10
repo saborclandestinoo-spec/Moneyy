@@ -268,14 +268,14 @@ function Sidebar({page,setPage,user,logout,col,setCol}){
 // ── PEDIDOS ──
 // ── PEDIDOS CARDÁPIO WEB ──
 const CW_STATUS={
-  waiting_confirmation:'Aguardando',
+  waiting_confirmation:'Aguardando confirmação',
   pending_payment:'Ag. Pagamento',
   pending_online_payment:'Ag. Pag. Online',
   scheduled_confirmed:'Agendado',
-  confirmed:'Confirmado',
-  ready:'Pronto',
-  released:'Liberado',
-  waiting_to_catch:'Ag. Retirada',
+  confirmed:'Em preparação',
+  ready:'Pronto para entrega',
+  released:'Saiu para entrega',
+  waiting_to_catch:'Esperando retirada',
   delivered:'Entregue',
   canceling:'Cancelando',
   canceled:'Cancelado',
@@ -587,14 +587,14 @@ function PedidosCW({uid,db,setDb,reload,setM,cfg,setCfg}){
       React.createElement('div',{style:{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}},
         [
           {v:'',l:'Todos',bg:'#f5f5f5',c:'#555'},
-          {v:'waiting_confirmation',l:'Aguardando',bg:'#fef9c3',c:'#713f12'},
-          {v:'confirmed',l:'Em preparação',bg:'#dbeafe',c:'#1e40af'},
+          {v:'waiting_confirmation',l:'Aguardando confirmação',bg:'#fef9c3',c:'#92400e'},
+          {v:'confirmed',l:'Em preparação',bg:'#dbeafe',c:'#1d4ed8'},
           {v:'released',l:'Saiu para entrega',bg:'#dcfce7',c:'#14532d'},
-          {v:'waiting_to_catch',l:'Esperando retirada',bg:'#ede9fe',c:'#4c1d95'},
-          {v:'ready',l:'Pronto',bg:'#d1fae5',c:'#065f46'},
-          {v:'delivered',l:'Entregues',bg:'#f0fdf4',c:'#16a34a'},
-          {v:'closed',l:'Finalizado',bg:'#f0fdf4',c:'#16a34a'},
-          {v:'canceled',l:'Cancelados',bg:'#fee2e2',c:'#991b1b'},
+          {v:'waiting_to_catch',l:'Esperando retirada',bg:'#ede9fe',c:'#5b21b6'},
+          {v:'ready',l:'Pronto para entrega',bg:'#d1fae5',c:'#065f46'},
+          {v:'delivered',l:'Entregue',bg:'#d1fae5',c:'#14532d'},
+          {v:'closed',l:'Finalizado',bg:'#e0f2fe',c:'#0369a1'},
+          {v:'canceled',l:'Cancelado',bg:'#fee2e2',c:'#991b1b'},
         ].map(({v,l,bg,c})=>{
           const cnt=v===''?list.length:(pedidos_cw||[]).filter(p=>{
             const isHoje=p.data_pedido===hoje||(p.raw?.created_at&&new Date(p.raw.created_at).toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'})===hoje);
@@ -631,16 +631,17 @@ function PedidosCW({uid,db,setDb,reload,setM,cfg,setCfg}){
           const canal=p.canal||'';
           const statusLabel=CW_STATUS[p.status]||p.status||'—';
           const ST_STYLE={
-            waiting_confirmation:{bg:'#fef9c3',c:'#713f12'},
-            confirmed:{bg:'#dbeafe',c:'#1e40af'},
-            released:{bg:'#dcfce7',c:'#14532d'},
-            waiting_to_catch:{bg:'#ede9fe',c:'#4c1d95'},
+            waiting_confirmation:{bg:'#fef9c3',c:'#92400e'},
+            pending_payment:{bg:'#fef9c3',c:'#92400e'},
+            scheduled_confirmed:{bg:'#fef9c3',c:'#92400e'},
+            confirmed:{bg:'#dbeafe',c:'#1d4ed8'},
             ready:{bg:'#d1fae5',c:'#065f46'},
-            delivered:{bg:'#f0fdf4',c:'#16a34a'},
-            closed:{bg:'#f0fdf4',c:'#16a34a'},
+            released:{bg:'#dcfce7',c:'#14532d'},
+            waiting_to_catch:{bg:'#ede9fe',c:'#5b21b6'},
+            delivered:{bg:'#d1fae5',c:'#14532d'},
+            closed:{bg:'#e0f2fe',c:'#0369a1'},
             canceled:{bg:'#fee2e2',c:'#991b1b'},
-            canceling:{bg:'#fee2e2',c:'#991b1b'},
-            scheduled_confirmed:{bg:'#fef3c7',c:'#92400e'},
+            canceling:{bg:'#fee2e2',c:'#b45309'},
           };
           const ss=ST_STYLE[p.status]||{bg:'#f5f5f5',c:'#555'};
           const stBadge=React.createElement('span',{style:{fontSize:11,fontWeight:700,color:ss.c,background:ss.bg,padding:'3px 10px',borderRadius:20,whiteSpace:'nowrap'}},statusLabel);
