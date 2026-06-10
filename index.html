@@ -271,25 +271,17 @@ function PedidosCW({uid,db,reload,setM,cfg,setCfg}){
   const[syncStatus,setSyncStatus]=React.useState('');
 
   const sincronizar=async()=>{
-    if(!cfg.cw_token){
-      toast('Configure o token primeiro',true);
-      abrirConfig();
-      return;
-    }
-    setSyncing(true);setSyncStatus('Buscando pedidos...');
+    if(!cfg.cw_token){toast('Configure o token primeiro',true);abrirConfig();return;}
+    setSyncing(true);setSyncStatus('Buscando...');
     try{
       const EDGE='https://yjhuyquvnqgwxuyqcxll.supabase.co/functions/v1/cw-webhook';
-      const url=`${EDGE}?token=${encodeURIComponent(cfg.cw_token)}&uid=${uid}&date=${syncDate}`;
-      const res=await fetch(url);
+      const url=EDGE+'?token='+encodeURIComponent(cfg.cw_token)+'&uid='+uid+'&date='+syncDate;
+      const res=await fetch(url,{method:'GET',headers:{'Content-Type':'application/json'}});
+      if(!res.ok){setSyncStatus('Erro HTTP '+res.status);setSyncing(false);return;}
       const json=await res.json();
-      if(json.ok){
-        setSyncStatus(json.total+' pedidos importados de '+FD(syncDate));
-        toast(json.total+' pedidos sincronizados!',false,true);
-        reload();
-      }else{
-        setSyncStatus('Erro: '+(json.error||'falha'));
-        toast('Erro ao sincronizar',true);
-      }
+      setSyncStatus((json.total||0)+' pedidos de '+FD(syncDate));
+      toast((json.total||0)+' pedidos sincronizados!',false,true);
+      reload();
     }catch(e){
       setSyncStatus('Erro: '+e.message);
       toast('Erro: '+e.message,true);
@@ -303,11 +295,13 @@ function PedidosCW({uid,db,reload,setM,cfg,setCfg}){
     actions:[
       React.createElement('div',{key:'dt',style:{minWidth:160}},React.createElement(MiniDatePicker,{label:'Data',value:syncDate,onChange:setSyncDate,acent:'#dc2626'})),
       cfg.cw_token&&React.createElement('span',{key:'tok',style:{fontSize:11,color:'#16a34a',background:'#f0fdf4',padding:'4px 10px',borderRadius:20,fontWeight:600}},'✓ Token OK'),
-      React.createElement('button',{key:'sync',style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',opacity:syncing?0.7:1},onClick:sincronizar,disabled:syncing},syncing?'Buscando...':'↻ Sincronizar'),
+      React.createElement('button',{key:'sync',type:'button',style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',opacity:syncing?0.7:1},onClick:(e)=>{e.preventDefault();e.stopPropagation();sincronizar();},disabled:syncing},syncing?'Buscando...':'↻ Sincronizar'),
       React.createElement('button',{key:'cfg',style:{background:'#f5f5f5',color:'#555',padding:'8px 14px',borderRadius:9,fontSize:13,fontWeight:500,border:'none',cursor:'pointer'},onClick:abrirConfig},'⚙ Configurar'),
     ]},
     syncStatus&&React.createElement('div',{style:{fontSize:11,color:'#aaa',marginBottom:10,textAlign:'right'}},syncStatus),
 
+    // Status sync
+    syncStatus&&React.createElement('div',{style:{fontSize:11,color:'#888',textAlign:'right',marginBottom:8}},syncStatus),
     // Banner se não configurado
     !cfg.cw_token&&React.createElement('div',{style:{background:'#eff6ff',borderRadius:12,padding:'14px 18px',marginBottom:18,fontSize:13,color:'#2563eb',display:'flex',alignItems:'center',justifyContent:'space-between'}},
       React.createElement('span',null,'Configure seu token do Cardápio Web para receber pedidos em tempo real'),
