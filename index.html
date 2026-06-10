@@ -648,14 +648,11 @@ function PedidosCW({uid,db,setDb,reload,setM,cfg,setCfg}){
           // entregador do raw
           const entregador=(()=>{
             const raw2=p.raw||{};
-            // delivered_by_user ou user no item
-            if(raw2.delivered_by_user?.name)return raw2.delivered_by_user.name;
-            if(raw2.delivery?.deliveryman?.name)return raw2.delivery?.deliveryman?.name;
-            if(raw2.deliveryman?.name)return raw2.deliveryman?.name;
-            // pega do primeiro item com user
-            const itWithUser=(raw2.items||[]).find(it=>it.user?.name);
-            if(itWithUser)return itWithUser.user.name;
-            return raw2.delivered_by==='merchant'?'Próprio':'—';
+            const db2=raw2.delivered_by||'';
+            if(!db2||db2==='')return raw2.order_type==='takeout'?'Retirada':'—';
+            if(db2==='merchant')return 'Entrega própria';
+            if(db2==='ifood')return 'iFood';
+            return db2;
           })();
           return React.createElement(TR,{key:p.id,onClick:()=>verPedido(p),cells:[
             React.createElement('span',{style:{fontWeight:700,color:'#dc2626',fontSize:12}},'#'+p.pedido_id),
@@ -672,6 +669,35 @@ function PedidosCW({uid,db,setDb,reload,setM,cfg,setCfg}){
     )
   );
 }
+
+function MotoboyCampo({uid,pedidoId,rawMotoboy}){
+  const[nome,setNome]=React.useState(rawMotoboy||'');
+  const[saved,setSaved]=React.useState(!!rawMotoboy);
+  const[ld,setLd]=React.useState(false);
+  const salvar=async()=>{
+    setLd(true);
+    await sb.from('pedidos_cw').update({raw:sb.rpc?undefined:undefined}).eq('source_id',pedidoId).eq('user_id',uid);
+    // Save motoboy_nome as separate column or in a config
+    await sb.from('config_usuario').upsert({user_id:uid,chave:'motoboy_'+pedidoId,valor:nome},{onConflict:'user_id,chave'});
+    setSaved(true);setLd(false);
+    toast('Entregador salvo!',false,true);
+  };
+  return React.createElement('div',{style:{background:'#f8f9fc',borderRadius:12,padding:'12px 14px',marginBottom:12}},
+    React.createElement('div',{style:{fontSize:11,color:'#aaa',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:8}},'🛵 Entregador'),
+    React.createElement('div',{style:{display:'flex',gap:8}},
+      React.createElement('input',{
+        style:{flex:1,background:'#fff',border:'1.5px solid #e2e2e2',borderRadius:9,padding:'9px 12px',fontSize:13,color:'#111',outline:'none'},
+        placeholder:'Nome do motoboy...',
+        value:nome,onChange:e=>{setNome(e.target.value);setSaved(false);}
+      }),
+      React.createElement('button',{
+        style:{background:saved?'#f0fdf4':'#dc2626',color:saved?'#16a34a':'#fff',padding:'9px 16px',borderRadius:9,fontSize:12,fontWeight:600,border:'none',cursor:'pointer'},
+        onClick:salvar
+      },ld?'...':saved?'✓ Salvo':'Salvar')
+    )
+  );
+}
+
 
 function PedidoCWDetalhe({p,contas,formas_pag,uid,reload,close}){
   const raw=p.raw||{};
@@ -739,8 +765,7 @@ function PedidoCWDetalhe({p,contas,formas_pag,uid,reload,close}){
       React.createElement('div',{style:{fontSize:13,color:'#555',lineHeight:1.7}},addrStr),
       raw.delivery_address?.reference&&React.createElement('div',{style:{fontSize:12,color:'#aaa',marginTop:4,fontStyle:'italic'}},raw.delivery_address.reference),
       raw.delivered_by&&React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6,marginTop:8,padding:'6px 10px',background:'#eff6ff',borderRadius:8,fontSize:12,color:'#2563eb'}},
-        '🛵 '+(raw.delivered_by==='merchant'?'Entrega própria':'Entrega '+raw.delivered_by),
-        raw.delivered_by_user?.name&&React.createElement('span',{style:{fontWeight:700,marginLeft:4}},raw.delivered_by_user.name),
+        '🛵 '+(raw.delivered_by==='merchant'?'Entrega própria':raw.delivered_by==='ifood'?'Entregador iFood':raw.delivered_by||'Entrega própria'),
         taxaEntrega>0&&React.createElement('span',{style:{marginLeft:'auto',fontWeight:700}},'Taxa: '+F(taxaEntrega))
       ),
       raw.schedule&&React.createElement('div',{style:{fontSize:12,color:'#555',marginTop:8}},
@@ -805,6 +830,9 @@ function PedidoCWDetalhe({p,contas,formas_pag,uid,reload,close}){
     raw.observation&&React.createElement('div',{style:{background:'#fffbeb',borderRadius:10,padding:'10px 14px',marginBottom:12,fontSize:13,color:'#92400e'}},
       React.createElement('span',{style:{fontWeight:700}},'Obs: '),raw.observation
     ),
+
+    // Campo motoboy
+    React.createElement(MotoboyCampo,{uid,pedidoId:p.source_id,rawMotoboy:(p.raw||{}).motoboy_nome||''}),
 
     React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:4}},
       React.createElement('button',{style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'},onClick:close},'Fechar')
