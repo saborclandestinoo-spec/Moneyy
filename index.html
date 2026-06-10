@@ -560,7 +560,7 @@ function PedidosCW({uid,db,setDb,reload,setM,cfg,setCfg}){
   },[list]);
 
   const[syncing,setSyncing]=React.useState(false);
-  const sincronizar=async()=>{
+  const sincronizar=async(silent=false)=>{
     if(!cfg.cw_token||syncing)return;
     setSyncing(true);
     try{
@@ -572,11 +572,18 @@ function PedidosCW({uid,db,setDb,reload,setM,cfg,setCfg}){
       if(json.ok){
         const{data}=await sb.from('pedidos_cw').select('*').eq('user_id',uid).gte('data_pedido',hoje).order('data_pedido',{ascending:false});
         if(data&&setDb)setDb(prev=>({...prev,pedidos_cw:[...data,...(prev.pedidos_cw||[]).filter(p=>p.data_pedido<hoje)]}));
-        toast((json.total||0)+' pedidos atualizados',false,true);
+        if(!silent)toast((json.total||0)+' pedidos atualizados',false,true);
       }
     }catch(e){toast('Erro: '+e.message,true);}
     setSyncing(false);
   };
+
+  // Auto-sync a cada 2 minutos
+  React.useEffect(()=>{
+    if(!cfg.cw_token)return;
+    const interval=setInterval(()=>{sincronizar(true);},2*60*1000);
+    return()=>clearInterval(interval);
+  },[cfg.cw_token]);
 
   const abrirConfig=()=>setM({title:'Configuração Cardápio Web',body:React.createElement(CWConfigModal,{uid,cfg,setCfg,close:()=>setM(null)})});
   const verPedido=(p)=>setM({title:'Pedido #'+p.pedido_id,wide:true,body:React.createElement(PedidoCWDetalhe,{p,contas,formas_pag,uid,reload,close:()=>setM(null)})});
