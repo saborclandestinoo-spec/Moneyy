@@ -1000,20 +1000,19 @@ function PedidosCW({uid,db,setDb,reload,setM,cfg,setCfg}){
     const c={total:0,confirmados:0,entregues:0,cancelados:0,faturamento:0,cookies:0,ticketMedio:0};
     list.forEach(p=>{
       c.total++;
-      if(['confirmed','released','ready','waiting_to_catch'].includes(p.status))c.confirmados++;
-      if(p.status==='delivered'||p.status==='closed'){
-        c.entregues++;
-        c.faturamento+=Number(p.total||0);
-      }
+      if(['confirmed','released','ready','waiting_to_catch','scheduled_confirmed','waiting_confirmation'].includes(p.status))c.confirmados++;
+      if(p.status==='delivered'||p.status==='closed')c.entregues++;
       if(p.status==='canceled')c.cancelados++;
-      // Conta cookies de todos os pedidos não cancelados
+      // Faturamento = todos exceto cancelados
+      if(p.status!=='canceled')c.faturamento+=Number(p.total||0);
+      // Cookies = todos exceto cancelados
       if(p.status!=='canceled'){
-        const itens=(p.raw?.items||p.itens||[]);
+        const itens=(p.raw&&p.raw.items)||p.itens||[];
         itens.forEach(it=>c.cookies+=Number(it.quantity||it.qty||1));
       }
     });
     const pedPagos=list.filter(p=>p.status==='delivered'||p.status==='closed');
-    c.ticketMedio=pedPagos.length>0?c.faturamento/pedPagos.length:0;
+    c.ticketMedio=pedPagos.length>0?(pedPagos.reduce((s,p)=>s+Number(p.total||0),0)/pedPagos.length):0;
     return c;
   },[list]);
 
