@@ -757,78 +757,155 @@ function PedKDS({uid,db,reload,setM}){
 }
 
 
-function PedCaixa({uid,db,reload,setM}){
-  const{pedidos_cw,lancamentos,contas}=db;
+function PedCaixa({uid,db,setDb,reload,setM}){
+  const{pedidos_cw,lancamentos,contas,formas_pag,caixas}=db;
   const hoje=TODAY();
+  const[ld,setLd]=React.useState(false);
 
-  const pedidosHoje=(pedidos_cw||[]).filter(p=>p.data_pedido===hoje);
+  const caixaHoje=(caixas||[]).find(c=>c.data===hoje);
+  const caixaAberto=caixaHoje?.status==='aberto';
+  const caixaFechado=caixaHoje?.status==='fechado';
+
+  const pedidosHoje=(pedidos_cw||[]).filter(p=>{
+    if(p.data_pedido===hoje)return true;
+    const r=p.raw||{};
+    if(r.created_at){return new Date(r.created_at).toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'})===hoje;}
+    return false;
+  });
   const entregues=pedidosHoje.filter(p=>p.status==='delivered'||p.status==='closed');
   const pendentes=pedidosHoje.filter(p=>!['delivered','closed','canceled'].includes(p.status));
 
-  // Agrupa por forma de pagamento
   const porForma={};
-  entregues.forEach(p=>{
-    const pags=p.pagamentos||[];
-    pags.forEach((pg)=>{
-      const pmKey=(pg.payment_method||'').toLowerCase();
-      if(pmKey==='ifood'||pmKey==='online_credit_card')return;
-      const nm=PM_MAP_CW[pmKey]||pmKey;
-      porForma[nm]=(porForma[nm]||0)+Number(pg.value||pg.total||0);
-    });
-  });
-
+  entregues.forEach(p=>{(p.pagamentos||[]).forEach(pg=>{
+    const k=(pg.payment_method||'').toLowerCase();
+    if(k==='ifood'||k==='online_credit_card')return;
+    const n=PM_MAP_CW[k]||k;
+    porForma[n]=(porForma[n]||0)+Number(pg.value||pg.total||0);
+  });});
   const totalBruto=Object.values(porForma).reduce((s,v)=>s+v,0);
   const lancHoje=(lancamentos||[]).filter(l=>l.data===hoje&&l.obs==='consolidado_cw'&&l.tipo==='receita');
   const totalLiquido=lancHoje.reduce((s,l)=>s+Number(l.valor||0),0);
-  const totalTaxa=totalBruto-totalLiquido;
 
-  return React.createElement(PW,{title:'Caixa',sub:'Resumo financeiro do dia'},
-    // Cards topo
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}},
-      React.createElement(SC,{label:'Total Bruto',val:F(totalBruto),color:'#111'}),
-      React.createElement(SC,{label:'Taxas',val:F(totalTaxa),color:'#dc2626'}),
-      React.createElement(SC,{label:'Total Líquido',val:F(totalLiquido),color:'#16a34a'}),
-      React.createElement(SC,{label:'Pendentes',val:pendentes.length,color:'#f59e0b'})
+  const gerarLancamentos=async()=>{
+    await sb.from('lancamentos').delete().eq('user_id',uid).eq('data',hoje).eq('obs','consolidado_cw');
+    const grupos={};
+    entregues.forEach(p=>{(p.pagamentos||[]).forEach(pg=>{
+      const k=(pg.payment_method||'').toLowerCase();
+      if(k==='ifood'||k==='online_credit_card')return;
+      const pmNome=PM_MAP_CW[k]||k;
+      const forma=(formas_pag||[]).find(f=>f.status==='ativa'&&(f.nome||'').toLowerCase().includes(pmNome.toLowerCase().split(' ')[0]));
+      const valor=Number(pg.value||pg.total||0);if(!valor)return;
+      const taxa=forma?.taxa_pct?valor*(forma.taxa_pct/100):0;
+      const dias=forma?.dias||0;
+      const contaId=forma?.conta_id||(contas||[]).find(c=>{
+        const n=(c.nome||'').toLowerCase();
+        if(pmNome.toLowerCase().includes('pix'))return n.includes('pix')||n.includes('nubank');
+        if(pmNome.toLowerCase().includes('dinheiro'))return c.tipo==='Caixa';
+        return c.tipo==='Maquininha';
+      })?.id||(contas||[])[0]?.id;
+      if(!contaId)return;
+      const ch=contaId+'::'+pmNome+'::'+dias;
+      if(!grupos[ch])grupos[ch]={forma:forma?.nome||pmNome,contaId,bruto:0,taxa:0,dias};
+      grupos[ch].bruto+=valor;grupos[ch].taxa+=taxa;
+    });});
+    const rows=[];
+    for(const g of Object.values(grupos)){
+      const liq=parseFloat((g.bruto-g.taxa).toFixed(2));
+      let dt=hoje;
+      if(g.dias>0){const d=new Date(hoje+'T12:00:00');d.setDate(d.getDate()+g.dias);dt=d.toISOString().split('T')[0];}
+      rows.push({user_id:uid,tipo:'receita',descricao:'Vendas '+g.forma+' — '+hoje,valor:liq,data:dt,venc:dt,data_pag:g.dias===0?dt:null,pago:g.dias===0,conta_id:g.contaId,categoria:'3.1 Receita de Venda de Produtos',forma_pag:g.forma,obs:'consolidado_cw'});
+      if(g.taxa>0)rows.push({user_id:uid,tipo:'despesa',descricao:'Taxa '+g.forma+' — '+hoje,valor:parseFloat(g.taxa.toFixed(2)),data:hoje,venc:hoje,data_pag:hoje,pago:true,conta_id:g.contaId,categoria:'4.2.4 Taxas',forma_pag:g.forma,obs:'consolidado_cw'});
+    }
+    if(rows.length)await sb.from('lancamentos').insert(rows);
+    return rows.length;
+  };
+
+  const abrirCaixa=async()=>{
+    setLd(true);
+    const tot=(contas||[]).reduce((s,c)=>s+Number(c.saldo||0),0);
+    await sb.from('caixas').insert({user_id:uid,data:hoje,status:'aberto',saldo_abertura:tot});
+    toast('Caixa aberto!',false,true);reload();setLd(false);
+  };
+
+  const fecharCaixa=async()=>{
+    if(pendentes.length>0&&!confirm(pendentes.length+' pedido(s) em aberto. Fechar mesmo assim?'))return;
+    setLd(true);
+    const n=await gerarLancamentos();
+    const tot=(contas||[]).reduce((s,c)=>s+Number(c.saldo||0),0);
+    await sb.from('caixas').update({status:'fechado',saldo_fechamento:tot,fechado_em:new Date().toISOString()}).eq('id',caixaHoje.id);
+    toast(n+' lançamentos gerados! Caixa fechado.',false,true);reload();setLd(false);
+  };
+
+  const reabrirCaixa=async()=>{
+    await sb.from('caixas').update({status:'aberto',fechado_em:null,saldo_fechamento:null}).eq('id',caixaHoje.id);
+    await sb.from('lancamentos').delete().eq('user_id',uid).eq('data',hoje).eq('obs','consolidado_cw');
+    toast('Caixa reaberto',false,true);reload();
+  };
+
+  const statusBadge=caixaFechado
+    ?React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6,fontSize:13,color:'#6b7280',fontWeight:600,padding:'6px 12px',background:'#f5f5f5',borderRadius:20}},React.createElement('div',{style:{width:7,height:7,borderRadius:'50%',background:'#6b7280'}}),'Fechado · '+new Date(caixaHoje.fechado_em).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'}))
+    :caixaAberto
+    ?React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6,fontSize:13,color:'#16a34a',fontWeight:700,padding:'6px 12px',background:'#f0fdf4',borderRadius:20}},React.createElement('div',{style:{width:7,height:7,borderRadius:'50%',background:'#16a34a',animation:'pulse 1.5s infinite'}}),'Aberto · '+new Date(caixaHoje.aberto_em).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'}))
+    :null;
+
+  return React.createElement(PW,{title:'Caixa',sub:new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',timeZone:'America/Sao_Paulo'}),
+    actions:[
+      statusBadge,
+      !caixaHoje&&React.createElement('button',{key:'ab',type:'button',style:{background:'#16a34a',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:abrirCaixa,disabled:ld},'🔓 Abrir Caixa'),
+      caixaAberto&&React.createElement('button',{key:'fc',type:'button',style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:fecharCaixa,disabled:ld},ld?'Fechando...':'🔒 Fechar Caixa'),
+      caixaFechado&&React.createElement('button',{key:'ra',type:'button',style:{background:'#f5f5f5',color:'#555',padding:'9px 14px',borderRadius:10,fontSize:12,border:'none',cursor:'pointer'},onClick:reabrirCaixa},'↩ Reabrir'),
+    ].filter(Boolean)},
+
+    !caixaHoje&&React.createElement('div',{style:{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:12,padding:'16px 20px',marginBottom:20,display:'flex',alignItems:'center',justifyContent:'space-between'}},
+      React.createElement('div',null,
+        React.createElement('div',{style:{fontWeight:700,fontSize:14,color:'#92400e',marginBottom:4}},'Caixa não aberto hoje'),
+        React.createElement('div',{style:{fontSize:13,color:'#b45309'}},'Os lançamentos só são gerados ao fechar o caixa.')
+      ),
+      React.createElement('button',{type:'button',style:{background:'#16a34a',color:'#fff',padding:'10px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:abrirCaixa},'🔓 Abrir Caixa')
     ),
 
-    // Por forma de pagamento
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:20}},
-      React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'18px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
-        React.createElement('div',{style:{fontWeight:700,fontSize:14,marginBottom:14,color:'#111'}},'Recebimentos por Forma'),
-        Object.keys(porForma).length===0
-          ? React.createElement('div',{style:{color:'#ccc',fontSize:13}},'Nenhum recebimento hoje')
-          : Object.entries(porForma).map(([forma,val])=>
-              React.createElement('div',{key:forma,style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 0',borderBottom:'1px solid #f5f5f5'}},
-                React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8}},
-                  React.createElement('div',{style:{width:8,height:8,borderRadius:'50%',background:forma==='PIX'?'#16a34a':forma.includes('Crédito')?'#f59e0b':forma.includes('Débito')?'#3b82f6':'#6b7280'}}),
-                  React.createElement('span',{style:{fontSize:13,color:'#555'}},forma)
-                ),
-                React.createElement('span',{style:{fontWeight:700,fontSize:14}},F(val))
-              )
-            )
-      ),
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}},
+      React.createElement(SC,{label:'Entregues',val:entregues.length,color:'#16a34a'}),
+      React.createElement(SC,{label:'Pendentes',val:pendentes.length,color:pendentes.length>0?'#f59e0b':'#aaa'}),
+      React.createElement(SC,{label:'Bruto',val:F(totalBruto)}),
+      React.createElement(SC,{label:caixaFechado?'Líquido':'Estimado',val:F(caixaFechado?totalLiquido:totalBruto),color:'#16a34a'})
+    ),
 
-      // Contas
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:16}},
       React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'18px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
-        React.createElement('div',{style:{fontWeight:700,fontSize:14,marginBottom:14,color:'#111'}},'Saldo das Contas'),
-        (contas||[]).map((c)=>
-          React.createElement('div',{key:c.id,style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 0',borderBottom:'1px solid #f5f5f5'}},
-            React.createElement('span',{style:{fontSize:13,color:'#555'}},c.nome),
-            React.createElement('span',{style:{fontWeight:700,fontSize:14,color:Number(c.saldo)>=0?'#16a34a':'#dc2626'}},F(c.saldo))
-          )
-        )
+        React.createElement('div',{style:{fontWeight:700,fontSize:14,marginBottom:14}},'Por Forma de Pagamento'),
+        Object.keys(porForma).length===0
+          ?React.createElement('div',{style:{color:'#ccc',fontSize:13,textAlign:'center',padding:20}},'Nenhum recebimento ainda')
+          :Object.entries(porForma).map(([f,v])=>React.createElement('div',{key:f,style:{display:'flex',justifyContent:'space-between',padding:'9px 0',borderBottom:'1px solid #f5f5f5'}},
+            React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8}},
+              React.createElement('div',{style:{width:8,height:8,borderRadius:'50%',background:f==='PIX'?'#16a34a':f.includes('Crédito')?'#f59e0b':f.includes('Débito')?'#3b82f6':'#6b7280'}}),
+              React.createElement('span',{style:{fontSize:13}},f)
+            ),
+            React.createElement('span',{style:{fontWeight:700}},F(v))
+          ))
+      ),
+      React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'18px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+        React.createElement('div',{style:{fontWeight:700,fontSize:14,marginBottom:14}},'Contas'),
+        (contas||[]).map(c=>React.createElement('div',{key:c.id,style:{display:'flex',justifyContent:'space-between',padding:'9px 0',borderBottom:'1px solid #f5f5f5'}},
+          React.createElement('span',{style:{fontSize:13}},c.nome),
+          React.createElement('span',{style:{fontWeight:700,color:Number(c.saldo||0)>=0?'#16a34a':'#dc2626'}},F(c.saldo||0))
+        ))
       )
     ),
 
-    // Pedidos pendentes
-    pendentes.length>0&&React.createElement('div',{style:{background:'#fffbeb',borderRadius:14,padding:'18px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)',border:'1px solid #fef3c7'}},
-      React.createElement('div',{style:{fontWeight:700,fontSize:14,marginBottom:12,color:'#92400e'}},pendentes.length+' pedidos pendentes'),
-      pendentes.map(p=>React.createElement('div',{key:p.id,style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid #fef3c7'}},
-        React.createElement('div',null,
-          React.createElement('span',{style:{fontWeight:600,color:'#dc2626',fontSize:12}},'#'+p.pedido_id+' '),
-          React.createElement('span',{style:{fontSize:12,color:'#555'}},p.cliente||'—')
-        ),
-        React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8}},
+    caixaFechado&&lancHoje.length>0&&React.createElement('div',{style:{background:'#f0fdf4',borderRadius:14,padding:'16px 18px',border:'1px solid #bbf7d0',marginBottom:14}},
+      React.createElement('div',{style:{fontWeight:700,fontSize:14,color:'#15803d',marginBottom:12}},'✓ Lançamentos do fechamento'),
+      lancHoje.map(l=>React.createElement('div',{key:l.id,style:{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:'1px solid #dcfce7',fontSize:13}},
+        React.createElement('span',{style:{color:'#555'}},l.descricao),
+        React.createElement('span',{style:{fontWeight:700,color:l.tipo==='receita'?'#16a34a':'#dc2626'}},(l.tipo==='receita'?'+':'-')+F(l.valor))
+      ))
+    ),
+
+    caixaAberto&&pendentes.length>0&&React.createElement('div',{style:{background:'#fffbeb',borderRadius:14,padding:'16px 18px',border:'1px solid #fde68a'}},
+      React.createElement('div',{style:{fontWeight:700,fontSize:14,color:'#92400e',marginBottom:10}},pendentes.length+' pedidos em andamento'),
+      pendentes.map(p=>React.createElement('div',{key:p.id,style:{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:'1px solid #fef3c7',fontSize:13}},
+        React.createElement('span',null,'#'+p.pedido_id+' — '+(p.cliente||'—')),
+        React.createElement('div',{style:{display:'flex',gap:8,alignItems:'center'}},
           React.createElement('span',{style:{fontSize:11,color:'#f59e0b',fontWeight:600}},CW_STATUS[p.status]||p.status),
           React.createElement('span',{style:{fontWeight:700}},F(p.total))
         )
@@ -836,7 +913,6 @@ function PedCaixa({uid,db,reload,setM}){
     )
   );
 }
-
 
 function PedHistorico({uid,db,reload,setM}){
   const{pedidos_cw}=db;
@@ -3451,7 +3527,7 @@ function ContaForm({uid,reload,close,conta}){
 // ── APP ──
 function App(){
   const[user,setUser]=useState(null);const[page,setPage]=useState('pedidos');
-  const[db,setDb]=useState({pedidos:[],pedidos_cw:[],estoque:[],contas:[],receber:[],pagar:[],movs:[],lancamentos:[],categorias_fin:[],centros_custo:[],formas_pag:[]});
+  const[db,setDb]=useState({pedidos:[],pedidos_cw:[],estoque:[],contas:[],receber:[],pagar:[],movs:[],lancamentos:[],categorias_fin:[],centros_custo:[],formas_pag:[],caixas:[]});
   const[modal,setModal]=useState(null);const[col,setCol]=useState(false);const[loading,setLoading]=useState(false);
   const[cfg,setCfg]=useState({cw_token:'',uid:null});
 
@@ -3465,7 +3541,7 @@ function App(){
     if(!user)return;
     setLoading(true);
     const uid=user.id;
-    const[pedcw,ped,est,con,rec,pag,mov,lanc,catfin,centros,formasPag]=await Promise.all([
+    const[pedcw,ped,est,con,rec,pag,mov,lanc,catfin,centros,formasPag,cxs]=await Promise.all([
       sb.from('pedidos_cw').select('*').eq('user_id',uid).order('data_pedido',{ascending:false}).limit(200),
       sb.from('pedidos').select('*').eq('user_id',uid).order('criado_em',{ascending:false}),
       sb.from('estoque').select('*').eq('user_id',uid).order('nome'),
@@ -3477,6 +3553,7 @@ function App(){
       sb.from('categorias_fin').select('*').eq('user_id',uid).order('nome'),
       sb.from('centros_custo').select('*').eq('user_id',uid).order('nome'),
       sb.from('formas_pagamento').select('*').eq('user_id',uid).order('nome'),
+      sb.from('caixas').select('*').eq('user_id',uid).order('criado_em',{ascending:false}).limit(30),
     ]);
     const contas=con.data||[];
     if(contas.length===0){
@@ -3485,9 +3562,9 @@ function App(){
         {user_id:uid,nome:'Caixa',tipo:'Caixa',banco:'',saldo:0,cor:'#f59e0b',ativo:true},
       ]);
       const{data:nc}=await sb.from('contas_bancarias').select('*').eq('user_id',uid);
-      setDb({pedidos:ped.data||[],pedidos_cw:pedcw.data||[],estoque:est.data||[],contas:nc||[],receber:rec.data||[],pagar:pag.data||[],movs:mov.data||[],lancamentos:lanc.data||[],categorias_fin:catfin.data||[],centros_custo:centros.data||[],formas_pag:formasPag.data||[]});
+      setDb({pedidos:ped.data||[],pedidos_cw:pedcw.data||[],estoque:est.data||[],contas:nc||[],receber:rec.data||[],pagar:pag.data||[],movs:mov.data||[],lancamentos:lanc.data||[],categorias_fin:catfin.data||[],centros_custo:centros.data||[],formas_pag:formasPag.data||[],caixas:cxs.data||[]});
     }else{
-      setDb({pedidos:ped.data||[],pedidos_cw:pedcw.data||[],estoque:est.data||[],contas,receber:rec.data||[],pagar:pag.data||[],movs:mov.data||[],lancamentos:lanc.data||[],categorias_fin:catfin.data||[],centros_custo:centros.data||[],formas_pag:formasPag.data||[]});
+      setDb({pedidos:ped.data||[],pedidos_cw:pedcw.data||[],estoque:est.data||[],contas,receber:rec.data||[],pagar:pag.data||[],movs:mov.data||[],lancamentos:lanc.data||[],categorias_fin:catfin.data||[],centros_custo:centros.data||[],formas_pag:formasPag.data||[],caixas:cxs.data||[]});
     }
     // load config
     const{data:cfgRows}=await sb.from('config_usuario').select('*').eq('user_id',uid);
@@ -3532,7 +3609,7 @@ function App(){
     ped_historico:()=>React.createElement(PedHistorico,{uid,db,reload,setM:setModal}),
     ped_mesas:()=>React.createElement(PedMesas,{uid,db,reload,setM:setModal}),
     ped_kds:()=>React.createElement(PedKDS,{uid,db,reload,setM:setModal}),
-    ped_caixa:()=>React.createElement(PedCaixa,{uid,db,reload,setM:setModal}),
+    ped_caixa:()=>React.createElement(PedCaixa,{uid,db,setDb,reload,setM:setModal}),
     ped_entregas:()=>React.createElement(PedEntregas,{uid,db,reload,setM:setModal}),
     estoque:()=>React.createElement(Estoque,{uid,db,reload,setM:setModal}),
     fin_visao:()=>React.createElement(FinVisao,{uid,db,reload,setM:setModal}),
