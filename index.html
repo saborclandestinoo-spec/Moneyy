@@ -821,8 +821,19 @@ function PedCaixa({uid,db,setDb,reload,setM}){
     return g;
   };
 
-  // Vendas principais = delivery + retirada + ifood offline (dinheiro/cartão presencial)
-  const vendasPrincipais=agruparPag([...pedDelivery,...pedRetirada,...pedIfood],true);
+  // Resumo total = TODOS os pedidos incluindo iFood online
+  const agruparPagTodos=(lista)=>{
+    const g={};
+    lista.forEach(p=>{
+      (p.pagamentos||[]).forEach(pg=>{
+        const k=(pg.payment_method||'').toLowerCase();
+        const n=k==='ifood'?'iFood Online':PM_MAP_CW[k]||k;
+        g[n]=(g[n]||0)+Number(pg.value||pg.total||0);
+      });
+    });
+    return g;
+  };
+  const vendasPrincipais=agruparPagTodos(pedNaoCancelados);
   const totalPrincipal=Object.values(vendasPrincipais).reduce((s,v)=>s+v,0);
   const vendasDelivery=agruparPag(pedDelivery,true);
   const totalDelivery=pedDelivery.reduce((s,p)=>s+Number(p.total||0),0);
