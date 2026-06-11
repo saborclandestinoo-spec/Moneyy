@@ -2815,24 +2815,61 @@ function LancForm({uid,tipo,db,reload,close,inicial}){
 
 
 function FinContas({uid,db,reload,setM}){
-  const{contas}=db;
-  const total=contas.reduce((s,c)=>s+Number(c.saldo),0);
+  const{contas,lancamentos}=db;
+
+  const calcSaldoReal=(c)=>{
+    const vl=parseFloat(c.saldo_inicial??c.saldo??0)||0;
+    if(!c.data_saldo_inicial)return vl;
+    const movs=(lancamentos||[]).filter(l=>l.conta_id===c.id&&l.pago&&l.data_pag&&l.data_pag>=c.data_saldo_inicial);
+    return vl+movs.reduce((s,l)=>s+(l.tipo==='receita'?Number(l.valor||0):-Number(l.valor||0)),0);
+  };
+
+  const total=(contas||[]).reduce((s,c)=>s+calcSaldoReal(c),0);
   const novo=()=>setM({title:'Nova Conta',body:React.createElement(ContaForm,{uid,reload,close:()=>setM(null)})});
-  return React.createElement(PW,{title:'Contas Bancárias',sub:'Gerencie suas contas bancárias e saldos',
+  const editar=(c)=>setM({title:'Editar — '+c.nome,body:React.createElement(ContaForm,{uid,reload,conta:c,close:()=>setM(null)})});
+
+  return React.createElement(PW,{title:'Contas Bancárias',sub:'Saldo = saldo inicial + lançamentos pagos desde a data de referência',
     actions:[React.createElement('button',{key:'n',style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:novo},'+ Nova Conta')]},
-    React.createElement('div',{style:{...C.card,marginBottom:16,background:'rgba(232,41,58,0.06)',border:'1px solid rgba(232,41,58,0.2)'}},
-      React.createElement('div',{style:{fontSize:10,color:'#dc2626',fontWeight:600,letterSpacing:'1.5px',textTransform:'uppercase',marginBottom:5}},'Saldo Total'),
-      React.createElement('div',{style:{fontSize:28,fontWeight:800,color:'#111',letterSpacing:'-1px'}},F(total))
+
+    React.createElement('div',{style:{background:'rgba(220,38,38,0.06)',border:'1px solid rgba(220,38,38,0.15)',borderRadius:14,padding:'16px 20px',marginBottom:20,display:'flex',alignItems:'center',justifyContent:'space-between'}},
+      React.createElement('div',null,
+        React.createElement('div',{style:{fontSize:10,color:'#dc2626',fontWeight:700,letterSpacing:'1.5px',textTransform:'uppercase',marginBottom:4}},'Saldo Total'),
+        React.createElement('div',{style:{fontSize:32,fontWeight:800,color:'#111',letterSpacing:'-1px'}},F(total))
+      ),
+      React.createElement('div',{style:{fontSize:12,color:'#aaa'}},(contas||[]).length+' conta(s)')
     ),
 
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(230px,1fr))',gap:13}},
-      contas.map(c=>React.createElement('div',{key:c.id,style:{...C.card,borderLeft:`4px solid ${c.cor||'#dc2626'}`}},
-        React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:10}},
-          React.createElement('div',null,React.createElement('div',{style:{fontWeight:700,fontSize:14}},c.nome),React.createElement('div',{style:{fontSize:11,color:'#444',marginTop:2}},c.tipo+(c.banco?' · '+c.banco:''))),
-          React.createElement('div',{style:{width:9,height:9,borderRadius:'50%',background:c.cor||'#dc2626',marginTop:4}})
-        ),
-        React.createElement('div',{style:{fontSize:21,fontWeight:800,color:'#111',letterSpacing:'-0.5px'}},F(c.saldo))
-      ))
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:14}},
+      (contas||[]).map(c=>{
+        const saldoReal=calcSaldoReal(c);
+        const dtRef=c.data_saldo_inicial;
+        const movs=(lancamentos||[]).filter(l=>l.conta_id===c.id&&l.pago&&l.data_pag&&(dtRef?l.data_pag>=dtRef:true));
+        const receitas=movs.filter(l=>l.tipo==='receita').reduce((s,l)=>s+Number(l.valor||0),0);
+        const despesas=movs.filter(l=>l.tipo==='despesa').reduce((s,l)=>s+Number(l.valor||0),0);
+        return React.createElement('div',{key:c.id,style:{background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden',borderTop:'3px solid '+(c.cor||'#dc2626')}},
+          React.createElement('div',{style:{padding:'16px'}},
+            React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12}},
+              React.createElement('div',null,
+                React.createElement('div',{style:{fontWeight:700,fontSize:15}},c.nome),
+                React.createElement('div',{style:{fontSize:11,color:'#aaa',marginTop:2}},c.tipo+(c.banco?' · '+c.banco:''))
+              ),
+              React.createElement('button',{onClick:()=>editar(c),style:{background:'#f5f5f5',border:'none',borderRadius:8,padding:'5px 10px',fontSize:12,color:'#555',cursor:'pointer'}},'✏ Editar')
+            ),
+            React.createElement('div',{style:{fontSize:28,fontWeight:800,color:saldoReal>=0?'#111':'#dc2626',letterSpacing:'-0.5px',marginBottom:4}},F(saldoReal)),
+            dtRef&&React.createElement('div',{style:{fontSize:11,color:'#aaa',marginBottom:10}},'Inicial: '+F(c.saldo_inicial??c.saldo??0)+' em '+FD(dtRef)),
+            React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}},
+              React.createElement('div',{style:{background:'#f0fdf4',borderRadius:8,padding:'7px 10px'}},
+                React.createElement('div',{style:{fontSize:10,color:'#16a34a',fontWeight:700,textTransform:'uppercase',marginBottom:3}},'Entradas'),
+                React.createElement('div',{style:{fontSize:13,fontWeight:700,color:'#16a34a'}},'+'+F(receitas))
+              ),
+              React.createElement('div',{style:{background:'#fff5f5',borderRadius:8,padding:'7px 10px'}},
+                React.createElement('div',{style:{fontSize:10,color:'#dc2626',fontWeight:700,textTransform:'uppercase',marginBottom:3}},'Saídas'),
+                React.createElement('div',{style:{fontSize:13,fontWeight:700,color:'#dc2626'}},'-'+F(despesas))
+              )
+            )
+          )
+        );
+      })
     )
   );
 }
@@ -3350,29 +3387,60 @@ function CatForm({uid,grupo,tipo,reload,close}){
 }
 
 
-function ContaForm({uid,reload,close}){
-  const[nome,setNome]=useState('');const[tipo,setTipo]=useState('Digital');const[banco,setBanco]=useState('');const[saldo,setSaldo]=useState('');const[cor,setCor]=useState('#dc2626');const[ld,setLd]=useState(false);
+function ContaForm({uid,reload,close,conta}){
+  const[nome,setNome]=React.useState(conta?.nome||'');
+  const[tipo,setTipo]=React.useState(conta?.tipo||'Digital');
+  const[banco,setBanco]=React.useState(conta?.banco||'');
+  const[cor,setCor]=React.useState(conta?.cor||'#dc2626');
+  const[saldo,setSaldo]=React.useState(String(conta?.saldo_inicial??conta?.saldo??'0'));
+  const[dataSaldo,setDataSaldo]=React.useState(conta?.data_saldo_inicial||TODAY());
+  const[ld,setLd]=React.useState(false);
+  const isEdit=!!(conta?.id);
+
+  const BANCOS=['Nubank','Itaú','Bradesco','Santander','Banco do Brasil','Caixa','Inter','C6 Bank','Stone','PagSeguro','Mercado Pago','Outro'];
+  const TIPOS=['Digital','Corrente','Poupança','Caixa','Maquininha','Investimento'];
+  const CORES=['#dc2626','#2563eb','#16a34a','#f59e0b','#7c3aed','#0891b2','#db2777','#ea580c','#111'];
+
+  const salvar=async()=>{
+    if(!nome){toast('Informe o nome',true);return;}
+    setLd(true);
+    const vl=parseFloat(String(saldo).replace(',','.'))||0;
+    const payload={user_id:uid,nome,tipo,banco,cor,saldo_inicial:vl,data_saldo_inicial:dataSaldo,saldo:vl,ativo:true};
+    if(isEdit){
+      await sb.from('contas_bancarias').update(payload).eq('id',conta.id);
+      toast('Conta atualizada!',false,true);
+    }else{
+      await sb.from('contas_bancarias').insert(payload);
+      toast('Conta criada!',false,true);
+    }
+    reload();close();setLd(false);
+  };
+
+  const lbS={fontSize:10,color:'#aaa',fontWeight:700,letterSpacing:'1.5px',textTransform:'uppercase',display:'block',marginBottom:5,marginTop:10};
+
   return React.createElement('div',null,
-    React.createElement(Inp,{label:'Nome',v:nome,set:setNome,ph:'Ex: Nubank PJ'}),
-    React.createElement(G2,null,
-      React.createElement(Sel,{label:'Tipo',v:tipo,set:setTipo,opts:['Digital','Corrente','Poupança','Caixa','Maquininha']}),
-      React.createElement(Inp,{label:'Banco',v:banco,set:setBanco,ph:'Ex: Nubank'})
+    React.createElement(FloatInput,{label:'Nome da conta *',acent:'#dc2626',value:nome,onChange:e=>setNome(e.target.value)}),
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}},
+      React.createElement(CustomSelect,{label:'Tipo',value:tipo,onChange:setTipo,options:TIPOS,acent:'#dc2626'}),
+      React.createElement(CustomSelect,{label:'Banco',value:banco,onChange:setBanco,options:BANCOS,placeholder:'Selecione',acent:'#dc2626'})
     ),
-    React.createElement(G2,null,
-      React.createElement(Inp,{label:'Saldo Inicial (R$)',v:saldo,set:setSaldo,type:'number',ph:'0.00'}),
-      React.createElement('div',null,React.createElement(Lbl,{c:'Cor'}),React.createElement('div',{style:{display:'flex',gap:7,flexWrap:'wrap'}},['#dc2626','#22c55e','#3b82f6','#f59e0b','#8b5cf6','#06b6d4'].map(c=>React.createElement('div',{key:c,onClick:()=>setCor(c),style:{width:22,height:22,borderRadius:'50%',background:c,cursor:'pointer',border:cor===c?'3px solid #fff':'3px solid transparent',transition:'border 0.12s'}}))))
+    React.createElement('div',{style:{background:'#eff6ff',borderRadius:10,padding:'10px 14px',marginBottom:12,fontSize:12,color:'#2563eb',lineHeight:1.6}},
+      'Informe o saldo atual da conta e a data. O saldo será recalculado automaticamente somando os lançamentos pagos a partir dessa data.'
     ),
-    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',marginTop:4}},
-      React.createElement('button',{style:C.ghost,onClick:close},'Cancelar'),
-      React.createElement('button',{style:C.btn,onClick:async()=>{
-        if(!nome){toast('Informe o nome',true);return;}
-        setLd(true);
-        await sb.from('contas_bancarias').insert({user_id:uid,nome,tipo,banco,saldo:parseFloat(saldo)||0,cor,ativo:true});
-        toast('Conta criada!',false,true);reload();close();setLd(false);
-      }},ld?React.createElement(Spin):'Criar')
+    React.createElement(FloatInput,{label:'Saldo atual (R$) *',acent:'#dc2626',type:'number',value:saldo,onChange:e=>setSaldo(e.target.value)}),
+    React.createElement(MiniDatePicker,{label:'Data do saldo *',value:dataSaldo,onChange:setDataSaldo,acent:'#dc2626'}),
+    React.createElement('label',{style:lbS},'Cor'),
+    React.createElement('div',{style:{display:'flex',gap:8,marginBottom:16,flexWrap:'wrap'}},
+      CORES.map(c=>React.createElement('button',{key:c,onClick:()=>setCor(c),style:{width:28,height:28,borderRadius:'50%',background:c,border:cor===c?'3px solid #111':'2px solid transparent',cursor:'pointer',flexShrink:0}}))
+    ),
+    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
+      React.createElement('button',{style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'},onClick:close},'Cancelar'),
+      React.createElement('button',{style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:salvar},
+        ld?'Salvando...':isEdit?'Salvar alterações':'Criar conta')
     )
   );
 }
+
 
 // ── APP ──
 function App(){
