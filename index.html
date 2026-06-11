@@ -796,7 +796,6 @@ function PedCaixa({uid,db,setDb,reload,setM}){
     return false;
   });
 
-  // Separa por canal
   const pedNaoCancelados=pedidosHoje.filter(p=>p.status!=='canceled');
   const pedIfood=pedNaoCancelados.filter(p=>p.canal==='ifood');
   const pedDelivery=pedNaoCancelados.filter(p=>p.raw&&p.raw.order_type==='delivery'&&p.canal!=='ifood');
@@ -804,58 +803,42 @@ function PedCaixa({uid,db,setDb,reload,setM}){
   const pedCancelados=pedidosHoje.filter(p=>p.status==='canceled');
   const pedAtivos=pedidosHoje.filter(p=>!['canceled','closed','delivered'].includes(p.status));
 
-  // Agrupa pagamentos por forma para um grupo de pedidos
-  const agruparPagamentos=(lista,excluirOnline=false,soOnline=false)=>{
-    const grupos={};
+  const agruparPag=(lista)=>{
+    const g={};
     lista.forEach(p=>{
       (p.pagamentos||[]).forEach(pg=>{
         const k=(pg.payment_method||'').toLowerCase();
-        const isOnline=pg.payment_type==='online';
-        if(excluirOnline&&isOnline)return;
-        if(soOnline&&!isOnline)return;
-        const brand=pg.card_brand?pg.card_brand:'';
-        const nome=PM_MAP_CW[k]||(k==='ifood'?'iFood':k);
-        const chave=brand?nome+' ('+brand+')':nome;
-        grupos[chave]=(grupos[chave]||0)+Number(pg.value||pg.total||0);
+        if(k==='ifood'||k==='online_credit_card')return;
+        const n=PM_MAP_CW[k]||k;
+        g[n]=(g[n]||0)+Number(pg.value||pg.total||0);
       });
     });
-    return grupos;
+    return g;
   };
 
-  // Resumo principal (excluindo iFood)
-  const vendasPrincipais=agruparPagamentos([...pedDelivery,...pedRetirada]);
+  const vendasPrincipais=agruparPag([...pedDelivery,...pedRetirada]);
   const totalPrincipal=Object.values(vendasPrincipais).reduce((s,v)=>s+v,0);
-
-  // iFood - pagamentos online e offline separados
-  const vendasIfoodOnline=agruparPagamentos(pedIfood,false,true);
-  const vendasIfoodOffline=agruparPagamentos(pedIfood,false,false);
-  // Remove online do offline
-  pedIfood.forEach(p=>{(p.pagamentos||[]).forEach(pg=>{if(pg.payment_type!=='online'){const k=PM_MAP_CW[(pg.payment_method||'').toLowerCase()]||(pg.payment_method||'');const b=pg.card_brand?k+' ('+pg.card_brand+')':k;if(!vendasIfoodOffline[b])vendasIfoodOffline[b]=0;}});});
-  const totalIfood=pedIfood.reduce((s,p)=>s+Number(p.total||0),0);
-  const taxasEntregaIfood=pedIfood.reduce((s,p)=>s+Number(p.raw&&p.raw.delivery_fee||0),0);
-  const taxasAdifood=pedIfood.reduce((s,p)=>s+Number(p.raw&&p.raw.additional_fee||0),0);
-  const descontosIfood=pedIfood.reduce((s,p)=>s+((p.raw&&p.raw.discounts||[]).reduce((sd,d)=>sd+Number(d.total||0),0)),0);
-
-  // Delivery sem iFood
-  const vendasDelivery=agruparPagamentos(pedDelivery);
+  const vendasDelivery=agruparPag(pedDelivery);
   const totalDelivery=pedDelivery.reduce((s,p)=>s+Number(p.total||0),0);
-  const taxasEntregaDelivery=pedDelivery.reduce((s,p)=>s+Number(p.raw&&p.raw.delivery_fee||0),0);
-
-  // Retirada
-  const vendasRetirada=agruparPagamentos(pedRetirada);
+  const taxaEntregaDelivery=pedDelivery.reduce((s,p)=>s+Number(p.raw&&p.raw.delivery_fee||0),0);
+  const vendasRetirada=agruparPag(pedRetirada);
   const totalRetirada=pedRetirada.reduce((s,p)=>s+Number(p.total||0),0);
-
-  // Cancelados
+  const totalIfood=pedIfood.reduce((s,p)=>s+Number(p.total||0),0);
+  const taxaEntregaIfood=pedIfood.reduce((s,p)=>s+Number(p.raw&&p.raw.delivery_fee||0),0);
+  const taxaAdIfood=pedIfood.reduce((s,p)=>s+Number(p.raw&&p.raw.additional_fee||0),0);
+  const descIfood=pedIfood.reduce((s,p)=>s+((p.raw&&p.raw.discounts||[]).reduce((sd,d)=>sd+Number(d.total||0),0)),0);
   const totalCancelados=pedCancelados.reduce((s,p)=>s+Number(p.total||0),0);
-  const cancelDelivery=pedCancelados.filter(p=>p.raw&&p.raw.order_type==='delivery').length;
-  const cancelRetirada=pedCancelados.filter(p=>p.raw&&p.raw.order_type!=='delivery').length;
 
-  // Saldo caixa
-  const saldoInicial=caixaHoje&&caixaHoje.saldo_abertura||0;
   const vendasDinheiro=vendasPrincipais['Dinheiro']||0;
+  const saldoInicial=caixaHoje&&caixaHoje.saldo_abertura||0;
   const valorCaixa=saldoInicial+vendasDinheiro;
 
-  // Lançamentos fechamento
+  const totalCookies=pedNaoCancelados.reduce((s,p)=>{
+    const itens=(p.raw&&p.raw.items)||p.itens||[];
+    return s+itens.reduce((si,it)=>si+Number(it.quantity||1),0);
+  },0);
+  const ticketMedio=pedNaoCancelados.length>0?totalPrincipal/pedNaoCancelados.length:0;
+
   const lancHoje=(lancamentos||[]).filter(l=>l.data===hoje&&l.obs==='consolidado_cw'&&l.tipo==='receita');
   const totalLiquido=lancHoje.reduce((s,l)=>s+Number(l.valor||0),0);
 
@@ -889,141 +872,116 @@ function PedCaixa({uid,db,setDb,reload,setM}){
     return rows.length;
   };
 
-  const abrirCaixa=async()=>{
-    setLd(true);
-    const tot=(contas||[]).reduce((s,c)=>s+Number(c.saldo||0),0);
-    await sb.from('caixas').insert({user_id:uid,data:hoje,status:'aberto',saldo_abertura:tot});
-    toast('Caixa aberto!',false,true);reload();setLd(false);
-  };
-  const fecharCaixa=async()=>{
-    if(pedAtivos.length>0&&!confirm(pedAtivos.length+' pedido(s) em aberto. Fechar mesmo assim?'))return;
-    setLd(true);
-    const n=await gerarLancamentos();
-    const tot=(contas||[]).reduce((s,c)=>s+Number(c.saldo||0),0);
-    await sb.from('caixas').update({status:'fechado',saldo_fechamento:tot,fechado_em:new Date().toISOString()}).eq('id',caixaHoje.id);
-    toast(n+' lançamentos gerados!',false,true);reload();setLd(false);
-  };
-  const reabrirCaixa=async()=>{
-    await sb.from('caixas').update({status:'aberto',fechado_em:null,saldo_fechamento:null}).eq('id',caixaHoje.id);
-    await sb.from('lancamentos').delete().eq('user_id',uid).eq('data',hoje).eq('obs','consolidado_cw');
-    toast('Caixa reaberto',false,true);reload();
-  };
+  const abrirCaixa=async()=>{setLd(true);const tot=(contas||[]).reduce((s,c)=>s+Number(c.saldo||0),0);await sb.from('caixas').insert({user_id:uid,data:hoje,status:'aberto',saldo_abertura:tot});toast('Caixa aberto!',false,true);reload();setLd(false);};
+  const fecharCaixa=async()=>{if(pedAtivos.length>0&&!confirm(pedAtivos.length+' em aberto. Fechar?'))return;setLd(true);const n=await gerarLancamentos();const tot=(contas||[]).reduce((s,c)=>s+Number(c.saldo||0),0);await sb.from('caixas').update({status:'fechado',saldo_fechamento:tot,fechado_em:new Date().toISOString()}).eq('id',caixaHoje.id);toast(n+' lançamentos!',false,true);reload();setLd(false);};
+  const reabrirCaixa=async()=>{await sb.from('caixas').update({status:'aberto',fechado_em:null,saldo_fechamento:null}).eq('id',caixaHoje.id);await sb.from('lancamentos').delete().eq('user_id',uid).eq('data',hoje).eq('obs','consolidado_cw');toast('Reaberto',false,true);reload();};
 
   const horaCaixa=(dt)=>dt?new Date(dt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'}):null;
+  const FORMA_COR={PIX:'#16a34a','Cartão Crédito':'#f59e0b','Cartão Débito':'#3b82f6',Dinheiro:'#6b7280',Transferencia:'#2563eb'};
 
-  // UI helpers
-  const Secao=({title,children,total,cor})=>React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)',marginBottom:14}},
-    React.createElement('div',{style:{background:cor||'#f8f9fc',padding:'12px 18px',borderBottom:'1px solid #f0f0f0',display:'flex',justifyContent:'space-between',alignItems:'center'}},
-      React.createElement('span',{style:{fontWeight:700,fontSize:14,color:'#111'}},title),
-      total!=null&&React.createElement('span',{style:{fontWeight:800,fontSize:15,color:cor?'#fff':'#111'}},F(total))
+  const CardVendas=({title,grupos,total,taxaEntrega,extra})=>React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'18px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+    React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}},
+      React.createElement('div',{style:{fontWeight:700,fontSize:14,color:'#111'}},title),
+      React.createElement('div',{style:{fontWeight:800,fontSize:16,color:'#dc2626'}},F(total))
     ),
-    React.createElement('div',{style:{padding:'4px 0'}},children)
+    Object.keys(grupos).length===0
+      ?React.createElement('div',{style:{color:'#ccc',fontSize:12,textAlign:'center',padding:'10px 0'}},'Sem vendas')
+      :Object.entries(grupos).sort((a,b)=>b[1]-a[1]).map(([f,v])=>{
+          const cor=FORMA_COR[f]||'#555';
+          const pct=total>0?Math.round(v/total*100):0;
+          return React.createElement('div',{key:f,style:{marginBottom:10}},
+            React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:4}},
+              React.createElement('div',{style:{display:'flex',alignItems:'center',gap:7}},
+                React.createElement('div',{style:{width:8,height:8,borderRadius:'50%',background:cor}}),
+                React.createElement('span',{style:{fontSize:12,color:'#555'}},f)
+              ),
+              React.createElement('div',{style:{display:'flex',gap:6,alignItems:'center'}},
+                React.createElement('span',{style:{fontSize:11,color:'#ccc'}},pct+'%'),
+                React.createElement('span',{style:{fontSize:13,fontWeight:700}},F(v))
+              )
+            ),
+            React.createElement('div',{style:{height:4,background:'#f5f5f5',borderRadius:4,overflow:'hidden'}},
+              React.createElement('div',{style:{height:'100%',width:pct+'%',background:cor,borderRadius:4}})
+            )
+          );
+        }),
+    taxaEntrega>0&&React.createElement('div',{style:{fontSize:12,color:'#aaa',marginTop:8,paddingTop:8,borderTop:'1px solid #f5f5f5',display:'flex',justifyContent:'space-between'}},
+      React.createElement('span',null,'Taxa de entrega'),React.createElement('span',null,F(taxaEntrega))
+    ),
+    extra
   );
 
-  const LinhaValor=({label,valor,sub,cor,bold})=>React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 18px',borderBottom:'1px solid #f8f8f8'}},
-    React.createElement('div',null,
-      React.createElement('div',{style:{fontSize:13,color:cor||'#555',fontWeight:bold?700:400}},label),
-      sub&&React.createElement('div',{style:{fontSize:11,color:'#aaa'}},sub)
-    ),
-    React.createElement('div',{style:{fontWeight:bold?800:600,fontSize:14,color:cor||'#111'}},F(valor))
-  );
+  return React.createElement(PW,{title:'Caixa',sub:new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',timeZone:'America/Sao_Paulo'}),
+    actions:[
+      caixaAberto&&React.createElement('div',{key:'st',style:{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#16a34a',fontWeight:700,padding:'6px 12px',background:'#f0fdf4',borderRadius:20,border:'1px solid #bbf7d0'}},React.createElement('div',{style:{width:6,height:6,borderRadius:'50%',background:'#16a34a',animation:'pulse 1.5s infinite'}}),'Aberto '+horaCaixa(caixaHoje&&caixaHoje.aberto_em)),
+      caixaFechado&&React.createElement('div',{key:'st',style:{fontSize:12,color:'#6b7280',fontWeight:600,padding:'6px 12px',background:'#f5f5f5',borderRadius:20}},'Fechado '+horaCaixa(caixaHoje&&caixaHoje.fechado_em)),
+      !caixaHoje&&React.createElement('button',{key:'ab',type:'button',onClick:abrirCaixa,disabled:ld,style:{background:'#16a34a',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},'🔓 Abrir Caixa'),
+      caixaAberto&&React.createElement('button',{key:'fc',type:'button',onClick:fecharCaixa,disabled:ld,style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},ld?'Fechando...':'🔒 Fechar Caixa'),
+      caixaFechado&&React.createElement('button',{key:'ra',type:'button',onClick:reabrirCaixa,style:{background:'#f5f5f5',color:'#555',padding:'9px 14px',borderRadius:10,fontSize:12,border:'none',cursor:'pointer'}},'↩ Reabrir'),
+    ].filter(Boolean)},
 
-  return React.createElement('div',{style:{padding:'24px',animation:'fadeUp 0.2s ease'}},
-
-    // Header
-    React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20,flexWrap:'wrap',gap:12}},
-      React.createElement('div',null,
-        React.createElement('h1',{style:{fontSize:22,fontWeight:800,color:'#111',letterSpacing:'-0.5px'}},'Caixa'),
-        caixaHoje&&React.createElement('p',{style:{fontSize:11,color:'#aaa',marginTop:3}},
-          'Sessão #'+caixaHoje.id.slice(0,8).toUpperCase()+' · Aberto em '+horaCaixa(caixaHoje.aberto_em)
-        )
-      ),
-      React.createElement('div',{style:{display:'flex',gap:8,alignItems:'center'}},
-        caixaAberto&&React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#16a34a',fontWeight:700,padding:'6px 12px',background:'#f0fdf4',borderRadius:20,border:'1px solid #bbf7d0'}},
-          React.createElement('div',{style:{width:6,height:6,borderRadius:'50%',background:'#16a34a',animation:'pulse 1.5s infinite'}}),
-          'ABERTO'
-        ),
-        caixaFechado&&React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#6b7280',fontWeight:700,padding:'6px 12px',background:'#f5f5f5',borderRadius:20}},
-          '⬛ FECHADO às '+horaCaixa(caixaHoje.fechado_em)
-        ),
-        !caixaHoje&&React.createElement('button',{type:'button',onClick:abrirCaixa,disabled:ld,style:{background:'#16a34a',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},'🔓 Abrir Caixa'),
-        caixaAberto&&React.createElement('button',{type:'button',onClick:fecharCaixa,disabled:ld,style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},ld?'Fechando...':'🔒 Fechar Caixa'),
-        caixaFechado&&React.createElement('button',{type:'button',onClick:reabrirCaixa,style:{background:'#f5f5f5',color:'#555',padding:'9px 14px',borderRadius:10,fontSize:12,border:'none',cursor:'pointer'}},'↩ Reabrir')
-      )
-    ),
-
-    !caixaHoje&&React.createElement('div',{style:{background:'linear-gradient(135deg,#16a34a,#15803d)',borderRadius:16,padding:'20px 24px',marginBottom:20,display:'flex',alignItems:'center',justifyContent:'space-between'}},
-      React.createElement('div',null,
-        React.createElement('div',{style:{fontWeight:800,fontSize:16,color:'#fff',marginBottom:4}},'Caixa não aberto hoje'),
-        React.createElement('div',{style:{fontSize:12,color:'rgba(255,255,255,0.8)'}},'Abra o caixa para registrar as vendas do dia')
-      ),
+    !caixaHoje&&React.createElement('div',{style:{background:'linear-gradient(135deg,#16a34a,#15803d)',borderRadius:14,padding:'20px 24px',marginBottom:20,display:'flex',alignItems:'center',justifyContent:'space-between'}},
+      React.createElement('div',null,React.createElement('div',{style:{fontWeight:800,fontSize:16,color:'#fff',marginBottom:4}},'Caixa não aberto hoje'),React.createElement('div',{style:{fontSize:12,color:'rgba(255,255,255,0.8)'}},'Abra o caixa para registrar as vendas')),
       React.createElement('button',{type:'button',onClick:abrirCaixa,style:{background:'#fff',color:'#16a34a',padding:'10px 20px',borderRadius:10,fontSize:13,fontWeight:800,border:'none',cursor:'pointer'}},'🔓 Abrir')
     ),
 
-    // ── RESUMO DO CAIXA ──
-    React.createElement(Secao,{title:'RESUMO DO CAIXA'},
-      React.createElement(LinhaValor,{label:'Saldo Inicial',valor:saldoInicial}),
-      React.createElement(LinhaValor,{label:'Vendas em Dinheiro',valor:vendasDinheiro}),
-      React.createElement(LinhaValor,{label:'Valor em Caixa',valor:valorCaixa,bold:true,cor:'#16a34a'})
+    // KPIs
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:12,marginBottom:20}},
+      [{l:'Total Vendas',v:F(totalPrincipal+totalIfood),c:'#111'},{l:'Pedidos',v:pedNaoCancelados.length,c:'#2563eb'},{l:'Em andamento',v:pedAtivos.length,c:'#f59e0b'},{l:'Ticket Médio',v:F(ticketMedio),c:'#7c3aed'},{l:'Cookies',v:totalCookies,c:'#dc2626'}]
+      .map(({l,v,c})=>React.createElement(SC,{key:l,label:l,val:String(v),color:c}))
     ),
 
-    // ── RESUMO DAS VENDAS ──
-    React.createElement(Secao,{title:'RESUMO DAS VENDAS',total:totalPrincipal},
-      Object.keys(vendasPrincipais).length===0
-        ?React.createElement('div',{style:{padding:'20px',color:'#ccc',textAlign:'center',fontSize:13}},'Nenhuma venda registrada')
-        :Object.entries(vendasPrincipais).sort((a,b)=>b[1]-a[1]).map(([f,v])=>
-            React.createElement(LinhaValor,{key:f,label:f,valor:v})
+    // Resumo caixa + vendas principais
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}},
+      React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'18px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+        React.createElement('div',{style:{fontWeight:700,fontSize:14,color:'#111',marginBottom:14}},'Resumo do Caixa'),
+        [['Saldo Inicial',saldoInicial,'#555'],['Vendas Dinheiro',vendasDinheiro,'#6b7280'],['Valor em Caixa',valorCaixa,'#16a34a']].map(([l,v,c])=>
+          React.createElement('div',{key:l,style:{display:'flex',justifyContent:'space-between',padding:'9px 0',borderBottom:'1px solid #f5f5f5'}},
+            React.createElement('span',{style:{fontSize:13,color:'#555'}},l),
+            React.createElement('span',{style:{fontSize:14,fontWeight:700,color:c}},F(v))
           )
+        ),
+        React.createElement('div',{style:{marginTop:14}}),
+        React.createElement('div',{style:{fontWeight:700,fontSize:14,color:'#111',marginBottom:14}},'Contas'),
+        (contas||[]).map(c=>React.createElement('div',{key:c.id,style:{display:'flex',justifyContent:'space-between',padding:'9px 0',borderBottom:'1px solid #f5f5f5'}},
+          React.createElement('div',{style:{display:'flex',alignItems:'center',gap:7}},React.createElement('div',{style:{width:8,height:8,borderRadius:'50%',background:c.cor||'#dc2626'}}),React.createElement('span',{style:{fontSize:13,color:'#555'}},c.nome)),
+          React.createElement('span',{style:{fontWeight:700,color:Number(c.saldo||0)>=0?'#16a34a':'#dc2626'}},F(c.saldo||0))
+        ))
+      ),
+      React.createElement(CardVendas,{title:'Resumo das Vendas',grupos:vendasPrincipais,total:totalPrincipal})
     ),
 
-    // ── VENDAS IFOOD ──
-    React.createElement(Secao,{title:'VENDAS IFOOD *',total:totalIfood},
-      React.createElement('div',{style:{padding:'8px 18px 4px',fontSize:11,color:'#aaa',fontWeight:700,letterSpacing:'1px'}},'PAGAMENTOS ONLINE'),
-      Object.entries(vendasIfoodOnline).length===0
-        ?React.createElement('div',{style:{padding:'6px 18px',fontSize:12,color:'#ccc'}},'Nenhum')
-        :Object.entries(vendasIfoodOnline).map(([f,v])=>React.createElement(LinhaValor,{key:'io'+f,label:f,valor:v})),
-      React.createElement('div',{style:{padding:'8px 18px 4px',fontSize:11,color:'#aaa',fontWeight:700,letterSpacing:'1px'}},'PAGAMENTOS OFFLINE'),
-      Object.entries(vendasIfoodOffline).filter(([f])=>!Object.keys(vendasIfoodOnline).includes(f)).length===0
-        ?React.createElement('div',{style:{padding:'6px 18px',fontSize:12,color:'#ccc'}},'Nenhum')
-        :Object.entries(vendasIfoodOffline).filter(([f])=>!Object.keys(vendasIfoodOnline).includes(f)).map(([f,v])=>React.createElement(LinhaValor,{key:'io2'+f,label:f,valor:v})),
-      taxasEntregaIfood>0&&React.createElement(LinhaValor,{label:'Taxas de Entrega',valor:taxasEntregaIfood}),
-      taxasAdifood>0&&React.createElement(LinhaValor,{label:'Taxas Adicionais',valor:taxasAdifood}),
-      descontosIfood>0&&React.createElement(LinhaValor,{label:'Descontos (iFood)',valor:-descontosIfood,cor:'#16a34a'}),
-      React.createElement('div',{style:{padding:'8px 18px',fontSize:11,color:'#aaa',fontStyle:'italic'}},'* As vendas iFood não são contabilizadas nos outros resumos.')
+    // Delivery + Retirada + iFood
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:14,marginBottom:14}},
+      React.createElement(CardVendas,{title:'Delivery',grupos:vendasDelivery,total:totalDelivery,taxaEntrega:taxaEntregaDelivery}),
+      React.createElement(CardVendas,{title:'Retirada',grupos:vendasRetirada,total:totalRetirada}),
+      React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'18px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+        React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}},
+          React.createElement('div',{style:{fontWeight:700,fontSize:14,color:'#111'}},'iFood'),
+          React.createElement('div',{style:{fontWeight:800,fontSize:16,color:'#dc2626'}},F(totalIfood))
+        ),
+        React.createElement('div',{style:{fontSize:12,color:'#aaa',marginBottom:6}},'* Não contabilizado nos outros resumos'),
+        taxaEntregaIfood>0&&React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:12,padding:'4px 0'}},React.createElement('span',{style:{color:'#555'}},'Taxa entrega'),React.createElement('span',null,F(taxaEntregaIfood))),
+        taxaAdIfood>0&&React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:12,padding:'4px 0'}},React.createElement('span',{style:{color:'#555'}},'Taxa adicional'),React.createElement('span',null,F(taxaAdIfood))),
+        descIfood>0&&React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:12,padding:'4px 0'}},React.createElement('span',{style:{color:'#16a34a'}},'Descontos'),React.createElement('span',{style:{color:'#16a34a'}},'-'+F(descIfood))),
+        pedCancelados.length>0&&React.createElement('div',{style:{marginTop:12,paddingTop:12,borderTop:'1px solid #f5f5f5'}},
+          React.createElement('div',{style:{fontWeight:700,fontSize:13,color:'#dc2626',marginBottom:6}},'Cancelados'),
+          React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:12}},React.createElement('span',{style:{color:'#555'}},pedCancelados.length+' pedido(s)'),React.createElement('span',{style:{color:'#dc2626',fontWeight:700}},F(totalCancelados)))
+        )
+      )
     ),
 
-    // ── VENDAS DELIVERY ──
-    React.createElement(Secao,{title:'VENDAS DELIVERY',total:totalDelivery},
-      Object.entries(vendasDelivery).length===0
-        ?React.createElement('div',{style:{padding:'20px',color:'#ccc',textAlign:'center',fontSize:13}},'Nenhuma entrega')
-        :Object.entries(vendasDelivery).sort((a,b)=>b[1]-a[1]).map(([f,v])=>React.createElement(LinhaValor,{key:'d'+f,label:f,valor:v})),
-      taxasEntregaDelivery>0&&React.createElement(LinhaValor,{label:'Taxas de Entrega',valor:taxasEntregaDelivery,cor:'#aaa'})
-    ),
-
-    // ── VENDAS RETIRADA ──
-    React.createElement(Secao,{title:'VENDAS RETIRADA',total:totalRetirada},
-      Object.entries(vendasRetirada).length===0
-        ?React.createElement('div',{style:{padding:'20px',color:'#ccc',textAlign:'center',fontSize:13}},'Nenhuma retirada')
-        :Object.entries(vendasRetirada).sort((a,b)=>b[1]-a[1]).map(([f,v])=>React.createElement(LinhaValor,{key:'r'+f,label:f,valor:v}))
-    ),
-
-    // ── PEDIDOS CANCELADOS ──
-    pedCancelados.length>0&&React.createElement(Secao,{title:'PEDIDOS CANCELADOS',total:totalCancelados},
-      cancelDelivery>0&&React.createElement(LinhaValor,{label:'Delivery ('+cancelDelivery+' pedido(s))',valor:pedCancelados.filter(p=>p.raw&&p.raw.order_type==='delivery').reduce((s,p)=>s+Number(p.total||0),0),cor:'#dc2626'}),
-      cancelRetirada>0&&React.createElement(LinhaValor,{label:'Retirada ('+cancelRetirada+' pedido(s))',valor:pedCancelados.filter(p=>p.raw&&p.raw.order_type!=='delivery').reduce((s,p)=>s+Number(p.total||0),0),cor:'#dc2626'})
-    ),
-
-    // ── PEDIDOS EM ANDAMENTO ──
-    pedAtivos.length>0&&React.createElement('div',{style:{background:'#fffbeb',borderRadius:14,padding:'14px 18px',border:'1px solid #fde68a',marginBottom:14}},
+    // Em andamento
+    pedAtivos.length>0&&React.createElement('div',{style:{background:'#fffbeb',borderRadius:14,padding:'16px 18px',border:'1px solid #fde68a',marginBottom:14}},
       React.createElement('div',{style:{fontWeight:700,fontSize:14,color:'#92400e',marginBottom:10}},'⏳ '+pedAtivos.length+' em andamento'),
       pedAtivos.map(p=>React.createElement('div',{key:p.id,style:{display:'flex',justifyContent:'space-between',fontSize:13,padding:'6px 0',borderBottom:'1px solid #fef3c7'}},
         React.createElement('span',null,'#'+p.pedido_id+' — '+(p.cliente||'—')),
-        React.createElement('span',{style:{fontWeight:700}},F(p.total))
+        React.createElement('div',{style:{display:'flex',gap:8}},React.createElement('span',{style:{fontSize:11,color:'#f59e0b',fontWeight:600}},CW_STATUS[p.status]||p.status),React.createElement('span',{style:{fontWeight:700}},F(p.total)))
       ))
     ),
 
-    // ── LANÇAMENTOS FECHAMENTO ──
-    caixaFechado&&lancHoje.length>0&&React.createElement('div',{style:{background:'#f0fdf4',borderRadius:14,padding:'14px 18px',border:'1px solid #bbf7d0'}},
+    // Lançamentos
+    caixaFechado&&lancHoje.length>0&&React.createElement('div',{style:{background:'#f0fdf4',borderRadius:14,padding:'16px 18px',border:'1px solid #bbf7d0'}},
       React.createElement('div',{style:{fontWeight:700,fontSize:14,color:'#15803d',marginBottom:10}},'✓ Lançamentos do fechamento'),
       lancHoje.map(l=>React.createElement('div',{key:l.id,style:{display:'flex',justifyContent:'space-between',fontSize:13,padding:'6px 0',borderBottom:'1px solid #dcfce7'}},
         React.createElement('span',{style:{color:'#555'}},l.descricao),
