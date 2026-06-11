@@ -2853,14 +2853,13 @@ function FinContas({uid,db,reload,setM}){
         const movs=(lancamentos||[]).filter(l=>l.conta_id===c.id&&l.pago&&l.data_pag&&(dtRef?l.data_pag>=dtRef:true));
         const receitas=movs.filter(l=>l.tipo==='receita').reduce((s,l)=>s+Number(l.valor||0),0);
         const despesas=movs.filter(l=>l.tipo==='despesa').reduce((s,l)=>s+Number(l.valor||0),0);
-        return React.createElement('div',{key:c.id,style:{background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden',borderTop:'3px solid '+(c.cor||'#dc2626')}},
+        return React.createElement('div',{key:c.id,onClick:()=>editar(c),style:{background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden',borderTop:'3px solid '+(c.cor||'#dc2626'),cursor:'pointer',transition:'box-shadow 0.15s'}},
           React.createElement('div',{style:{padding:'16px'}},
             React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12}},
               React.createElement('div',null,
                 React.createElement('div',{style:{fontWeight:700,fontSize:15}},c.nome),
                 React.createElement('div',{style:{fontSize:11,color:'#aaa',marginTop:2}},c.tipo+(c.banco?' · '+c.banco:''))
-              ),
-              React.createElement('button',{onClick:()=>editar(c),style:{background:'#f5f5f5',border:'none',borderRadius:8,padding:'5px 10px',fontSize:12,color:'#555',cursor:'pointer'}},'✏ Editar')
+              )
             ),
             React.createElement('div',{style:{fontSize:28,fontWeight:800,color:saldoReal>=0?'#111':'#dc2626',letterSpacing:'-0.5px',marginBottom:4}},F(saldoReal)),
             dtRef&&React.createElement('div',{style:{fontSize:11,color:'#aaa',marginBottom:10}},'Inicial: '+F(c.saldo_inicial??c.saldo??0)+' em '+FD(dtRef)),
