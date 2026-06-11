@@ -797,12 +797,7 @@ function PedCaixa({uid,db,setDb,reload,setM}){
       const valor=Number(pg.value||pg.total||0);if(!valor)return;
       const taxa=forma?.taxa_pct?valor*(forma.taxa_pct/100):0;
       const dias=forma?.dias||0;
-      const contaId=forma?.conta_id||(contas||[]).find(c=>{
-        const n=(c.nome||'').toLowerCase();
-        if(pmNome.toLowerCase().includes('pix'))return n.includes('pix')||n.includes('nubank');
-        if(pmNome.toLowerCase().includes('dinheiro'))return c.tipo==='Caixa';
-        return c.tipo==='Maquininha';
-      })?.id||(contas||[])[0]?.id;
+      const contaId=forma?.conta_id||(contas||[])[0]?.id;
       if(!contaId)return;
       const ch=contaId+'::'+pmNome+'::'+dias;
       if(!grupos[ch])grupos[ch]={forma:forma?.nome||pmNome,contaId,bruto:0,taxa:0,dias};
@@ -2910,6 +2905,12 @@ function FinContas({uid,db,reload,setM}){
   const total=(contas||[]).reduce((s,c)=>s+calcSaldoReal(c),0);
   const novo=()=>setM({title:'Nova Conta',body:React.createElement(ContaForm,{uid,reload,close:()=>setM(null)})});
   const editar=(c)=>setM({title:'Editar — '+c.nome,body:React.createElement(ContaForm,{uid,reload,conta:c,close:()=>setM(null)})});
+  const excluir=async(e,c)=>{
+    e.stopPropagation();
+    if(!confirm('Excluir conta "'+c.nome+'"? Lançamentos vinculados não serão excluídos.'))return;
+    await sb.from('contas_bancarias').update({ativo:false}).eq('id',c.id);
+    toast('Conta excluída!',false,true);reload();
+  };
 
   return React.createElement(PW,{title:'Contas Bancárias',sub:'Saldo = saldo inicial + lançamentos pagos desde a data de referência',
     actions:[React.createElement('button',{key:'n',style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:novo},'+ Nova Conta')]},
@@ -2935,7 +2936,8 @@ function FinContas({uid,db,reload,setM}){
               React.createElement('div',null,
                 React.createElement('div',{style:{fontWeight:700,fontSize:15}},c.nome),
                 React.createElement('div',{style:{fontSize:11,color:'#aaa',marginTop:2}},c.tipo+(c.banco?' · '+c.banco:''))
-              )
+              ),
+              React.createElement('button',{onClick:e=>excluir(e,c),style:{background:'#fee2e2',border:'none',borderRadius:7,padding:'3px 8px',fontSize:11,color:'#dc2626',cursor:'pointer',fontWeight:600}},'×')
             ),
             React.createElement('div',{style:{fontSize:28,fontWeight:800,color:saldoReal>=0?'#111':'#dc2626',letterSpacing:'-0.5px',marginBottom:4}},F(saldoReal)),
             dtRef&&React.createElement('div',{style:{fontSize:11,color:'#aaa',marginBottom:10}},'Inicial: '+F(c.saldo_inicial??c.saldo??0)+' em '+FD(dtRef)),
