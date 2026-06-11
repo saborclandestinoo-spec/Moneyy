@@ -602,14 +602,18 @@ function PedKDS({uid,db,reload,setM}){
   // Atualiza quando db muda
   React.useEffect(()=>{setPedidosCwLocal(db.pedidos_cw||[]);},[db.pedidos_cw]);
 
-  // Fetch fresco ao montar
-  React.useEffect(()=>{
-    const ontem=new Date(hoje);ontem.setDate(ontem.getDate()-1);
-    const ontemStr=ontem.toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});
+  // Fetch fresco ao montar e a cada 30s
+  const fetchPedidos=React.useCallback(()=>{
     sb.from('pedidos_cw').select('*').eq('user_id',uid)
-      .gte('data_pedido',ontemStr).order('data_pedido',{ascending:false})
+      .gte('data_pedido',hoje).order('data_pedido',{ascending:false})
       .then(({data})=>{if(data)setPedidosCwLocal(data);});
-  },[uid]);
+  },[uid,hoje]);
+
+  React.useEffect(()=>{
+    fetchPedidos();
+    const interval=setInterval(fetchPedidos,30000);
+    return()=>clearInterval(interval);
+  },[fetchPedidos]);
 
   const pedidos_cw=pedidos_cw_local;
 
@@ -768,12 +772,22 @@ function PedCaixa({uid,db,setDb,reload,setM}){
   const{pedidos_cw,lancamentos,contas,formas_pag,caixas}=db;
   const hoje=TODAY();
   const[ld,setLd]=React.useState(false);
+  const[pedidosLocal,setPedidosLocal]=React.useState(pedidos_cw||[]);
+
+  // Sync com db + auto-refresh 30s
+  React.useEffect(()=>{setPedidosLocal(pedidos_cw||[]);},[pedidos_cw]);
+  React.useEffect(()=>{
+    const fn=()=>sb.from('pedidos_cw').select('*').eq('user_id',uid).gte('data_pedido',hoje).order('data_pedido',{ascending:false}).then(({data})=>{if(data)setPedidosLocal(data);});
+    fn();
+    const t=setInterval(fn,30000);
+    return()=>clearInterval(t);
+  },[uid,hoje]);
 
   const caixaHoje=(caixas||[]).find(c=>c.data===hoje);
-  const caixaAberto=caixaHoje?.status==='aberto';
-  const caixaFechado=caixaHoje?.status==='fechado';
+  const caixaAberto=caixaHoje&&caixaHoje.status==='aberto';
+  const caixaFechado=caixaHoje&&caixaHoje.status==='fechado';
 
-  const pedidosHoje=(pedidos_cw||[]).filter(p=>{
+  const pedidosHoje=(pedidosLocal||[]).filter(p=>{
     if(p.data_pedido===hoje)return true;
     const r=p.raw||{};
     if(r.created_at){return new Date(r.created_at).toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'})===hoje;}
