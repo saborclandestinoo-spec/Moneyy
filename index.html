@@ -1599,203 +1599,146 @@ function FinVisao({uid,db,reload,setM}){
 }
 
 function FinReceber({uid,db,reload,setM}){
-  const{receber,contas}=db;
-  const[fil,setFil]=useState('Todos');
-  const hoje=TODAY();const mes=hoje.slice(0,7);
-  const list=fil==='Pendentes'?receber.filter(r=>r.status==='Pendente'):fil==='Recebidos'?receber.filter(r=>r.status==='Recebido'):fil==='Hoje'?receber.filter(r=>r.data_venda===hoje):fil==='Mês'?receber.filter(r=>r.data_venda?.slice(0,7)===mes):receber;
+  const{lancamentos,contas}=db;
+  const hoje=TODAY();
+  const[fil,setFil]=React.useState('pendentes');
+  const[busca,setBusca]=React.useState('');
 
-  const receber_=r=>setM({title:'Confirmar Recebimento',body:React.createElement(ConfRecModal,{uid,r,contas,reload,close:()=>setM(null)})});
-  const simular=()=>{
-    const fake={pedido_id:'#'+Math.floor(Math.random()*9000+1000),cliente:'Cliente Teste',valor_bruto:(Math.floor(Math.random()*20)+3)*10,forma_pagamento:['PIX','Cartão','Dinheiro'][Math.floor(Math.random()*3)]};
-    setM({title:'📡 Simular API Cardápio Web',body:React.createElement(SimModal,{uid,fake,reload,close:()=>setM(null)})});
+  // A Receber = lançamentos receita não pagos
+  const aReceber=React.useMemo(()=>(lancamentos||[]).filter(l=>
+    l.tipo==='receita'&&!l.pago&&l.obs!=='consolidado_cw'
+  ),[lancamentos]);
+
+  const list=React.useMemo(()=>{
+    let r=aReceber;
+    if(fil==='pendentes')r=r.filter(l=>!l.pago&&(l.venc||l.data)>=hoje);
+    else if(fil==='vencidos')r=r.filter(l=>!l.pago&&(l.venc||l.data)<hoje);
+    else if(fil==='recebidos')r=r.filter(l=>l.pago);
+    if(busca){const b=busca.toLowerCase();r=r.filter(l=>(l.descricao||'').toLowerCase().includes(b)||(l.categoria||'').toLowerCase().includes(b));}
+    return r.sort((a,b)=>(a.venc||a.data||'').localeCompare(b.venc||b.data||''));
+  },[aReceber,fil,busca,hoje]);
+
+  const totalPendente=aReceber.filter(l=>!l.pago&&(l.venc||l.data)>=hoje).reduce((s,l)=>s+Number(l.valor||0),0);
+  const totalVencido=aReceber.filter(l=>!l.pago&&(l.venc||l.data)<hoje).reduce((s,l)=>s+Number(l.valor||0),0);
+  const totalRecebido=aReceber.filter(l=>l.pago).reduce((s,l)=>s+Number(l.valor||0),0);
+
+  const confirmarRecebimento=async(l)=>{
+    const conta=(contas||[]).find(c=>c.id===l.conta_id)||(contas||[])[0];
+    if(!confirm('Confirmar recebimento de '+F(l.valor)+'?'))return;
+    await sb.from('lancamentos').update({pago:true,data_pag:hoje}).eq('id',l.id);
+    if(conta){await sb.from('contas_bancarias').update({saldo:Number(conta.saldo)+Number(l.valor)}).eq('id',conta.id);}
+    toast('Recebido!',false,true);reload();
   };
-  const manual=()=>setM({title:'Nova Conta a Receber',body:React.createElement(RecForm,{uid,reload,close:()=>setM(null)})});
 
-  return React.createElement(PW,{title:'Contas a Receber',sub:'Pedidos entregues geram automaticamente contas a receber',
-    actions:[
-      React.createElement('button',{key:'s',style:{background:'#f5f5f5',color:'#555',padding:'8px 14px',borderRadius:9,fontSize:12,fontWeight:500,border:'none',cursor:'pointer'},onClick:()=>simular()},'Simular API'),
-      React.createElement('button',{key:'m',style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:()=>manual()},'+ Manual'),
-    ]},
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:13,marginBottom:16}},
-      React.createElement(SC,{label:'A Receber',val:F(receber.filter(r=>r.status==='Pendente').reduce((s,r)=>s+Number(r.valor_bruto),0)),color:'#fbbf24',sub:receber.filter(r=>r.status==='Pendente').length+' pendentes'}),
-      React.createElement(SC,{label:'Recebido no Mês',val:F(receber.filter(r=>r.status==='Recebido'&&r.data_recebimento?.slice(0,7)===mes).reduce((s,r)=>s+Number(r.valor_liquido||r.valor_bruto),0)),color:'#16a34a'}),
-      React.createElement(SC,{label:'Total',val:receber.length})
+  const badgeStyle=(v,ativo)=>({padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,background:ativo?'#dc2626':'#f5f5f5',color:ativo?'#fff':'#666',border:'none',cursor:'pointer'});
+
+  return React.createElement(PW,{title:'A Receber',sub:'Lançamentos de receita pendentes de recebimento'},
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:20}},
+      React.createElement(SC,{label:'A receber',val:F(totalPendente),color:'#2563eb'}),
+      React.createElement(SC,{label:'Vencidos',val:F(totalVencido),color:'#dc2626'}),
+      React.createElement(SC,{label:'Recebidos (mês)',val:F(totalRecebido),color:'#16a34a'})
     ),
-    React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,flexWrap:'wrap',gap:8}},
-      React.createElement('div',{style:{display:'flex',gap:5,flexWrap:'wrap'}},
-        ['Todos','Pendentes','Recebidos','Hoje','Mês'].map(f=>React.createElement('button',{key:f,onClick:()=>setFil(f),style:{padding:'6px 13px',borderRadius:20,fontSize:12,fontWeight:600,background:fil===f?'#dc2626':'#f5f5f5',color:fil===f?'#fff':'#666',border:fil===f?'1px solid #e8293a':'1px solid #252525'}},f))
+    React.createElement('div',{style:{display:'flex',gap:6,marginBottom:14,alignItems:'center',justifyContent:'space-between',flexWrap:'wrap'}},
+      React.createElement('div',{style:{display:'flex',gap:6}},
+        ['pendentes','vencidos','recebidos','todos'].map(f=>
+          React.createElement('button',{key:f,onClick:()=>setFil(f),style:badgeStyle(f,fil===f)},
+            f==='pendentes'?'A Receber':f==='vencidos'?'Vencidos':f==='recebidos'?'Recebidos':'Todos'
+          )
+        )
       ),
-
+      React.createElement('input',{placeholder:'Buscar...',value:busca,onChange:e=>setBusca(e.target.value),style:{background:'#f5f5f5',border:'none',borderRadius:9,padding:'7px 12px',fontSize:12,color:'#111',outline:'none',width:180}})
     ),
-    React.createElement('div',{style:C.card},
-      React.createElement(Tbl,{cols:['Pedido','Cliente','Valor Bruto','Pagamento','Origem','Data','Previsão','Status',''],
-        rows:list.map(r=>React.createElement(TR,{key:r.id,cells:[
-          React.createElement('span',{style:{fontWeight:700,color:'#dc2626',fontSize:12}},r.pedido_id||'—'),
-          React.createElement('span',{style:{fontWeight:600}},r.cliente),
-          React.createElement('span',{style:{fontWeight:700}},F(r.valor_bruto)),
-          r.forma_pagamento,
-          React.createElement('span',{style:{fontSize:11,color:'#555'}},r.origem||'Manual'),
-          FD(r.data_venda),FD(r.data_prevista),
-          React.createElement(Badge,{t:r.status}),
-          r.status==='Pendente'?React.createElement('button',{style:C.bsm,onClick:e=>{e.stopPropagation();receber_(r);}},F(r.valor_bruto).replace('R$ ',''),' Receber'):React.createElement('span',{style:{fontSize:11,color:'#16a34a'}},'✓')
-        ]}))
+    React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+      React.createElement(Tbl,{cols:['Descrição','Categoria','Conta','Vencimento','Valor','Ação'],
+        rows:list.map(l=>{
+          const conta=(contas||[]).find(c=>c.id===l.conta_id);
+          const vencido=!l.pago&&(l.venc||l.data)<hoje;
+          return React.createElement(TR,{key:l.id,cells:[
+            React.createElement('span',{style:{fontWeight:600,fontSize:13}},l.descricao||'—'),
+            React.createElement('span',{style:{fontSize:11,color:'#888'}},l.categoria||'—'),
+            React.createElement('span',{style:{fontSize:12}},conta?.nome||'—'),
+            React.createElement('span',{style:{fontSize:12,color:vencido?'#dc2626':'#555',fontWeight:vencido?700:400}},FD(l.venc||l.data)),
+            React.createElement('span',{style:{fontWeight:700,color:'#16a34a'}},F(l.valor)),
+            !l.pago
+              ?React.createElement('button',{onClick:()=>confirmarRecebimento(l),style:{background:'#dcfce7',color:'#16a34a',border:'none',borderRadius:7,padding:'4px 10px',fontSize:11,fontWeight:700,cursor:'pointer'}},'✓ Receber')
+              :React.createElement('span',{style:{fontSize:11,color:'#16a34a',fontWeight:600}},'✓ Recebido '+FD(l.data_pag))
+          ]});
+        }),
+        empty:'Nenhum lançamento encontrado.'
       })
-    )
-  );
-}
-
-function ConfRecModal({uid,r,contas,reload,close}){
-  const[contaId,setContaId]=useState(contas[0]?.id||'');
-  const[taxa,setTaxa]=useState(TAXA[r.forma_pagamento]||0);
-  const[dt,setDt]=useState(TODAY());const[obs,setObs]=useState('');const[ld,setLd]=useState(false);
-  const bruto=Number(r.valor_bruto);
-  const taxaVal=parseFloat(((bruto*taxa)/100).toFixed(2));
-  const liq=parseFloat((bruto-taxaVal).toFixed(2));
-  return React.createElement('div',null,
-    React.createElement('div',{style:{background:'#181818',borderRadius:11,padding:'13px',marginBottom:14}},
-      React.createElement(G2,null,
-        [['Pedido',r.pedido_id||'—'],['Cliente',r.cliente],['Pagamento',r.forma_pagamento],['Data',FD(r.data_venda)]].map(([l,v])=>React.createElement('div',{key:l},React.createElement('div',{style:{fontSize:10,color:'#444',fontWeight:600,letterSpacing:'1px',textTransform:'uppercase',marginBottom:3}},l),React.createElement('div',{style:{fontSize:13,fontWeight:600}},v)))
-      )
-    ),
-    React.createElement(Sel,{label:'Conta Destino',v:contaId,set:setContaId,opts:contas.map(c=>({v:c.id,l:c.nome+' — '+F(c.saldo)}))}),
-    React.createElement(G2,null,
-      React.createElement('div',null,React.createElement(Lbl,{c:'Valor Bruto'}),React.createElement('div',{style:{...C.inp,fontWeight:800,fontSize:14,display:'flex',alignItems:'center'}},F(bruto))),
-      React.createElement(Inp,{label:'Taxa (%)',v:taxa,set:v=>setTaxa(parseFloat(v)||0),type:'number'})
-    ),
-    React.createElement('div',{style:{background:'rgba(232,41,58,0.06)',border:'1px solid rgba(232,41,58,0.15)',borderRadius:11,padding:'13px',marginBottom:13}},
-      [['Valor Bruto',F(bruto),'#f0f0f0'],['Valor Taxa','-'+F(taxaVal),'#f87171'],['Valor Líquido',F(liq),'#4ade80']].map(([l,v,c])=>
-        React.createElement('div',{key:l,style:{display:'flex',justifyContent:'space-between',marginBottom:6}},React.createElement('span',{style:{fontSize:12,color:'#888'}},l),React.createElement('span',{style:{fontSize:13,fontWeight:700,color:c}},v))
-      )
-    ),
-    React.createElement(G2,null,
-      React.createElement(MiniDatePicker,{label:'Data',value:dt,onChange:setDt}),
-      React.createElement(Inp,{label:'Obs.',v:obs,set:setObs,ph:'Opcional'})
-    ),
-    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
-      React.createElement('button',{style:C.ghost,onClick:close},'Cancelar'),
-      React.createElement('button',{style:C.bgrn,onClick:async()=>{
-        if(!contaId){toast('Selecione uma conta',true);return;}
-        setLd(true);
-        await sb.from('contas_receber').update({status:'Recebido',data_recebimento:dt,conta_destino_id:contaId,valor_taxa:taxaVal,valor_liquido:liq,taxa_pct:taxa,observacao:obs}).eq('id',r.id);
-        await sb.from('movimentacoes').insert({user_id:uid,conta_id:contaId,tipo:'entrada',categoria:'Venda',descricao:'Receb. '+(r.pedido_id||r.cliente),valor:liq,origem:'Pedido '+(r.pedido_id||''),data_movimentacao:dt});
-        const conta=contas.find(c=>c.id===contaId);
-        if(conta)await sb.from('contas_bancarias').update({saldo:Number(conta.saldo)+liq}).eq('id',contaId);
-        if(taxaVal>0)await sb.from('movimentacoes').insert({user_id:uid,conta_id:contaId,tipo:'saida',categoria:'Taxa Cartão',descricao:'Taxa '+(r.pedido_id||r.cliente),valor:taxaVal,data_movimentacao:dt});
-        toast('Recebimento confirmado! ✓',false,true);reload();close();setLd(false);
-      }},ld?React.createElement(Spin):'✓ Confirmar')
-    )
-  );
-}
-
-function SimModal({uid,fake,reload,close}){
-  const[cli,setCli]=useState(fake.cliente);const[pid,setPid]=useState(fake.pedido_id);const[val,setVal]=useState(fake.valor_bruto);const[pag,setPag]=useState(fake.forma_pagamento);const[ld,setLd]=useState(false);
-  return React.createElement('div',null,
-    React.createElement('div',{style:{background:'rgba(59,130,246,0.08)',border:'1px solid rgba(59,130,246,0.2)',borderRadius:9,padding:'9px 13px',marginBottom:13,fontSize:12,color:'#60a5fa'}},'📡 Simulando API — em produção acontece via webhook automaticamente.'),
-    React.createElement(G2,null,React.createElement(Inp,{label:'Nº Pedido',v:pid,set:setPid}),React.createElement(Inp,{label:'Cliente',v:cli,set:setCli})),
-    React.createElement(G2,null,React.createElement(Inp,{label:'Valor (R$)',v:val,set:setVal,type:'number'}),React.createElement(Sel,{label:'Pagamento',v:pag,set:setPag,opts:['PIX','Cartão','Dinheiro','Transferência']})),
-    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
-      React.createElement('button',{style:C.ghost,onClick:close},'Cancelar'),
-      React.createElement('button',{style:C.btn,onClick:async()=>{
-        setLd(true);
-        const dias={PIX:0,Dinheiro:0,Cartão:1,Transferência:1};
-        const prev=new Date(TODAY()+'T00:00:00');prev.setDate(prev.getDate()+(dias[pag]||0));
-        await sb.from('contas_receber').insert({user_id:uid,pedido_id:pid,cliente:cli,valor_bruto:parseFloat(val)||0,forma_pagamento:pag,status:'Pendente',data_venda:TODAY(),data_prevista:prev.toISOString().split('T')[0],origem:'Cardápio Web'});
-        toast('Pedido importado!',false,true);reload();close();setLd(false);
-      }},ld?React.createElement(Spin):'Importar')
-    )
-  );
-}
-
-function RecForm({uid,reload,close}){
-  const[cli,setCli]=useState('');const[pid,setPid]=useState('');const[val,setVal]=useState('');const[pag,setPag]=useState('PIX');const[ld,setLd]=useState(false);
-  return React.createElement('div',null,
-    React.createElement(G2,null,React.createElement(Inp,{label:'Nº Pedido',v:pid,set:setPid,ph:'#000'}),React.createElement(Inp,{label:'Cliente',v:cli,set:setCli,ph:'Nome'})),
-    React.createElement(G2,null,React.createElement(Inp,{label:'Valor (R$)',v:val,set:setVal,type:'number'}),React.createElement(Sel,{label:'Pagamento',v:pag,set:setPag,opts:['PIX','Cartão','Dinheiro','Transferência']})),
-    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
-      React.createElement('button',{style:C.ghost,onClick:close},'Cancelar'),
-      React.createElement('button',{style:C.btn,onClick:async()=>{
-        if(!cli||!val){toast('Preencha os campos',true);return;}
-        setLd(true);
-        const dias={PIX:0,Dinheiro:0,Cartão:1,Transferência:1};
-        const prev=new Date(TODAY()+'T00:00:00');prev.setDate(prev.getDate()+(dias[pag]||0));
-        await sb.from('contas_receber').insert({user_id:uid,pedido_id:pid,cliente:cli,valor_bruto:parseFloat(val)||0,forma_pagamento:pag,status:'Pendente',data_venda:TODAY(),data_prevista:prev.toISOString().split('T')[0],origem:'Manual'});
-        toast('Criado!',false,true);reload();close();setLd(false);
-      }},ld?React.createElement(Spin):'Criar')
     )
   );
 }
 
 function FinPagar({uid,db,reload,setM}){
-  const{pagar,contas,lancamentos}=db;const hoje=TODAY();const mes=hoje.slice(0,7);
-  const[fil,setFil]=useState('Todos');
-  const list=fil==='Pendentes'?pagar.filter(p=>p.status==='Pendente'):fil==='Vencidos'?pagar.filter(p=>p.status==='Pendente'&&p.vencimento<hoje):fil==='Pagos'?pagar.filter(p=>p.status==='Pago'):fil==='Mês'?pagar.filter(p=>p.vencimento?.slice(0,7)===mes):pagar;
-  const venc=pagar.filter(p=>p.status==='Pendente'&&p.vencimento<hoje);
+  const{lancamentos,contas}=db;
+  const hoje=TODAY();
+  const[fil,setFil]=React.useState('pendentes');
+  const[busca,setBusca]=React.useState('');
 
-  const pagar_=p=>setM({title:'Confirmar Pagamento',body:
-    React.createElement('div',null,
-      React.createElement('div',{style:{background:'#181818',borderRadius:10,padding:'13px',marginBottom:13}},React.createElement('div',{style:{fontWeight:700,marginBottom:4}},p.descricao),React.createElement('div',{style:{fontSize:21,fontWeight:800,color:'#dc2626'}},F(p.valor)),React.createElement('div',{style:{fontSize:12,color:'#555',marginTop:3}},p.categoria+' · Venc: '+FD(p.vencimento))),
-      React.createElement(Sel,{label:'Pagar com',v:contas[0]?.id||'',set:()=>{},opts:contas.map(c=>({v:c.id,l:c.nome+' — '+F(c.saldo)}))}),
-      React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',marginTop:4}},
-        React.createElement('button',{style:C.ghost,onClick:()=>setM(null)},'Cancelar'),
-        React.createElement('button',{style:C.bgrn,onClick:async()=>{
-          const contaId=contas[0]?.id;
-          await sb.from('contas_pagar').update({status:'Pago',data_pagamento:TODAY(),conta_pagamento_id:contaId}).eq('id',p.id);
-          await sb.from('movimentacoes').insert({user_id:uid,conta_id:contaId,tipo:'saida',categoria:p.categoria,descricao:p.descricao,valor:Number(p.valor),data_movimentacao:TODAY()});
-          const conta=contas.find(c=>c.id===contaId);
-          if(conta)await sb.from('contas_bancarias').update({saldo:Number(conta.saldo)-Number(p.valor)}).eq('id',contaId);
-          toast('Pago!',false,true);reload();setM(null);
-        }},'Confirmar Pagamento')
-      )
-    )
-  });
+  // A Pagar = lançamentos despesa não pagos
+  const aPagar=React.useMemo(()=>(lancamentos||[]).filter(l=>
+    l.tipo==='despesa'&&!l.pago&&l.obs!=='consolidado_cw'
+  ),[lancamentos]);
 
-  const novo=()=>setM({title:'Nova Conta a Pagar',body:React.createElement(PagForm,{uid,reload,close:()=>setM(null)})});
+  const list=React.useMemo(()=>{
+    let r=aPagar;
+    if(fil==='pendentes')r=r.filter(l=>!l.pago&&(l.venc||l.data)>=hoje);
+    else if(fil==='vencidos')r=r.filter(l=>!l.pago&&(l.venc||l.data)<hoje);
+    else if(fil==='pagos')r=r.filter(l=>l.pago);
+    if(busca){const b=busca.toLowerCase();r=r.filter(l=>(l.descricao||'').toLowerCase().includes(b)||(l.categoria||'').toLowerCase().includes(b));}
+    return r.sort((a,b)=>(a.venc||a.data||'').localeCompare(b.venc||b.data||''));
+  },[aPagar,fil,busca,hoje]);
 
-  return React.createElement(PW,{title:'Contas a Pagar',sub:'Gerencie despesas e compromissos',
-    actions:[React.createElement('button',{key:'n',style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:novo},'+ Nova Despesa')]},
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:13,marginBottom:16}},
-      React.createElement(SC,{label:'A Pagar',val:F(pagar.filter(p=>p.status==='Pendente').reduce((s,p)=>s+Number(p.valor),0)),color:'#dc2626',sub:pagar.filter(p=>p.status==='Pendente').length+' pendentes'}),
-      React.createElement(SC,{label:'Vencidos',val:venc.length,color:venc.length>0?'#f87171':'#4ade80'}),
-      React.createElement(SC,{label:'Pago no Mês',val:F(pagar.filter(p=>p.status==='Pago'&&p.data_pagamento?.slice(0,7)===mes).reduce((s,p)=>s+Number(p.valor),0)),color:'#888'})
+  const totalPendente=aPagar.filter(l=>!l.pago&&(l.venc||l.data)>=hoje).reduce((s,l)=>s+Number(l.valor||0),0);
+  const totalVencido=aPagar.filter(l=>!l.pago&&(l.venc||l.data)<hoje).reduce((s,l)=>s+Number(l.valor||0),0);
+  const totalPago=aPagar.filter(l=>l.pago).reduce((s,l)=>s+Number(l.valor||0),0);
+
+  const confirmarPagamento=async(l)=>{
+    const conta=(contas||[]).find(c=>c.id===l.conta_id)||(contas||[])[0];
+    if(!conta){toast('Nenhuma conta configurada',true);return;}
+    if(!confirm('Confirmar pagamento de '+F(l.valor)+'?'))return;
+    await sb.from('lancamentos').update({pago:true,data_pag:hoje,conta_id:conta.id}).eq('id',l.id);
+    await sb.from('contas_bancarias').update({saldo:Number(conta.saldo)-Number(l.valor)}).eq('id',conta.id);
+    toast('Pago!',false,true);reload();
+  };
+
+  const badgeStyle=(v,ativo)=>({padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,background:ativo?'#dc2626':'#f5f5f5',color:ativo?'#fff':'#666',border:'none',cursor:'pointer'});
+
+  return React.createElement(PW,{title:'A Pagar',sub:'Lançamentos de despesa pendentes de pagamento'},
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:20}},
+      React.createElement(SC,{label:'A pagar',val:F(totalPendente),color:'#f59e0b'}),
+      React.createElement(SC,{label:'Vencidos',val:F(totalVencido),color:'#dc2626'}),
+      React.createElement(SC,{label:'Pagos (mês)',val:F(totalPago),color:'#16a34a'})
     ),
-    React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,flexWrap:'wrap',gap:8}},
-      React.createElement('div',{style:{display:'flex',gap:5,flexWrap:'wrap'}},
-        ['Todos','Pendentes','Vencidos','Pagos','Mês'].map(f=>React.createElement('button',{key:f,onClick:()=>setFil(f),style:{padding:'6px 13px',borderRadius:20,fontSize:12,fontWeight:600,background:fil===f?'#dc2626':'#f5f5f5',color:fil===f?'#fff':'#666',border:fil===f?'1px solid #e8293a':'1px solid #252525'}},(f==='Vencidos'&&venc.length>0?'⚠ ':'')+f+(f==='Vencidos'&&venc.length>0?' ('+venc.length+')':'')))
+    React.createElement('div',{style:{display:'flex',gap:6,marginBottom:14,alignItems:'center',justifyContent:'space-between',flexWrap:'wrap'}},
+      React.createElement('div',{style:{display:'flex',gap:6}},
+        ['pendentes','vencidos','pagos','todos'].map(f=>
+          React.createElement('button',{key:f,onClick:()=>setFil(f),style:badgeStyle(f,fil===f)},
+            f==='pendentes'?'A Pagar':f==='vencidos'?'Vencidos':f==='pagos'?'Pagos':'Todos'
+          )
+        )
       ),
-      React.createElement('button',{style:C.btn,onClick:novo},'+ Nova Conta')
+      React.createElement('input',{placeholder:'Buscar...',value:busca,onChange:e=>setBusca(e.target.value),style:{background:'#f5f5f5',border:'none',borderRadius:9,padding:'7px 12px',fontSize:12,color:'#111',outline:'none',width:180}})
     ),
-    React.createElement('div',{style:C.card},
-      React.createElement(Tbl,{cols:['Categoria','Descrição','Valor','Vencimento','Status',''],
-        rows:list.map(p=>{const v=p.status==='Pendente'&&p.vencimento<hoje;return React.createElement(TR,{key:p.id,cells:[
-          React.createElement(Badge,{t:p.categoria,c:'gray'}),
-          React.createElement('span',{style:{fontWeight:600}},p.descricao),
-          React.createElement('span',{style:{fontWeight:700}},F(p.valor)),
-          React.createElement('span',{style:{color:v?'#f87171':'#ccc'}},FD(p.vencimento)+(v?' ⚠':'')),
-          React.createElement(Badge,{t:v?'Vencido':p.status,c:v?'red':p.status==='Pago'?'green':'amber'}),
-          p.status==='Pendente'?React.createElement('button',{style:{...C.bsm,background:v?'#b91c1c':'linear-gradient(135deg,#16a34a,#15803d)',boxShadow:'none',fontSize:11},onClick:e=>{e.stopPropagation();pagar_(p);}},'Pagar'):React.createElement('span',{style:{fontSize:11,color:'#16a34a'}},'✓ '+FD(p.data_pagamento))
-        ]});})
+    React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+      React.createElement(Tbl,{cols:['Descrição','Categoria','Conta','Vencimento','Valor','Ação'],
+        rows:list.map(l=>{
+          const conta=(contas||[]).find(c=>c.id===l.conta_id);
+          const vencido=!l.pago&&(l.venc||l.data)<hoje;
+          return React.createElement(TR,{key:l.id,cells:[
+            React.createElement('span',{style:{fontWeight:600,fontSize:13}},l.descricao||'—'),
+            React.createElement('span',{style:{fontSize:11,color:'#888'}},l.categoria||'—'),
+            React.createElement('span',{style:{fontSize:12}},conta?.nome||'—'),
+            React.createElement('span',{style:{fontSize:12,color:vencido?'#dc2626':'#555',fontWeight:vencido?700:400}},FD(l.venc||l.data)),
+            React.createElement('span',{style:{fontWeight:700,color:'#dc2626'}},F(l.valor)),
+            !l.pago
+              ?React.createElement('button',{onClick:()=>confirmarPagamento(l),style:{background:'#fee2e2',color:'#dc2626',border:'none',borderRadius:7,padding:'4px 10px',fontSize:11,fontWeight:700,cursor:'pointer'}},'✓ Pagar')
+              :React.createElement('span',{style:{fontSize:11,color:'#16a34a',fontWeight:600}},'✓ Pago '+FD(l.data_pag))
+          ]});
+        }),
+        empty:'Nenhum lançamento encontrado.'
       })
-    )
-  );
-}
-
-function PagForm({uid,reload,close}){
-  const[cat,setCat]=useState(CATS[0]);const[desc,setDesc]=useState('');const[val,setVal]=useState('');const[venc,setVenc]=useState('');const[ld,setLd]=useState(false);
-  return React.createElement('div',null,
-    React.createElement(G2,null,
-      React.createElement(Sel,{label:'Categoria',v:cat,set:setCat,opts:CATS}),
-      React.createElement(Inp,{label:'Valor (R$)',v:val,set:setVal,type:'number',ph:'0.00'})
-    ),
-    React.createElement(Inp,{label:'Descrição',v:desc,set:setDesc,ph:'Ex: Aluguel Junho/2026'}),
-    React.createElement(MiniDatePicker,{label:'Vencimento',value:venc,onChange:setVenc}),
-    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
-      React.createElement('button',{style:C.ghost,onClick:close},'Cancelar'),
-      React.createElement('button',{style:C.btn,onClick:async()=>{
-        if(!desc||!val||!venc){toast('Preencha todos os campos',true);return;}
-        setLd(true);
-        await sb.from('contas_pagar').insert({user_id:uid,categoria:cat,descricao:desc,valor:parseFloat(val),vencimento:venc,status:'Pendente'});
-        toast('Criado!',false,true);reload();close();setLd(false);
-      }},ld?React.createElement(Spin):'Criar')
     )
   );
 }
