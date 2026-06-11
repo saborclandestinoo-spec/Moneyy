@@ -1627,24 +1627,22 @@ function MovEst({id,db,reload,close}){
 function FichasTecnicas({uid,db,reload,setM}){
   const{fichas,estoque}=db;
   const[busca,setBusca]=React.useState('');
-
   const list=(fichas||[]).filter(f=>!busca||(f.nome||'').toLowerCase().includes(busca.toLowerCase()));
-
   const nova=()=>setM({title:'Nova Ficha Técnica',wide:true,body:React.createElement(FichaForm,{uid,db,reload,close:()=>setM(null)})});
-  const editar=(f)=>setM({title:'Editar — '+f.nome,wide:true,body:React.createElement(FichaForm,{uid,db,reload,ficha:f,close:()=>setM(null)})});
+  const editar=(f)=>setM({title:f.nome,wide:true,body:React.createElement(FichaForm,{uid,db,reload,ficha:f,close:()=>setM(null)})});
 
-  return React.createElement(PW,{title:'Fichas Técnicas',sub:'Receitas e composição de custo dos produtos',
+  return React.createElement(PW,{title:'Fichas Técnicas',sub:'Custo por unidade de cada produto',
     actions:[React.createElement('button',{key:'n',style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:nova},'+ Nova Ficha')]},
 
-    React.createElement('input',{placeholder:'Buscar ficha...',value:busca,onChange:e=>setBusca(e.target.value),style:{background:'#f5f5f5',border:'none',borderRadius:9,padding:'9px 14px',fontSize:13,color:'#111',outline:'none',width:'100%',marginBottom:16,boxSizing:'border-box'}}),
+    React.createElement('input',{placeholder:'🔍 Buscar produto...',value:busca,onChange:e=>setBusca(e.target.value),style:{background:'#fff',border:'1.5px solid #e2e2e2',borderRadius:10,padding:'10px 14px',fontSize:13,color:'#111',outline:'none',width:'100%',marginBottom:20,boxSizing:'border-box'}}),
 
     list.length===0
-      ? React.createElement('div',{style:{textAlign:'center',padding:'60px',color:'#ccc',background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
-          React.createElement('div',{style:{fontSize:32,marginBottom:8}},'📋'),
-          React.createElement('div',{style:{fontSize:14,marginBottom:12}},'Nenhuma ficha técnica cadastrada'),
+      ?React.createElement('div',{style:{textAlign:'center',padding:'60px',color:'#ccc',background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+          React.createElement('div',{style:{fontSize:40,marginBottom:12}},'🍪'),
+          React.createElement('div',{style:{fontSize:14,marginBottom:16}},'Nenhuma ficha cadastrada'),
           React.createElement('button',{style:{background:'#dc2626',color:'#fff',padding:'10px 20px',borderRadius:10,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:nova},'Criar primeira ficha')
         )
-      : React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:14}},
+      :React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:16}},
           list.map(f=>React.createElement(FichaCard,{key:f.id,f,db,uid,reload,setM,editar}))
         )
   );
@@ -1657,39 +1655,43 @@ function FichaCard({f,db,uid,reload,setM,editar}){
   },[f.id]);
 
   const custoTotal=ings.reduce((s,i)=>s+Number(i.quantidade)*Number(i.custo_unit||0),0);
-  const custoPorUnidade=f.rendimento>0?custoTotal/f.rendimento:0;
+
+  const CAT_CORES={
+    Cookie:'#dc2626', Bolo:'#7c3aed', Brownie:'#92400e',
+    Trufa:'#db2777', Brigadeiro:'#ea580c', Torta:'#0891b2', Outro:'#6b7280'
+  };
+  const cor=CAT_CORES[f.categoria]||'#dc2626';
 
   return React.createElement('div',{
     onClick:()=>editar(f),
-    style:{background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden',cursor:'pointer',transition:'box-shadow 0.15s'}
+    style:{background:'#fff',borderRadius:16,boxShadow:'0 2px 12px rgba(0,0,0,0.08)',overflow:'hidden',cursor:'pointer',transition:'transform 0.15s,box-shadow 0.15s'}
   },
-    React.createElement('div',{style:{background:'linear-gradient(135deg,#dc2626,#b91c1c)',padding:'16px',color:'#fff'}},
-      React.createElement('div',{style:{fontWeight:800,fontSize:15,marginBottom:4}},f.nome),
-      React.createElement('div',{style:{fontSize:11,opacity:0.8}},f.categoria||'Produto'),
-      f.tempo_preparo>0&&React.createElement('div',{style:{fontSize:11,opacity:0.8,marginTop:2}},'⏱ '+f.tempo_preparo+' min')
+    // Topo colorido
+    React.createElement('div',{style:{background:cor,padding:'20px 16px 16px',position:'relative'}},
+      React.createElement('div',{style:{fontSize:11,color:'rgba(255,255,255,0.7)',fontWeight:600,letterSpacing:'1px',textTransform:'uppercase',marginBottom:6}},f.categoria||'Cookie'),
+      React.createElement('div',{style:{fontWeight:800,fontSize:17,color:'#fff',lineHeight:1.2}},f.nome),
+      f.tempo_preparo>0&&React.createElement('div',{style:{fontSize:11,color:'rgba(255,255,255,0.7)',marginTop:6}},'⏱ '+f.tempo_preparo+' min')
     ),
-    React.createElement('div',{style:{padding:'14px'}},
-      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}},
-        React.createElement('div',{style:{background:'#f8f9fc',borderRadius:8,padding:'8px'}},
-          React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:3}},'Rendimento'),
-          React.createElement('div',{style:{fontWeight:700,fontSize:13}},f.rendimento+' '+f.unidade_rendimento)
-        ),
-        React.createElement('div',{style:{background:'#f8f9fc',borderRadius:8,padding:'8px'}},
-          React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:3}},'Custo/Un'),
-          React.createElement('div',{style:{fontWeight:700,fontSize:13,color:'#dc2626'}},F(custoPorUnidade))
+    // Corpo
+    React.createElement('div',{style:{padding:'14px 16px'}},
+      // Custo destaque
+      React.createElement('div',{style:{display:'flex',alignItems:'baseline',gap:4,marginBottom:12}},
+        React.createElement('span',{style:{fontSize:11,color:'#aaa',fontWeight:600}},'CUSTO/UN'),
+        React.createElement('span',{style:{fontSize:24,fontWeight:800,color:cor,marginLeft:8}},
+          custoTotal>0?'R$ '+custoTotal.toFixed(4).replace('.',','):'—'
         )
       ),
-      ings.length>0&&React.createElement('div',null,
-        React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:6}},ings.length+' ingrediente(s)'),
-        ings.slice(0,3).map(i=>React.createElement('div',{key:i.id,style:{display:'flex',justifyContent:'space-between',fontSize:12,padding:'3px 0',borderBottom:'1px solid #f5f5f5'}},
-          React.createElement('span',{style:{color:'#555'}},i.nome),
-          React.createElement('span',{style:{color:'#aaa'}},i.quantidade+' '+i.unidade)
-        )),
-        ings.length>3&&React.createElement('div',{style:{fontSize:11,color:'#aaa',marginTop:4}},'+'+( ings.length-3)+' mais')
-      ),
-      React.createElement('div',{style:{marginTop:10,paddingTop:10,borderTop:'1px solid #f5f5f5',display:'flex',justifyContent:'space-between',alignItems:'center'}},
-        React.createElement('span',{style:{fontSize:12,color:'#888'}},'Custo total: '+F(custoTotal)),
-        React.createElement('span',{style:{fontSize:11,color:'#dc2626',fontWeight:600}},'Ver ficha →')
+      // Ingredientes preview
+      React.createElement('div',{style:{borderTop:'1px solid #f5f5f5',paddingTop:10}},
+        ings.length===0
+          ?React.createElement('div',{style:{fontSize:12,color:'#ccc',textAlign:'center',padding:'8px 0'}},'Sem ingredientes')
+          :React.createElement('div',null,
+            ings.slice(0,4).map(i=>React.createElement('div',{key:i.id,style:{display:'flex',justifyContent:'space-between',fontSize:12,padding:'3px 0',borderBottom:'1px solid #fafafa'}},
+              React.createElement('span',{style:{color:'#555',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:'60%'}},i.nome),
+              React.createElement('span',{style:{color:'#aaa',flexShrink:0}},i.quantidade+i.unidade)
+            )),
+            ings.length>4&&React.createElement('div',{style:{fontSize:11,color:'#aaa',marginTop:4,textAlign:'right'}},'+ '+(ings.length-4)+' ingrediente(s)')
+          )
       )
     )
   );
@@ -1699,8 +1701,6 @@ function FichaForm({uid,db,reload,close,ficha}){
   const{estoque}=db;
   const[nome,setNome]=React.useState(ficha?.nome||'');
   const[cat,setCat]=React.useState(ficha?.categoria||'Cookie');
-  const[rendimento,setRendimento]=React.useState(String(ficha?.rendimento||'1'));
-  const[unidRend,setUnidRend]=React.useState(ficha?.unidade_rendimento||'un');
   const[tempo,setTempo]=React.useState(String(ficha?.tempo_preparo||''));
   const[descricao,setDescricao]=React.useState(ficha?.descricao||'');
   const[ings,setIngs]=React.useState([]);
@@ -1708,35 +1708,39 @@ function FichaForm({uid,db,reload,close,ficha}){
   const isEdit=!!ficha?.id;
 
   React.useEffect(()=>{
-    if(ficha?.id){
-      sb.from('ficha_ingredientes').select('*').eq('ficha_id',ficha.id).then(({data})=>setIngs(data||[]));
-    }
+    if(ficha?.id){sb.from('ficha_ingredientes').select('*').eq('ficha_id',ficha.id).then(({data})=>setIngs(data||[]));}
   },[ficha?.id]);
 
   const addIng=()=>setIngs(p=>[...p,{id:'new_'+Date.now(),nome:'',quantidade:'',unidade:'g',custo_unit:'',estoque_id:''}]);
+
   const updIng=(id,k,v)=>setIngs(p=>p.map(i=>i.id===id?{...i,[k]:v}:i));
   const delIng=(id)=>setIngs(p=>p.filter(i=>i.id!==id));
 
   const selecionarEstoque=(id,estoqueId)=>{
     const item=(estoque||[]).find(e=>e.id===estoqueId);
-    if(item){updIng(id,'nome',item.nome);updIng(id,'unidade',item.unidade);updIng(id,'custo_unit',String(item.custo));updIng(id,'estoque_id',estoqueId);}
+    if(item){
+      updIng(id,'nome',item.nome);
+      updIng(id,'unidade',item.unidade);
+      updIng(id,'custo_unit',String(item.custo));
+      updIng(id,'estoque_id',estoqueId);
+    }
   };
 
   const custoTotal=ings.reduce((s,i)=>s+Number(i.quantidade||0)*Number(i.custo_unit||0),0);
-  const rend=parseFloat(rendimento)||1;
-  const custoPorUn=custoTotal/rend;
 
   const salvar=async()=>{
     if(!nome){toast('Informe o nome',true);return;}
     setLd(true);
     let fichaId=ficha?.id;
-    const payload={user_id:uid,nome,categoria:cat,rendimento:rend,unidade_rendimento:unidRend,tempo_preparo:parseInt(tempo)||0,descricao};
+    const payload={user_id:uid,nome,categoria:cat,rendimento:1,unidade_rendimento:'un',tempo_preparo:parseInt(tempo)||0,descricao};
     if(isEdit){await sb.from('fichas_tecnicas').update(payload).eq('id',fichaId);}
     else{const{data}=await sb.from('fichas_tecnicas').insert(payload).select().single();fichaId=data?.id;}
     if(fichaId){
-      // Delete existing and re-insert
       await sb.from('ficha_ingredientes').delete().eq('ficha_id',fichaId);
-      const rows=ings.filter(i=>i.nome&&i.quantidade).map(i=>({ficha_id:fichaId,nome:i.nome,quantidade:parseFloat(i.quantidade)||0,unidade:i.unidade,custo_unit:parseFloat(i.custo_unit)||0,estoque_id:i.estoque_id||null}));
+      const rows=ings.filter(i=>i.nome&&i.quantidade).map(i=>({
+        ficha_id:fichaId,nome:i.nome,quantidade:parseFloat(i.quantidade)||0,
+        unidade:i.unidade,custo_unit:parseFloat(i.custo_unit)||0,estoque_id:i.estoque_id||null
+      }));
       if(rows.length)await sb.from('ficha_ingredientes').insert(rows);
     }
     toast(isEdit?'Ficha atualizada!':'Ficha criada!',false,true);reload();close();setLd(false);
@@ -1748,55 +1752,57 @@ function FichaForm({uid,db,reload,close,ficha}){
     toast('Excluída!',false,true);reload();close();
   };
 
+  const CAT_CORES={Cookie:'#dc2626',Bolo:'#7c3aed',Brownie:'#92400e',Trufa:'#db2777',Brigadeiro:'#ea580c',Torta:'#0891b2',Outro:'#6b7280'};
+  const cor=CAT_CORES[cat]||'#dc2626';
+
   return React.createElement('div',null,
-    // Info básica
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'2fr 1fr',gap:10,marginBottom:0}},
-      React.createElement(FloatInput,{label:'Nome do produto *',acent:'#dc2626',value:nome,onChange:e=>setNome(e.target.value)}),
-      React.createElement(CustomSelect,{label:'Categoria',value:cat,onChange:setCat,options:['Cookie','Bolo','Brownie','Trufa','Brigadeiro','Torta','Outro'],acent:'#dc2626'})
-    ),
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}},
-      React.createElement(FloatInput,{label:'Rendimento',acent:'#dc2626',type:'number',value:rendimento,onChange:e=>setRendimento(e.target.value)}),
-      React.createElement(CustomSelect,{label:'Unidade rendimento',value:unidRend,onChange:setUnidRend,options:['un','kg','g','L','ml','dz','cx'],acent:'#dc2626'}),
-      React.createElement(FloatInput,{label:'Tempo preparo (min)',acent:'#dc2626',type:'number',value:tempo,onChange:e=>setTempo(e.target.value)})
+    // Header
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'2fr 1fr 1fr',gap:10,marginBottom:0}},
+      React.createElement(FloatInput,{label:'Nome do produto *',acent:cor,value:nome,onChange:e=>setNome(e.target.value)}),
+      React.createElement(CustomSelect,{label:'Categoria',value:cat,onChange:setCat,options:['Cookie','Bolo','Brownie','Trufa','Brigadeiro','Torta','Outro'],acent:cor}),
+      React.createElement(FloatInput,{label:'Tempo preparo (min)',acent:cor,type:'number',value:tempo,onChange:e=>setTempo(e.target.value)})
     ),
 
     // Custo preview
-    React.createElement('div',{style:{background:'#fff5f5',borderRadius:10,padding:'10px 14px',marginBottom:14,display:'flex',justifyContent:'space-between',fontSize:13}},
-      React.createElement('span',{style:{color:'#888'}},'Custo total: '+F(custoTotal)),
-      React.createElement('span',{style:{fontWeight:700,color:'#dc2626'}},'Custo/unidade: '+F(custoPorUn))
+    custoTotal>0&&React.createElement('div',{style:{background:cor+'12',border:'1px solid '+cor+'30',borderRadius:10,padding:'10px 14px',marginBottom:14,display:'flex',justifyContent:'space-between',alignItems:'center'}},
+      React.createElement('span',{style:{fontSize:13,color:'#555'}},'Custo por unidade'),
+      React.createElement('span',{style:{fontWeight:800,fontSize:18,color:cor}},'R$ '+custoTotal.toFixed(4).replace('.',',')}  )
     ),
 
     // Ingredientes
     React.createElement('div',{style:{marginBottom:14}},
       React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}},
-        React.createElement('span',{style:{fontWeight:700,fontSize:13,color:'#111'}},'Ingredientes ('+ings.length+')'),
-        React.createElement('button',{onClick:addIng,style:{background:'#dc2626',color:'#fff',padding:'5px 12px',borderRadius:8,fontSize:12,fontWeight:600,border:'none',cursor:'pointer'}},'+ Adicionar')
+        React.createElement('span',{style:{fontWeight:700,fontSize:13,color:'#111'}},'Ingredientes'),
+        React.createElement('button',{onClick:addIng,style:{background:cor,color:'#fff',padding:'5px 14px',borderRadius:8,fontSize:12,fontWeight:600,border:'none',cursor:'pointer'}},'+ Adicionar')
       ),
-      ings.map(ing=>React.createElement('div',{key:ing.id,style:{display:'grid',gridTemplateColumns:'2fr 1fr 1fr 1fr auto',gap:8,marginBottom:8,alignItems:'center'}},
-        React.createElement('div',{style:{position:'relative'}},
-          React.createElement(CustomSelect,{label:'',value:ing.estoque_id||'',onChange:v=>selecionarEstoque(ing.id,v),
-            options:[{v:'',l:'— Selecionar do estoque —'},...(estoque||[]).map(e=>({v:e.id,l:e.nome+' ('+e.unidade+')'}))],
-            acent:'#dc2626'
+
+      ings.length===0&&React.createElement('div',{style:{textAlign:'center',padding:'20px',color:'#ccc',background:'#f9f9fb',borderRadius:10,fontSize:13}},'Nenhum ingrediente adicionado'),
+
+      ings.map(ing=>React.createElement('div',{key:ing.id,style:{display:'grid',gridTemplateColumns:'2.5fr 1fr 1fr 1fr auto',gap:8,marginBottom:8,alignItems:'start'}},
+        React.createElement('div',null,
+          React.createElement(CustomSelect,{label:'Do estoque',value:ing.estoque_id||'',
+            onChange:v=>{if(v)selecionarEstoque(ing.id,v);else updIng(ing.id,'estoque_id','');},
+            options:[{v:'',l:'— Selecionar —'},...(estoque||[]).map(e=>({v:e.id,l:e.nome}))],
+            acent:cor
           }),
-          !ing.estoque_id&&React.createElement(FloatInput,{label:'Nome',acent:'#dc2626',value:ing.nome,onChange:e=>updIng(ing.id,'nome',e.target.value)})
+          !ing.estoque_id&&React.createElement(FloatInput,{label:'Ou nome manual',acent:cor,value:ing.nome,onChange:e=>updIng(ing.id,'nome',e.target.value)})
         ),
-        React.createElement(FloatInput,{label:'Qtd',acent:'#dc2626',type:'number',value:ing.quantidade,onChange:e=>updIng(ing.id,'quantidade',e.target.value)}),
-        React.createElement(CustomSelect,{label:'Un',value:ing.unidade,onChange:v=>updIng(ing.id,'unidade',v),options:['g','kg','ml','L','un','colher','xícara'],acent:'#dc2626'}),
-        React.createElement(FloatInput,{label:'Custo/un',acent:'#dc2626',type:'number',value:ing.custo_unit,onChange:e=>updIng(ing.id,'custo_unit',e.target.value)}),
-        React.createElement('button',{onClick:()=>delIng(ing.id),style:{background:'#fee2e2',color:'#dc2626',border:'none',borderRadius:8,padding:'6px 10px',cursor:'pointer',fontWeight:700,fontSize:14,flexShrink:0}},'×')
+        React.createElement(FloatInput,{label:'Qtd',acent:cor,type:'number',value:ing.quantidade,onChange:e=>updIng(ing.id,'quantidade',e.target.value)}),
+        React.createElement(CustomSelect,{label:'Un',value:ing.unidade,onChange:v=>updIng(ing.id,'unidade',v),options:['g','kg','ml','L','un','colher','xícara'],acent:cor}),
+        React.createElement(FloatInput,{label:'R$/un',acent:cor,type:'number',value:ing.custo_unit,onChange:e=>updIng(ing.id,'custo_unit',e.target.value)}),
+        React.createElement('button',{onClick:()=>delIng(ing.id),style:{background:'#fee2e2',color:'#dc2626',border:'none',borderRadius:8,padding:'8px 10px',cursor:'pointer',fontWeight:700,marginTop:10}},'×')
       ))
     ),
 
-    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'space-between',alignItems:'center'}},
+    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'space-between',alignItems:'center',paddingTop:4}},
       isEdit&&React.createElement('button',{style:{background:'#fee2e2',color:'#dc2626',padding:'9px 14px',borderRadius:10,fontSize:12,fontWeight:600,border:'none',cursor:'pointer'},onClick:excluir},'Excluir'),
       React.createElement('div',{style:{display:'flex',gap:8,marginLeft:'auto'}},
         React.createElement('button',{style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'},onClick:close},'Cancelar'),
-        React.createElement('button',{style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:salvar},ld?'Salvando...':isEdit?'Salvar':'Criar Ficha')
+        React.createElement('button',{style:{background:cor,color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:salvar},ld?'Salvando...':isEdit?'Salvar':'Criar Ficha')
       )
     )
   );
 }
-
 
 function FinVisao({uid,db,reload,setM}){
   const{lancamentos,contas}=db;
