@@ -553,8 +553,11 @@ function PedEntregas({uid,db,reload,setM}){
 function PedMesas({uid,db,reload,setM}){
   const{pedidos_cw}=db;
   const hoje=TODAY();
-  const ativos=(pedidos_cw||[]).filter(p=>p.data_pedido===hoje&&
-    ['waiting_confirmation','confirmed','ready','released','waiting_to_catch'].includes(p.status));
+  const ativos=(pedidos_cw||[]).filter(p=>{
+    const isHoje=p.data_pedido===hoje||(p.raw&&p.raw.created_at&&new Date(p.raw.created_at).toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'})===hoje);
+    const isLocal=(p.raw&&(p.raw.order_type==='dine_in'||p.raw.table_number))||false;
+    return isHoje&&isLocal&&['waiting_confirmation','confirmed','ready','released','waiting_to_catch'].includes(p.status);
+  });
 
   const STATUS_COR={
     waiting_confirmation:{bg:'#fef3c7',c:'#92400e',l:'Aguardando'},
@@ -661,7 +664,7 @@ function PedKDS({uid,db,reload,setM}){
 
   // ── ABA COZINHA ──
   const fila=pedidosHoje
-    .filter(p=>['waiting_confirmation','scheduled_confirmed','confirmed'].includes(p.status))
+    .filter(p=>['waiting_confirmation','scheduled_confirmed','confirmed','ready','released'].includes(p.status))
     .sort((a,b)=>(a.raw?.created_at||'').localeCompare(b.raw?.created_at||''));
 
   return React.createElement('div',{style:{padding:'24px',animation:'fadeUp 0.2s ease'}},
@@ -1011,8 +1014,8 @@ function PedidosCW({uid,db,setDb,reload,setM,cfg,setCfg}){
         itens.forEach(it=>c.cookies+=Number(it.quantity||it.qty||1));
       }
     });
-    const pedPagos=list.filter(p=>p.status==='delivered'||p.status==='closed');
-    c.ticketMedio=pedPagos.length>0?(pedPagos.reduce((s,p)=>s+Number(p.total||0),0)/pedPagos.length):0;
+    const pedNaoCancelados=list.filter(p=>p.status!=='canceled');
+    c.ticketMedio=pedNaoCancelados.length>0?c.faturamento/pedNaoCancelados.length:0;
     return c;
   },[list]);
 
