@@ -601,17 +601,21 @@ function PedKDS({uid,db,reload,setM}){
 
   // Fetch fresco ao montar
   React.useEffect(()=>{
+    const ontem=new Date(hoje);ontem.setDate(ontem.getDate()-1);
+    const ontemStr=ontem.toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});
     sb.from('pedidos_cw').select('*').eq('user_id',uid)
-      .gte('data_pedido',hoje).order('data_pedido',{ascending:false})
-      .then(({data})=>{if(data&&data.length)setPedidosCwLocal(prev=>[...data,...(prev||[]).filter(p=>p.data_pedido<hoje)]);});
-  },[uid,hoje]);
+      .gte('data_pedido',ontemStr).order('data_pedido',{ascending:false})
+      .then(({data})=>{if(data)setPedidosCwLocal(data);});
+  },[uid]);
 
   const pedidos_cw=pedidos_cw_local;
 
   const pedidosHoje=React.useMemo(()=>(pedidos_cw||[]).filter(p=>{
     if(p.data_pedido===hoje)return true;
-    const raw=p.raw||{};
-    if(raw.created_at){const d=new Date(raw.created_at).toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});return d===hoje;}
+    if(p.data_pedido===''||!p.data_pedido){
+      const raw=p.raw||{};
+      if(raw.created_at){const d=new Date(raw.created_at).toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});return d===hoje;}
+    }
     return false;
   }),[pedidos_cw,hoje]);
 
