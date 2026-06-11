@@ -3823,7 +3823,14 @@ function App(){
     setCfg({...cfgMap,cw_token:cfgMap.cw_token||'',uid});
   },[user]);
 
-  useEffect(()=>{if(user)reload();},[user]);
+  const loadedRef=React.useRef(false);
+  useEffect(()=>{
+    if(user&&!loadedRef.current){
+      loadedRef.current=true;
+      reload();
+    }
+    if(!user)loadedRef.current=false;
+  },[user]);
 
   // Partial update helpers — avoid full reload
   const refreshContas=async(uid2)=>{
