@@ -2270,7 +2270,7 @@ function LancDetalhe({l,conta,uid,contas,db,reload,close}){
 }
 
 
-function FinLancamentos({uid,db,reload,setM}){
+function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas}){
   const{lancamentos,contas}=db;
   const hoje=TODAY();
 
@@ -2341,7 +2341,8 @@ function FinLancamentos({uid,db,reload,setM}){
 
   const abrirLanc=(l)=>{
     const titulo=l.tipo==='receita'?'Editar Receita':l.tipo==='despesa'?'Editar Despesa':'Editar Lançamento';
-    setM({title:titulo,wide:true,body:React.createElement(LancForm,{uid,tipo:l.tipo,db,reload,inicial:l,close:()=>setM(null)})});
+    const r=refreshLanc||reload;
+    setM({title:titulo,wide:true,body:React.createElement(LancForm,{uid,tipo:l.tipo,db,reload:r,inicial:l,close:()=>setM(null)})});
   };
 
   const badgeBtn=(id,label,itens,cor,bg)=>React.createElement('button',{
@@ -3541,7 +3542,6 @@ function App(){
 
   const reload=useCallback(async()=>{
     if(!user)return;
-    setLoading(true);
     const uid=user.id;
     const[pedcw,ped,est,con,rec,pag,mov,lanc,catfin,centros,formasPag,cxs]=await Promise.all([
       sb.from('pedidos_cw').select('*').eq('user_id',uid).order('data_pedido',{ascending:false}).limit(200),
@@ -3572,10 +3572,40 @@ function App(){
     const{data:cfgRows}=await sb.from('config_usuario').select('*').eq('user_id',uid);
     const cfgMap={};(cfgRows||[]).forEach(r=>{cfgMap[r.chave]=r.valor;});
     setCfg({...cfgMap,cw_token:cfgMap.cw_token||'',uid});
-    setLoading(false);
   },[user]);
 
   useEffect(()=>{if(user)reload();},[user]);
+
+  // Partial update helpers — avoid full reload
+  const refreshContas=async(uid2)=>{
+    const{data}=await sb.from('contas_bancarias').select('*').eq('user_id',uid2||user?.id).eq('ativo',true).order('criado_em');
+    if(data)setDb(p=>({...p,contas:data}));
+  };
+  const refreshLanc=async(uid2)=>{
+    const{data}=await sb.from('lancamentos').select('*').eq('user_id',uid2||user?.id).order('data',{ascending:false}).limit(500);
+    if(data)setDb(p=>({...p,lancamentos:data}));
+  };
+  const refreshPedidos=async(uid2)=>{
+    const hoje=TODAY();
+    const{data}=await sb.from('pedidos_cw').select('*').eq('user_id',uid2||user?.id).gte('data_pedido',hoje).order('data_pedido',{ascending:false});
+    if(data)setDb(p=>({...p,pedidos_cw:[...data,...(p.pedidos_cw||[]).filter(x=>x.data_pedido<hoje)]}));
+  };
+  const refreshCaixas=async(uid2)=>{
+    const{data}=await sb.from('caixas').select('*').eq('user_id',uid2||user?.id).order('criado_em',{ascending:false}).limit(30);
+    if(data)setDb(p=>({...p,caixas:data}));
+  };
+  const refreshFormasPag=async(uid2)=>{
+    const{data}=await sb.from('formas_pagamento').select('*').eq('user_id',uid2||user?.id).order('nome');
+    if(data)setDb(p=>({...p,formas_pag:data}));
+  };
+  const refreshCategorias=async(uid2)=>{
+    const{data}=await sb.from('categorias_fin').select('*').eq('user_id',uid2||user?.id).order('nome');
+    if(data)setDb(p=>({...p,categorias_fin:data}));
+  };
+  const refreshCentros=async(uid2)=>{
+    const{data}=await sb.from('centros_custo').select('*').eq('user_id',uid2||user?.id).order('nome');
+    if(data)setDb(p=>({...p,centros_custo:data}));
+  };
 
   // Realtime — atualiza pedidos automaticamente quando chega novo pedido
   useEffect(()=>{
@@ -3611,18 +3641,18 @@ function App(){
     ped_historico:()=>React.createElement(PedHistorico,{uid,db,reload,setM:setModal}),
     ped_mesas:()=>React.createElement(PedMesas,{uid,db,reload,setM:setModal}),
     ped_kds:()=>React.createElement(PedKDS,{uid,db,reload,setM:setModal}),
-    ped_caixa:()=>React.createElement(PedCaixa,{uid,db,setDb,reload,setM:setModal}),
+    ped_caixa:()=>React.createElement(PedCaixa,{uid,db,setDb,reload:async()=>{await refreshCaixas(uid);await refreshLanc(uid);},setM:setModal}),
     ped_entregas:()=>React.createElement(PedEntregas,{uid,db,reload,setM:setModal}),
     estoque:()=>React.createElement(Estoque,{uid,db,reload,setM:setModal}),
     fin_visao:()=>React.createElement(FinVisao,{uid,db,reload,setM:setModal}),
-    fin_lancamentos:()=>React.createElement(FinLancamentos,{uid,db,reload,setM:setModal}),
+    fin_lancamentos:()=>React.createElement(FinLancamentos,{uid,db,reload,setM:setModal,refreshLanc:()=>refreshLanc(uid),refreshContas:()=>refreshContas(uid)}),
     fin_receber:()=>React.createElement(FinReceber,{uid,db,reload,setM:setModal}),
     fin_pagar:()=>React.createElement(FinPagar,{uid,db,reload,setM:setModal}),
     fin_movs:()=>React.createElement(FinMovs,{uid,db,reload,setM:setModal}),
-    fin_contas:()=>React.createElement(FinContas,{uid,db,reload,setM:setModal}),
-    fin_categorias:()=>React.createElement(FinCategorias,{uid,db,reload,setM:setModal}),
-    fin_centros:()=>React.createElement(FinCentros,{uid,db,reload,setM:setModal}),
-    fin_formas:()=>React.createElement(FinFormas,{uid,db,reload,setM:setModal}),
+    fin_contas:()=>React.createElement(FinContas,{uid,db,reload:()=>refreshContas(uid),setM:setModal}),
+    fin_categorias:()=>React.createElement(FinCategorias,{uid,db,reload:()=>refreshCategorias(uid),setM:setModal}),
+    fin_centros:()=>React.createElement(FinCentros,{uid,db,reload:()=>refreshCentros(uid),setM:setModal}),
+    fin_formas:()=>React.createElement(FinFormas,{uid,db,reload:()=>refreshFormasPag(uid),setM:setModal}),
   };
   const PC=PAGES[page]||PAGES.pedidos;
 
