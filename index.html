@@ -1506,7 +1506,7 @@ function Estoque({uid,db,reload,setM}){
     ),
 
     React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
-      React.createElement(Tbl,{cols:['Nome','Categoria','Qtd','Mínimo','Status','Custo Unit.','Val. Total','Validade',''],
+      React.createElement(Tbl,{cols:['Nome','Categoria','Embal.','Qtd Total','Mínimo','Status','Custo Unit.','Val. Total',''],
         rows:list.map(e=>{
           const diff=e.validade?Math.ceil((new Date(e.validade)-new Date())/86400000):999;
           const st=Number(e.qtd)<=Number(e.minimo)?'Crítico':diff<0?'Vencido':diff<30?'Vencendo':'OK';
@@ -1514,6 +1514,10 @@ function Estoque({uid,db,reload,setM}){
           return React.createElement(TR,{key:e.id,onClick:()=>editar(e),cells:[
             React.createElement('span',{style:{fontWeight:600,fontSize:13}},e.nome),
             React.createElement('span',{style:{fontSize:11,color:'#888'}},e.categoria),
+            React.createElement('div',null,
+              React.createElement('div',{style:{fontWeight:600,fontSize:12}},e.qtd_estoque+' emb × '+e.qtd_embalagem+e.unidade),
+              React.createElement('div',{style:{fontSize:10,color:'#aaa'}},'= '+(Number(e.qtd_estoque||0)*Number(e.qtd_embalagem||1)).toFixed(0)+e.unidade)
+            ),
             React.createElement('span',{style:{fontWeight:700,color:Number(e.qtd)<=Number(e.minimo)?'#dc2626':'#111'}},e.qtd+' '+e.unidade),
             React.createElement('span',{style:{fontSize:12,color:'#aaa'}},e.minimo+' '+e.unidade),
             React.createElement(Badge,{t:st,c:stC}),
@@ -1533,6 +1537,8 @@ function NovoEst({uid,reload,close,item}){
   const[nome,setNome]=React.useState(item?.nome||'');
   const[cat,setCat]=React.useState(item?.categoria||'Matéria-Prima');
   const[unidade,setUnidade]=React.useState(item?.unidade||'kg');
+  const[qtdEmb,setQtdEmb]=React.useState(String(item?.qtd_embalagem||item?.qtd||''));
+  const[qtdEst,setQtdEst]=React.useState(String(item?.qtd_estoque||'0'));
   const[qtd,setQtd]=React.useState(String(item?.qtd||''));
   const[minimo,setMinimo]=React.useState(String(item?.minimo||''));
   const[custo,setCusto]=React.useState(String(item?.custo||''));
@@ -1547,7 +1553,10 @@ function NovoEst({uid,reload,close,item}){
   const salvar=async()=>{
     if(!nome){toast('Informe o nome',true);return;}
     setLd(true);
-    const payload={user_id:uid,nome,categoria:cat,unidade,qtd:parseFloat(qtd)||0,minimo:parseFloat(minimo)||0,custo:parseFloat(custo)||0,fornecedor,validade:validade||null};
+    const embN=parseFloat(qtdEmb)||1;
+    const estN=parseFloat(qtdEst)||0;
+    const qtdTotal=embN*estN;
+    const payload={user_id:uid,nome,categoria:cat,unidade,qtd:qtdTotal,qtd_embalagem:embN,qtd_estoque:estN,minimo:parseFloat(minimo)||0,custo:parseFloat(custo)||0,fornecedor,validade:validade||null};
     if(isEdit){await sb.from('estoque').update(payload).eq('id',item.id);}
     else{await sb.from('estoque').insert(payload);}
     toast(isEdit?'Atualizado!':'Criado!',false,true);reload();close();setLd(false);
@@ -1559,9 +1568,13 @@ function NovoEst({uid,reload,close,item}){
       React.createElement(CustomSelect,{label:'Categoria',value:cat,onChange:setCat,options:CATS,acent:'#dc2626'}),
       React.createElement(CustomSelect,{label:'Unidade',value:unidade,onChange:setUnidade,options:UNIDS,acent:'#dc2626'})
     ),
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}},
-      React.createElement(FloatInput,{label:'Quantidade',acent:'#dc2626',type:'number',value:qtd,onChange:e=>setQtd(e.target.value)}),
-      React.createElement(FloatInput,{label:'Mínimo',acent:'#dc2626',type:'number',value:minimo,onChange:e=>setMinimo(e.target.value)}),
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}},
+      React.createElement(FloatInput,{label:'Qtd por Embalagem',acent:'#dc2626',type:'number',value:qtdEmb,onChange:e=>setQtdEmb(e.target.value)}),
+      React.createElement(FloatInput,{label:'Embalagens em Estoque',acent:'#dc2626',type:'number',value:qtdEst,onChange:e=>setQtdEst(e.target.value)})
+    ),
+    React.createElement('div',{style:{background:'#eff6ff',borderRadius:9,padding:'9px 12px',marginBottom:10,fontSize:12,color:'#2563eb'}},'Qtd total disponível: '+(parseFloat(qtdEmb||0)*parseFloat(qtdEst||0)).toFixed(0)+' '+unidade),
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}},
+      React.createElement(FloatInput,{label:'Mínimo ('+unidade+')',acent:'#dc2626',type:'number',value:minimo,onChange:e=>setMinimo(e.target.value)}),
       React.createElement(FloatInput,{label:'Custo/Unidade (R$)',acent:'#dc2626',type:'number',value:custo,onChange:e=>setCusto(e.target.value)})
     ),
     React.createElement(FloatInput,{label:'Fornecedor',acent:'#dc2626',value:fornecedor,onChange:e=>setFornecedor(e.target.value)}),
