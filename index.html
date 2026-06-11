@@ -390,7 +390,8 @@ function distribuirPedidos(pedidos,entregadores,baseLat,baseLon){
 }
 
 // ── MAPA DE ENTREGAS (Leaflet/OpenStreetMap) ──
-function MapaEntregas({pedidosEntrega,pedidosEntregues,entregadores,rotas,BASE_LAT,BASE_LON,COR}){
+function MapaEntregas({pedidosEntrega,pedidosEntregues,entregadores,rotas,BASE_LAT,BASE_LON,COR,uid,setBaseLat,setBaseLon}){
+  React.useEffect(()=>{window._setBaseLat=setBaseLat;window._setBaseLon=setBaseLon;return()=>{window._setBaseLat=null;window._setBaseLon=null;};},[setBaseLat,setBaseLon]);
   const mapRef=React.useRef(null);
   const mapObjRef=React.useRef(null);
   const markersRef=React.useRef([]);
@@ -414,9 +415,16 @@ function MapaEntregas({pedidosEntrega,pedidosEntregues,entregadores,rotas,BASE_L
     markersRef.current=[];
 
     // Base marker (confeitaria)
-    const baseIcon=L.divIcon({className:'',html:'<div style="background:#111;color:#fff;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 8px rgba(0,0,0,0.3);border:2px solid #fff">🏠</div>',iconSize:[32,32],iconAnchor:[16,16]});
-    const baseM=L.marker([BASE_LAT,BASE_LON],{icon:baseIcon}).addTo(map);
-    baseM.bindPopup('<b>Confeitaria</b><br>Ponto de saída');
+    const baseIcon=L.divIcon({className:'',html:'<div style="background:#111;color:#fff;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 3px 12px rgba(0,0,0,0.4);border:3px solid #fff;cursor:move" title="Arraste para mover">🏠</div>',iconSize:[36,36],iconAnchor:[18,18]});
+    const baseM=L.marker([BASE_LAT,BASE_LON],{icon:baseIcon,draggable:true}).addTo(map);
+    baseM.bindPopup('<b>🏠 Confeitaria</b><br>Ponto de saída<br><small>Arraste para reposicionar</small>');
+    baseM.on('dragend',function(e){
+      const pos=e.target.getLatLng();
+      localStorage.setItem('base_lat_'+uid,String(pos.lat));
+      localStorage.setItem('base_lon_'+uid,String(pos.lng));
+      if(window._setBaseLat)window._setBaseLat(pos.lat);
+      if(window._setBaseLon)window._setBaseLon(pos.lng);
+    });
     markersRef.current.push(baseM);
 
     // Pedidos pendentes com cor do entregador
@@ -469,7 +477,7 @@ function MapaEntregas({pedidosEntrega,pedidosEntregues,entregadores,rotas,BASE_L
 
   },[pedidosEntrega,pedidosEntregues,entregadores,rotas]);
 
-  return React.createElement('div',{ref:mapRef,style:{width:'100%',height:420,borderRadius:14,overflow:'hidden',boxShadow:'0 2px 12px rgba(0,0,0,0.12)',zIndex:1}});
+  return React.createElement('div',{ref:mapRef,style:{width:'100%',height:'calc(100vh - 220px)',minHeight:480,borderRadius:14,overflow:'hidden',boxShadow:'0 2px 12px rgba(0,0,0,0.12)',zIndex:1}});
 }
 
 
@@ -603,7 +611,7 @@ function PedEntregas({uid,db,reload,setM}){
         )
       ),
       typeof L!=='undefined'
-        ?React.createElement(MapaEntregas,{pedidosEntrega,pedidosEntregues,entregadores,rotas,BASE_LAT,BASE_LON,COR})
+        ?React.createElement(MapaEntregas,{pedidosEntrega,pedidosEntregues,entregadores,rotas,BASE_LAT,BASE_LON,COR,uid,setBaseLat,setBaseLon})
         :React.createElement('div',{style:{background:'#f8f9fc',borderRadius:14,padding:'40px',textAlign:'center',color:'#aaa'}},'Carregando mapa...')
     ),
 
@@ -702,12 +710,29 @@ function PedEntregas({uid,db,reload,setM}){
       ),
 
       // Cards dos entregadores
-      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:14,marginBottom:20}},
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(320px,1fr))',gap:14,marginBottom:20}},
         entregadores.map((e,i)=>{
           const cor=COR[i%COR.length];
           const meusPedidos=rotas[e.id]||[];
           const dist=meusPedidos.reduce((s,p)=>s+(p.distancia||0),0);
-          return React.createElement('div',{key:e.id,style:{background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden',opacity:e.ativo?1:0.5}},
+          // Calcula breakdown por forma de pagamento dos pedidos atribuídos
+          const formasPed={PIX:0,Dinheiro:0,Cartão:0,iFood:0,Outros:0};
+          meusPedidos.forEach(p=>{
+            (p.pagamentos||[]).forEach(pg=>{
+              const k=(pg.payment_method||'').toLowerCase();
+              const v=Number(pg.value||pg.total||0);
+              if(k==='pix'||k==='pix_auto')formasPed.PIX+=v;
+              else if(k==='money'||k==='cash')formasPed.Dinheiro+=v;
+              else if(k==='ifood'||k==='online_credit_card')formasPed.iFood+=v;
+              else if(k.includes('card'))formasPed.Cartão+=v;
+              else formasPed.Outros+=v;
+            });
+          });
+          const totalFormas=Object.values(formasPed).reduce((s,v)=>s+v,0);
+          const FORMA_COR={PIX:'#16a34a',Dinheiro:'#6b7280',Cartão:'#f59e0b',iFood:'#dc2626',Outros:'#2563eb'};
+
+          return React.createElement('div',{key:e.id,style:{background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden',opacity:e.ativo?1:0.6}},
+            // Header
             React.createElement('div',{style:{background:cor,padding:'14px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}},
               React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10}},
                 React.createElement('div',{style:{width:36,height:36,borderRadius:'50%',background:'rgba(255,255,255,0.25)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}},'🛵'),
@@ -719,29 +744,46 @@ function PedEntregas({uid,db,reload,setM}){
               React.createElement('button',{onClick:()=>toggleEntregador(e.id),style:{background:'rgba(255,255,255,0.2)',color:'#fff',border:'none',borderRadius:8,padding:'5px 10px',fontSize:11,cursor:'pointer',fontWeight:600}},e.ativo?'Pausar':'Ativar')
             ),
             React.createElement('div',{style:{padding:'14px 16px'}},
-              React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}},
-                [['Pendentes',meusPedidos.length,cor],['Entregues',pedidosEntregues.length,'#16a34a'],['Km',dist.toFixed(1)+'km','#555']].map(([l,v,c])=>
+              // KPIs
+              React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:12}},
+                [['Pendentes',meusPedidos.length,cor],['Km',dist.toFixed(1)+'km','#555'],['Total',F(totalFormas),'#16a34a']].map(([l,v,c])=>
                   React.createElement('div',{key:l,style:{textAlign:'center',background:'#f8f9fc',borderRadius:8,padding:'8px 4px'}},
-                    React.createElement('div',{style:{fontSize:16,fontWeight:800,color:c}},String(v)),
+                    React.createElement('div',{style:{fontSize:14,fontWeight:800,color:c}},String(v)),
                     React.createElement('div',{style:{fontSize:10,color:'#aaa',marginTop:2}},l)
                   )
                 )
               ),
-              meusPedidos.length>0&&React.createElement('div',null,
-                React.createElement('div',{style:{fontSize:11,color:'#aaa',fontWeight:700,textTransform:'uppercase',letterSpacing:'1px',marginBottom:6}},'Próxima entrega'),
-                React.createElement('div',{style:{background:'#f8f9fc',borderRadius:9,padding:'9px 12px'}},
-                  React.createElement('div',{style:{fontWeight:600,fontSize:13,color:'#111',marginBottom:2}},'#'+meusPedidos[0].pedido_id+' · '+meusPedidos[0].cliente),
-                  React.createElement('div',{style:{fontSize:11,color:'#888'}},((meusPedidos[0].raw&&meusPedidos[0].raw.delivery_address)||{}).street||'Endereço não informado'),
-                  React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginTop:6}},
-                    React.createElement('span',{style:{fontSize:11,color:'#aaa'}},(meusPedidos[0].distancia||0).toFixed(1)+' km'),
-                    React.createElement('span',{style:{fontWeight:700,fontSize:12,color:'#16a34a'}},F(meusPedidos[0].total))
-                  )
+              // Breakdown formas de pagamento
+              totalFormas>0&&React.createElement('div',{style:{marginBottom:12}},
+                React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:8}},'Por forma de pagamento'),
+                Object.entries(formasPed).filter(([,v])=>v>0).map(([f,v])=>{
+                  const fc=FORMA_COR[f]||'#555';
+                  const pct=totalFormas>0?Math.round(v/totalFormas*100):0;
+                  return React.createElement('div',{key:f,style:{marginBottom:7}},
+                    React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:3}},
+                      React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6}},
+                        React.createElement('div',{style:{width:7,height:7,borderRadius:'50%',background:fc}}),
+                        React.createElement('span',{style:{fontSize:12,color:'#555'}},f)
+                      ),
+                      React.createElement('span',{style:{fontSize:12,fontWeight:700}},F(v))
+                    ),
+                    React.createElement('div',{style:{height:4,background:'#f5f5f5',borderRadius:4,overflow:'hidden'}},
+                      React.createElement('div',{style:{height:'100%',width:pct+'%',background:fc,borderRadius:4}})
+                    )
+                  );
+                })
+              ),
+              // Próxima entrega
+              meusPedidos.length>0&&React.createElement('div',{style:{background:'#f8f9fc',borderRadius:9,padding:'9px 12px',marginBottom:10}},
+                React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:6}},'Próxima entrega'),
+                React.createElement('div',{style:{fontWeight:600,fontSize:13,color:'#111',marginBottom:2}},'#'+meusPedidos[0].pedido_id+' · '+(meusPedidos[0].cliente||'—')),
+                React.createElement('div',{style:{fontSize:11,color:'#888',marginBottom:4}},((meusPedidos[0].raw&&meusPedidos[0].raw.delivery_address)||{}).street||'—'),
+                React.createElement('div',{style:{display:'flex',justifyContent:'space-between'}},
+                  React.createElement('span',{style:{fontSize:11,color:'#aaa'}},(meusPedidos[0].distancia||0).toFixed(1)+' km'),
+                  React.createElement('span',{style:{fontWeight:700,fontSize:12,color:'#16a34a'}},F(meusPedidos[0].total))
                 )
               ),
-              meusPedidos.length>0&&React.createElement('a',{
-                href:urlMaps(meusPedidos),target:'_blank',
-                style:{display:'block',marginTop:10,background:cor,color:'#fff',borderRadius:9,padding:'9px',textAlign:'center',fontSize:12,fontWeight:700,textDecoration:'none'}
-              },'📍 Abrir rota no Maps')
+              meusPedidos.length>0&&React.createElement('a',{href:urlMaps(meusPedidos),target:'_blank',style:{display:'block',background:cor,color:'#fff',borderRadius:9,padding:'9px',textAlign:'center',fontSize:12,fontWeight:700,textDecoration:'none'}},'📍 Abrir rota no Maps')
             )
           );
         })
