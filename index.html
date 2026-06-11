@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <meta http-equiv="Pragma" content="no-cache">
 <!-- v1781024121 -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -387,10 +389,94 @@ function distribuirPedidos(pedidos,entregadores,baseLat,baseLon){
   return resultado;
 }
 
+// ── MAPA DE ENTREGAS (Leaflet/OpenStreetMap) ──
+function MapaEntregas({pedidosEntrega,pedidosEntregues,entregadores,rotas,BASE_LAT,BASE_LON,COR}){
+  const mapRef=React.useRef(null);
+  const mapObjRef=React.useRef(null);
+  const markersRef=React.useRef([]);
+
+  React.useEffect(()=>{
+    if(!mapRef.current||mapObjRef.current)return;
+    // Init map
+    const map=L.map(mapRef.current,{zoomControl:true,scrollWheelZoom:true}).setView([BASE_LAT,BASE_LON],13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      attribution:'© OpenStreetMap',maxZoom:19
+    }).addTo(map);
+    mapObjRef.current=map;
+    return()=>{if(mapObjRef.current){mapObjRef.current.remove();mapObjRef.current=null;}};
+  },[]);
+
+  React.useEffect(()=>{
+    const map=mapObjRef.current;
+    if(!map)return;
+    // Clear markers
+    markersRef.current.forEach(m=>m.remove());
+    markersRef.current=[];
+
+    // Base marker (confeitaria)
+    const baseIcon=L.divIcon({className:'',html:'<div style="background:#111;color:#fff;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 8px rgba(0,0,0,0.3);border:2px solid #fff">🏠</div>',iconSize:[32,32],iconAnchor:[16,16]});
+    const baseM=L.marker([BASE_LAT,BASE_LON],{icon:baseIcon}).addTo(map);
+    baseM.bindPopup('<b>Confeitaria</b><br>Ponto de saída');
+    markersRef.current.push(baseM);
+
+    // Pedidos pendentes com cor do entregador
+    const entregadoresAtivos=(entregadores||[]).filter(e=>e.ativo);
+    const pedParaEnt={};
+    entregadoresAtivos.forEach(e=>{(rotas[e.id]||[]).forEach(p=>{pedParaEnt[p.id]=e;});});
+
+    const allPed=[...pedidosEntrega,...pedidosEntregues];
+    allPed.forEach(p=>{
+      const addr=p.raw&&p.raw.delivery_address||{};
+      const lat=parseFloat(addr.latitude);
+      const lon=parseFloat(addr.longitude);
+      if(!lat||!lon)return;
+
+      const ent=pedParaEnt[p.id];
+      const entIdx=entregadoresAtivos.findIndex(e=>e.id===ent&&ent.id);
+      const cor=ent?(COR[entregadoresAtivos.indexOf(ent)%COR.length]):'#6b7280';
+      const isEntregue=p.status==='delivered'||p.status==='closed';
+      const bgCor=isEntregue?'#16a34a':cor;
+
+      const icon=L.divIcon({className:'',
+        html:'<div style="background:'+bgCor+';color:#fff;border-radius:8px;padding:3px 7px;font-size:11px;font-weight:800;box-shadow:0 2px 8px rgba(0,0,0,0.25);border:2px solid #fff;white-space:nowrap">'+(isEntregue?'✓ ':'')+'#'+p.pedido_id+'</div>',
+        iconSize:[null,null],iconAnchor:[0,0]
+      });
+
+      const m=L.marker([lat,lon],{icon}).addTo(map);
+      const itens=(p.raw&&p.raw.items||p.itens||[]).slice(0,3).map(it=>(it.quantity||1)+'x '+(it.name||it.nome||'?')).join('<br>');
+      m.bindPopup('<b>#'+p.pedido_id+' — '+(p.cliente||'—')+'</b><br>'+(addr.street||'')+' '+( addr.number||'')+'<br>'+itens+'<br><b>'+F(p.total)+'</b>'+(ent?'<br>🛵 '+ent.nome:''));
+      markersRef.current.push(m);
+    });
+
+    // Linhas de rota por entregador
+    entregadoresAtivos.forEach((e,i)=>{
+      const rota=rotas[e.id]||[];
+      const cor=COR[i%COR.length];
+      if(rota.length===0)return;
+
+      const pontos=[[BASE_LAT,BASE_LON],...rota.map(p=>{
+        const addr=p.raw&&p.raw.delivery_address||{};
+        const lat=parseFloat(addr.latitude);
+        const lon=parseFloat(addr.longitude);
+        return lat&&lon?[lat,lon]:null;
+      }).filter(Boolean)];
+
+      if(pontos.length>1){
+        const line=L.polyline(pontos,{color:cor,weight:3,opacity:0.7,dashArray:'8,4'}).addTo(map);
+        markersRef.current.push(line);
+      }
+    });
+
+  },[pedidosEntrega,pedidosEntregues,entregadores,rotas]);
+
+  return React.createElement('div',{ref:mapRef,style:{width:'100%',height:420,borderRadius:14,overflow:'hidden',boxShadow:'0 2px 12px rgba(0,0,0,0.12)',zIndex:1}});
+}
+
+
 function PedEntregas({uid,db,reload,setM}){
   const{pedidos_cw}=db;
   const hoje=TODAY();
-  const[aba,setAba]=React.useState('rotas');
+  const[aba,setAba]=React.useState('mapa');
   const[entregadores,setEntregadores]=React.useState(()=>{
     try{return JSON.parse(localStorage.getItem('motoboys_'+uid)||'[]');}catch{return[];}
   });
@@ -437,7 +523,7 @@ function PedEntregas({uid,db,reload,setM}){
     return m;
   },[entregadores,pedidosEntregues]);
 
-  const ABA_TABS=[{id:'rotas',l:'🗺 Rotas'},{id:'painel',l:'🛵 Painel'},{id:'metricas',l:'📊 Métricas'}];
+  const ABA_TABS=[{id:'mapa',l:'🗺 Mapa'},{id:'rotas',l:'📋 Rotas'},{id:'painel',l:'🛵 Painel'},{id:'metricas',l:'📊 Métricas'}];
 
   return React.createElement('div',{style:{padding:'24px',animation:'fadeUp 0.2s ease'}},
     // Header
@@ -449,6 +535,25 @@ function PedEntregas({uid,db,reload,setM}){
       React.createElement('div',{style:{display:'flex',gap:4,background:'#f5f5f5',borderRadius:12,padding:4}},
         ABA_TABS.map(t=>React.createElement('button',{key:t.id,onClick:()=>setAba(t.id),style:{padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',background:aba===t.id?'#fff':'transparent',color:aba===t.id?'#111':'#888',boxShadow:aba===t.id?'0 1px 4px rgba(0,0,0,0.1)':'none',transition:'all 0.15s'}},t.l))
       )
+    ),
+
+    // ── ABA MAPA ──
+    aba==='mapa'&&React.createElement('div',null,
+      // Legenda entregadores
+      entregadores.length>0&&React.createElement('div',{style:{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12}},
+        entregadores.map((e,i)=>React.createElement('div',{key:e.id,style:{display:'flex',alignItems:'center',gap:6,padding:'5px 12px',borderRadius:20,background:'#fff',boxShadow:'0 1px 4px rgba(0,0,0,0.08)'}},
+          React.createElement('div',{style:{width:10,height:10,borderRadius:3,background:COR[i%COR.length]}}),
+          React.createElement('span',{style:{fontSize:12,fontWeight:600}},e.nome),
+          React.createElement('span',{style:{fontSize:10,color:'#aaa'}},'('+(rotas[e.id]||[]).length+' pedidos)')
+        )),
+        React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6,padding:'5px 12px',borderRadius:20,background:'#fff',boxShadow:'0 1px 4px rgba(0,0,0,0.08)'}},
+          React.createElement('div',{style:{width:10,height:10,borderRadius:3,background:'#16a34a'}}),
+          React.createElement('span',{style:{fontSize:12,fontWeight:600}},'Entregues')
+        )
+      ),
+      typeof L!=='undefined'
+        ?React.createElement(MapaEntregas,{pedidosEntrega,pedidosEntregues,entregadores,rotas,BASE_LAT,BASE_LON,COR})
+        :React.createElement('div',{style:{background:'#f8f9fc',borderRadius:14,padding:'40px',textAlign:'center',color:'#aaa'}},'Carregando mapa...')
     ),
 
     // ── ABA ROTAS ──
