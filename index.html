@@ -587,60 +587,157 @@ function PedMesas({uid,db,reload,setM}){
 function PedKDS({uid,db,reload,setM}){
   const{pedidos_cw}=db;
   const hoje=TODAY();
-  const fila=(pedidos_cw||[])
-    .filter(p=>p.data_pedido===hoje&&['confirmed','released'].includes(p.status))
-    .sort((a,b)=>(a.raw?.created_at||'').localeCompare(b.raw?.created_at||''));
+  const[aba,setAba]=React.useState('pedidos');
 
-  const marcarPronto=async(p)=>{
-    // Chama API do CW para marcar como ready
-    toast('Marcado como Pronto!',false,true);
-    // Atualiza status local
-    reload();
+  const pedidosHoje=React.useMemo(()=>(pedidos_cw||[]).filter(p=>{
+    if(p.data_pedido===hoje)return true;
+    const raw=p.raw||{};
+    if(raw.created_at){const d=new Date(raw.created_at).toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});return d===hoje;}
+    return false;
+  }),[pedidos_cw,hoje]);
+
+  // ── ABA PEDIDOS: Kanban por status ──
+  const COLUNAS=[
+    {id:'waiting_confirmation',l:'Aguardando',bg:'#fef9c3',c:'#92400e',border:'#fde047'},
+    {id:'confirmed',l:'Em preparação',bg:'#dbeafe',c:'#1d4ed8',border:'#93c5fd'},
+    {id:'ready',l:'Pronto',bg:'#d1fae5',c:'#065f46',border:'#6ee7b7'},
+    {id:'released',l:'Saiu para entrega',bg:'#dcfce7',c:'#14532d',border:'#86efac'},
+    {id:'waiting_to_catch',l:'Ret. Balcão',bg:'#ede9fe',c:'#5b21b6',border:'#c4b5fd'},
+    {id:'delivered',l:'Entregue',bg:'#f0fdf4',c:'#15803d',border:'#bbf7d0'},
+    {id:'closed',l:'Finalizado',bg:'#e0f2fe',c:'#0369a1',border:'#7dd3fc'},
+  ];
+
+  const KanbanCard=({p})=>{
+    const itens=p.raw?.items||p.itens||[];
+    const qtd=itens.reduce((s,it)=>s+Number(it.quantity||1),0);
+    const pags=p.pagamentos||[];
+    const pagNome=pags.length?(PM_MAP_CW[(pags[0].payment_method||'').toLowerCase()]||pags[0].payment_method||'—'):'—';
+    const raw=p.raw||{};
+    const mins=raw.created_at?Math.floor((Date.now()-new Date(raw.created_at).getTime())/60000):0;
+    const urgente=mins>30&&!['delivered','closed','canceled'].includes(p.status);
+    return React.createElement('div',{
+      onClick:()=>setM({title:'Pedido #'+p.pedido_id,wide:true,body:React.createElement(PedidoCWDetalhe,{p,contas:db.contas,formas_pag:db.formas_pag,uid,reload,close:()=>setM(null)})}),
+      style:{background:'#fff',borderRadius:10,padding:'10px 12px',marginBottom:8,
+        boxShadow:urgente?'0 0 0 2px #dc2626':'0 1px 4px rgba(0,0,0,0.08)',
+        cursor:'pointer',borderLeft:'3px solid '+(urgente?'#dc2626':'#e0e0e0')}
+    },
+      React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}},
+        React.createElement('span',{style:{fontWeight:800,fontSize:13,color:'#dc2626'}},'#'+p.pedido_id),
+        React.createElement('span',{style:{fontSize:10,color:urgente?'#dc2626':'#aaa',fontWeight:urgente?700:400}},mins+'min')
+      ),
+      React.createElement('div',{style:{fontWeight:600,fontSize:12,color:'#111',marginBottom:3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},p.cliente||'—'),
+      React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center'}},
+        React.createElement('span',{style:{fontSize:11,color:'#888'}},qtd+' cookie(s) · '+pagNome),
+        React.createElement('span',{style:{fontSize:12,fontWeight:700,color:'#16a34a'}},F(p.total))
+      ),
+      raw.order_type&&React.createElement('div',{style:{fontSize:10,color:'#aaa',marginTop:3}},
+        raw.order_type==='delivery'?'🛵 Delivery':raw.order_type==='takeout'?'🏃 Retirada':'🪑 Mesa'
+      )
+    );
   };
 
-  return React.createElement(PW,{title:'KDS — Cozinha',sub:'Pedidos confirmados aguardando preparo',
-    actions:[React.createElement('div',{key:'live',style:{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#16a34a',fontWeight:600}},
-      React.createElement('div',{style:{width:8,height:8,borderRadius:'50%',background:'#16a34a',animation:'pulse 1.5s infinite'}}),
-      'Ao vivo'
-    )]},
-    fila.length===0
-      ? React.createElement('div',{style:{textAlign:'center',padding:'60px',color:'#ccc',fontSize:14}},'✅ Nenhum pedido na fila')
-      : React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:10}},
-          fila.map((p,i)=>{
-            const itens=p.itens||p.raw?.items||[];
-            const mins=p.raw?.created_at?Math.floor((Date.now()-new Date(p.raw.created_at).getTime())/60000):0;
-            const urgente=mins>20;
-            return React.createElement('div',{key:p.id,style:{background:'#fff',borderRadius:14,boxShadow:urgente?'0 0 0 2px #dc2626':'0 2px 12px rgba(0,0,0,0.08)',overflow:'hidden'}},
-              React.createElement('div',{style:{background:urgente?'#dc2626':'#1e293b',padding:'8px 12px',display:'flex',justifyContent:'space-between',alignItems:'center'}},
-                React.createElement('div',null,
-                  React.createElement('div',{style:{fontWeight:800,fontSize:14,color:'#fff'}},'#'+p.pedido_id),
-                  React.createElement('div',{style:{fontSize:11,color:'rgba(255,255,255,0.7)'}},p.cliente||'—')
-                ),
-                React.createElement('div',{style:{textAlign:'right'}},
-                  React.createElement('div',{style:{fontSize:13,fontWeight:700,color:urgente?'#fef08a':'#94a3b8'}},mins+'min'),
-                  p.canal==='ifood'&&React.createElement('div',{style:{fontSize:10,color:'#fb923c',fontWeight:600}},'iFood')
-                )
-              ),
-              React.createElement('div',{style:{padding:'10px 12px'}},
-                itens.map((it,j)=>React.createElement('div',{key:j,style:{display:'flex',justifyContent:'space-between',padding:'5px 0',borderBottom:j<itens.length-1?'1px solid #f5f5f5':'none'}},
-                  React.createElement('span',{style:{fontSize:12,color:'#111'}},
-                    React.createElement('strong',null,(it.quantity||it.qty||1)+'x '),
-                    (it.name||it.nome||'?')
-                  ),
-                  it.observation&&React.createElement('span',{style:{fontSize:11,color:'#f59e0b',fontStyle:'italic'}},it.observation)
-                )),
-                React.createElement('button',{
-                  style:{width:'100%',marginTop:8,padding:'8px',background:'#16a34a',color:'#fff',borderRadius:10,border:'none',fontWeight:700,fontSize:14,cursor:'pointer'},
-                  onClick:()=>marcarPronto(p)
-                },'✓ Pronto')
-              )
-            );
-          })
+  // ── ABA COZINHA ──
+  const fila=pedidosHoje
+    .filter(p=>['confirmed','released'].includes(p.status))
+    .sort((a,b)=>(a.raw?.created_at||'').localeCompare(b.raw?.created_at||''));
+
+  return React.createElement('div',{style:{padding:'24px',animation:'fadeUp 0.2s ease'}},
+    // Header
+    React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20,flexWrap:'wrap',gap:12}},
+      React.createElement('div',null,
+        React.createElement('h1',{style:{fontSize:22,fontWeight:800,color:'#111',letterSpacing:'-0.5px'}},'KDS'),
+        React.createElement('p',{style:{fontSize:12,color:'#aaa',marginTop:4}},new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',timeZone:'America/Sao_Paulo'}))
+      ),
+      React.createElement('div',{style:{display:'flex',gap:4,background:'#f5f5f5',borderRadius:12,padding:4}},
+        [{id:'pedidos',l:'📋 Pedidos'},{id:'cozinha',l:'👨‍🍳 Cozinha'}].map(t=>
+          React.createElement('button',{key:t.id,onClick:()=>setAba(t.id),style:{
+            padding:'8px 20px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',
+            background:aba===t.id?'#fff':'transparent',
+            color:aba===t.id?'#111':'#888',
+            boxShadow:aba===t.id?'0 1px 4px rgba(0,0,0,0.1)':'none',
+            transition:'all 0.15s'
+          }},t.l)
         )
+      )
+    ),
+
+    // ── ABA PEDIDOS: Kanban ──
+    aba==='pedidos'&&React.createElement('div',{style:{overflowX:'auto',paddingBottom:8}},
+      React.createElement('div',{style:{display:'flex',gap:12,minWidth:'max-content',alignItems:'flex-start'}},
+        COLUNAS.map(col=>{
+          const cards=pedidosHoje.filter(p=>p.status===col.id);
+          return React.createElement('div',{key:col.id,style:{width:220,flexShrink:0}},
+            // Header coluna
+            React.createElement('div',{style:{
+              background:col.bg,borderRadius:'10px 10px 0 0',padding:'10px 12px',
+              borderBottom:'2px solid '+col.border,marginBottom:0,
+              display:'flex',justifyContent:'space-between',alignItems:'center'
+            }},
+              React.createElement('span',{style:{fontWeight:700,fontSize:12,color:col.c}},col.l),
+              React.createElement('span',{style:{
+                background:col.border,color:col.c,borderRadius:'50%',
+                width:20,height:20,display:'flex',alignItems:'center',justifyContent:'center',
+                fontSize:11,fontWeight:800
+              }},cards.length)
+            ),
+            // Cards
+            React.createElement('div',{style:{
+              background:'#f8f9fc',borderRadius:'0 0 10px 10px',
+              padding:'8px 8px',minHeight:80,
+              border:'1px solid '+col.border,borderTop:'none'
+            }},
+              cards.length===0
+                ? React.createElement('div',{style:{textAlign:'center',padding:'20px 8px',color:'#ccc',fontSize:11}},'Vazio')
+                : cards.map(p=>React.createElement(KanbanCard,{key:p.id,p}))
+            )
+          );
+        })
+      )
+    ),
+
+    // ── ABA COZINHA ──
+    aba==='cozinha'&&React.createElement('div',null,
+      fila.length===0
+        ? React.createElement('div',{style:{textAlign:'center',padding:'60px',color:'#ccc',fontSize:14,background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+            '✅ Nenhum pedido na fila da cozinha'
+          )
+        : React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:10}},
+            fila.map((p)=>{
+              const itens=p.raw?.items||p.itens||[];
+              const mins=p.raw?.created_at?Math.floor((Date.now()-new Date(p.raw.created_at).getTime())/60000):0;
+              const urgente=mins>20;
+              return React.createElement('div',{key:p.id,style:{background:'#fff',borderRadius:11,boxShadow:urgente?'0 0 0 2px #dc2626':'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden'}},
+                React.createElement('div',{style:{background:urgente?'#dc2626':'#1e293b',padding:'8px 12px',display:'flex',justifyContent:'space-between',alignItems:'center'}},
+                  React.createElement('div',null,
+                    React.createElement('div',{style:{fontWeight:800,fontSize:14,color:'#fff'}},'#'+p.pedido_id),
+                    React.createElement('div',{style:{fontSize:11,color:'rgba(255,255,255,0.7)'}},p.cliente||'—')
+                  ),
+                  React.createElement('div',{style:{textAlign:'right'}},
+                    React.createElement('div',{style:{fontSize:13,fontWeight:700,color:urgente?'#fef08a':'#94a3b8'}},mins+'min'),
+                    p.canal==='ifood'&&React.createElement('div',{style:{fontSize:10,color:'#fb923c',fontWeight:600}},'iFood')
+                  )
+                ),
+                React.createElement('div',{style:{padding:'10px 12px'}},
+                  itens.map((it,j)=>React.createElement('div',{key:j,style:{display:'flex',justifyContent:'space-between',padding:'5px 0',borderBottom:j<itens.length-1?'1px solid #f5f5f5':'none'}},
+                    React.createElement('span',{style:{fontSize:12,color:'#111'}},
+                      React.createElement('strong',null,(it.quantity||it.qty||1)+'x '),
+                      (it.name||it.nome||'?')
+                    ),
+                    it.observation&&React.createElement('span',{style:{fontSize:11,color:'#f59e0b',fontStyle:'italic'}},it.observation)
+                  )),
+                  React.createElement('button',{
+                    style:{width:'100%',marginTop:8,padding:'8px',background:'#16a34a',color:'#fff',borderRadius:10,border:'none',fontWeight:700,fontSize:13,cursor:'pointer'},
+                    onClick:()=>toast('Marcado como pronto!',false,true)
+                  },'✓ Pronto')
+                )
+              );
+            })
+          )
+    )
   );
 }
 
-// ── CAIXA ──
+
 function PedCaixa({uid,db,reload,setM}){
   const{pedidos_cw,lancamentos,contas}=db;
   const hoje=TODAY();
