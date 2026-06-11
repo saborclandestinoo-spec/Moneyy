@@ -549,13 +549,23 @@ function PedidosCW({uid,db,setDb,reload,setM,cfg,setCfg}){
   },[pedidos_cw,fil,busca,hoje]);
 
   const counts=React.useMemo(()=>{
-    const c={total:0,confirmados:0,entregues:0,cancelados:0,faturamento:0};
+    const c={total:0,confirmados:0,entregues:0,cancelados:0,faturamento:0,cookies:0,ticketMedio:0};
     list.forEach(p=>{
       c.total++;
       if(['confirmed','released','ready','waiting_to_catch'].includes(p.status))c.confirmados++;
-      if(p.status==='delivered'||p.status==='closed'){c.entregues++;c.faturamento+=Number(p.total||0);}
+      if(p.status==='delivered'||p.status==='closed'){
+        c.entregues++;
+        c.faturamento+=Number(p.total||0);
+      }
       if(p.status==='canceled')c.cancelados++;
+      // Conta cookies de todos os pedidos não cancelados
+      if(p.status!=='canceled'){
+        const itens=(p.raw?.items||p.itens||[]);
+        itens.forEach(it=>c.cookies+=Number(it.quantity||it.qty||1));
+      }
     });
+    const pedPagos=list.filter(p=>p.status==='delivered'||p.status==='closed');
+    c.ticketMedio=pedPagos.length>0?c.faturamento/pedPagos.length:0;
     return c;
   },[list]);
 
@@ -606,11 +616,13 @@ function PedidosCW({uid,db,setDb,reload,setM,cfg,setCfg}){
       React.createElement('button',{style:{background:'#2563eb',color:'#fff',padding:'7px 14px',borderRadius:8,fontSize:12,fontWeight:600,border:'none',cursor:'pointer'},onClick:abrirConfig},'Configurar agora')
     ),
 
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:13,marginBottom:20}},
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:13,marginBottom:20}},
       React.createElement(SC,{label:'Total',val:counts.total}),
       React.createElement(SC,{label:'Em andamento',val:counts.confirmados,color:'#2563eb'}),
       React.createElement(SC,{label:'Entregues',val:counts.entregues,color:'#16a34a'}),
-      React.createElement(SC,{label:'Faturamento',val:F(counts.faturamento),color:'#dc2626'})
+      React.createElement(SC,{label:'Faturamento',val:F(counts.faturamento),color:'#dc2626'}),
+      React.createElement(SC,{label:'Cookies vendidos',val:counts.cookies,color:'#f59e0b'}),
+      React.createElement(SC,{label:'Ticket médio',val:F(counts.ticketMedio),color:'#7c3aed'})
     ),
 
     React.createElement('div',{style:{display:'flex',gap:5,marginBottom:14,flexWrap:'wrap',alignItems:'center',justifyContent:'space-between'}},
