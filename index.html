@@ -473,6 +473,37 @@ function MapaEntregas({pedidosEntrega,pedidosEntregues,entregadores,rotas,BASE_L
 }
 
 
+function EntregasConfig({uid,baseAddr,setBaseAddr,baseLat,baseLon,setBaseLat,setBaseLon,salvarBase,close}){
+  const[addr,setAddr]=React.useState(baseAddr||'');
+  const[loading,setLoading]=React.useState(false);
+
+  const salvar=async()=>{
+    if(!addr.trim()){toast('Informe o endereço',true);return;}
+    setLoading(true);
+    setBaseAddr(addr);
+    localStorage.setItem('base_addr_'+uid,addr);
+    const r=await salvarBase(addr);
+    setLoading(false);
+    if(r)close();
+  };
+
+  return React.createElement('div',null,
+    React.createElement('div',{style:{background:'#eff6ff',borderRadius:10,padding:'12px 14px',fontSize:12,color:'#2563eb',marginBottom:16,lineHeight:1.7}},
+      '📍 Configure o endereço completo da sua confeitaria. Ele será usado como ponto de saída nas rotas e no mapa.'
+    ),
+    React.createElement(FloatInput,{label:'Endereço completo *',acent:'#dc2626',value:addr,onChange:e=>setAddr(e.target.value)}),
+    React.createElement('div',{style:{fontSize:11,color:'#aaa',marginBottom:16,marginTop:-8}},'Ex: Rua das Flores, 123, Centro, Fernandópolis, SP'),
+    baseLat&&baseLon&&React.createElement('div',{style:{background:'#f0fdf4',borderRadius:10,padding:'10px 14px',fontSize:12,color:'#16a34a',marginBottom:16}},
+      '✓ Localização salva: '+baseLat.toFixed(5)+', '+baseLon.toFixed(5)
+    ),
+    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
+      React.createElement('button',{onClick:close,style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'}},'Cancelar'),
+      React.createElement('button',{onClick:salvar,disabled:loading,style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},loading?'Buscando...':'Salvar e localizar')
+    )
+  );
+}
+
+
 function PedEntregas({uid,db,reload,setM}){
   const{pedidos_cw}=db;
   const hoje=TODAY();
@@ -484,7 +515,6 @@ function PedEntregas({uid,db,reload,setM}){
   const[baseAddr,setBaseAddr]=React.useState(localStorage.getItem('base_addr_'+uid)||'Fernandópolis, SP');
   const[baseLat,setBaseLat]=React.useState(()=>parseFloat(localStorage.getItem('base_lat_'+uid)||'-20.2838'));
   const[baseLon,setBaseLon]=React.useState(()=>parseFloat(localStorage.getItem('base_lon_'+uid)||'-50.2468'));
-  const[showConfig,setShowConfig]=React.useState(false);
   const BASE_LAT=baseLat,BASE_LON=baseLon;
 
   const salvarBase=async(addr)=>{
@@ -558,49 +588,7 @@ function PedEntregas({uid,db,reload,setM}){
       )
     ),
 
-    // ── CONFIG MODAL ──
-    showConfig&&React.createElement('div',{
-      style:{position:'fixed',inset:0,background:'rgba(0,0,0,0.35)',backdropFilter:'blur(4px)',zIndex:600,display:'flex',alignItems:'center',justifyContent:'center',padding:16},
-      onClick:e=>e.target===e.currentTarget&&setShowConfig(false)
-    },
-      React.createElement('div',{style:{background:'#fff',borderRadius:16,width:'100%',maxWidth:480,boxShadow:'0 8px 40px rgba(0,0,0,0.14)',overflow:'hidden'},onMouseDown:e=>e.stopPropagation()},
-        React.createElement('div',{style:{padding:'16px 20px',borderBottom:'1px solid #f0f0f0',display:'flex',justifyContent:'space-between',alignItems:'center'}},
-          React.createElement('h3',{style:{fontSize:15,fontWeight:700,color:'#111'}},'Configurações de Entregas'),
-          React.createElement('button',{onClick:()=>setShowConfig(false),style:{background:'#f5f5f5',border:'none',borderRadius:8,width:28,height:28,cursor:'pointer',fontSize:16,color:'#666'}},'×')
-        ),
-        React.createElement('div',{style:{padding:'20px'}},
-          React.createElement('div',{style:{fontSize:10,color:'#dc2626',fontWeight:700,letterSpacing:'1.2px',textTransform:'uppercase',marginBottom:8}},'Endereço da loja (ponto de saída)'),
-          React.createElement('div',{style:{display:'flex',gap:8,marginBottom:12}},
-            React.createElement('input',{
-              id:'base-addr-input',
-              style:{flex:1,background:'#f5f5f5',border:'none',borderRadius:10,padding:'11px 14px',fontSize:13,color:'#111',outline:'none'},
-              defaultValue:baseAddr,
-              placeholder:'Ex: Rua das Flores, 123, Fernandópolis, SP'
-            }),
-            React.createElement('button',{
-              style:{background:'#dc2626',color:'#fff',border:'none',borderRadius:10,padding:'11px 16px',fontSize:13,fontWeight:700,cursor:'pointer'},
-              onClick:async()=>{
-                const inp=document.getElementById('base-addr-input');
-                const addr=inp&&inp.value;
-                if(!addr)return;
-                setBaseAddr(addr);
-                localStorage.setItem('base_addr_'+uid,addr);
-                const coords=await salvarBase(addr);
-                if(coords)setShowConfig(false);
-              }
-            },'Salvar')
-          ),
-          React.createElement('div',{style:{background:'#eff6ff',borderRadius:10,padding:'10px 14px',fontSize:12,color:'#2563eb',marginBottom:16,lineHeight:1.6}},
-            'O endereço será geocodificado automaticamente para posicionar o marcador no mapa. Use o endereço completo com rua, número e cidade.'
-          ),
-          baseLat&&baseLon&&React.createElement('div',{style:{background:'#f0fdf4',borderRadius:10,padding:'10px 14px',fontSize:12,color:'#16a34a'}},
-            '✓ Coordenadas: '+baseLat.toFixed(6)+', '+baseLon.toFixed(6)
-          )
-        )
-      )
-    ),
-
-    // ── ABA MAPA ──
+        // ── ABA MAPA ──
     aba==='mapa'&&React.createElement('div',null,
       // Legenda entregadores
       entregadores.length>0&&React.createElement('div',{style:{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12}},
@@ -948,7 +936,7 @@ function PedKDS({uid,db,reload,setM}){
   ];
 
   const KanbanCard=({p})=>{
-    const itens=p.raw?.items||p.itens||[];
+    const itens=(p.raw&&p.raw.items)||p.itens||[];
     const qtd=itens.reduce((s,it)=>s+Number(it.quantity||1),0);
     const pags=p.pagamentos||[];
     const pagNome=pags.length?(PM_MAP_CW[(pags[0].payment_method||'').toLowerCase()]||pags[0].payment_method||'—'):'—';
@@ -981,7 +969,7 @@ function PedKDS({uid,db,reload,setM}){
     .filter(p=>['scheduled_confirmed','confirmed'].includes(p.status))
     .sort((a,b)=>(b.raw&&b.raw.created_at||'').localeCompare(a.raw&&a.raw.created_at||''));
 
-  return React.createElement('div',{style:{padding:'24px',animation:'fadeUp 0.2s ease'}},
+  return React.createElement(React.Fragment,null,showConfig&&React.createElement('div',{onMouseDown:e=>e.stopPropagation(),onClick:e=>{if(e.target===e.currentTarget)setShowConfig(false);},style:{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',backdropFilter:'blur(4px)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',padding:24}},React.createElement('div',{style:{background:'#fff',borderRadius:16,width:'100%',maxWidth:480,boxShadow:'0 8px 40px rgba(0,0,0,0.2)',overflow:'hidden'},onMouseDown:e=>e.stopPropagation()},React.createElement('div',{style:{padding:'16px 20px',borderBottom:'1px solid #f0f0f0',display:'flex',justifyContent:'space-between',alignItems:'center'}},React.createElement('h3',{style:{fontSize:15,fontWeight:700,color:'#111'}},'⚙ Configurar Loja'),React.createElement('button',{onClick:()=>setShowConfig(false),style:{background:'#f5f5f5',border:'none',borderRadius:8,width:28,height:28,cursor:'pointer',fontSize:16,color:'#666'}},'×')),React.createElement('div',{style:{padding:'20px'}},React.createElement('div',{style:{fontSize:11,color:'#dc2626',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:8}},'Endereço da loja (ponto de saída)'),React.createElement('input',{id:'base-cfg-input',defaultValue:baseAddr,placeholder:'Rua, número, bairro, cidade, estado',style:{width:'100%',background:'#f5f5f5',border:'none',borderRadius:10,padding:'11px 14px',fontSize:13,color:'#111',outline:'none',boxSizing:'border-box',marginBottom:12}}),React.createElement('div',{style:{background:'#eff6ff',borderRadius:10,padding:'10px 14px',fontSize:12,color:'#2563eb',marginBottom:16,lineHeight:1.6}},'O endereço será usado como ponto de saída nas rotas e no mapa.'),baseLat&&baseLon&&React.createElement('div',{style:{background:'#f0fdf4',borderRadius:10,padding:'8px 14px',fontSize:11,color:'#16a34a',marginBottom:12}},'✓ Coords: '+baseLat.toFixed(5)+', '+baseLon.toFixed(5)),React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},React.createElement('button',{onClick:()=>setShowConfig(false),style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'}},'Cancelar'),React.createElement('button',{onClick:async()=>{const inp=document.getElementById('base-cfg-input');const addr=inp&&inp.value;if(!addr)return;setBaseAddr(addr);localStorage.setItem('base_addr_'+uid,addr);const r=await salvarBase(addr);if(r)setShowConfig(false);},style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},'Salvar e geocodificar'))))),React.createElement('div',{style:{padding:'24px',animation:'fadeUp 0.2s ease'}},
     // Header
     React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20,flexWrap:'wrap',gap:12}},
       React.createElement('div',null,
@@ -1043,8 +1031,8 @@ function PedKDS({uid,db,reload,setM}){
           )
         : React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:10}},
             fila.map((p)=>{
-              const itens=p.raw?.items||p.itens||[];
-              const mins=p.raw?.created_at?Math.floor((Date.now()-new Date(p.raw.created_at).getTime())/60000):0;
+              const itens=(p.raw&&p.raw.items)||p.itens||[];
+              const mins=p.raw&&p.raw.created_at?Math.floor((Date.now()-new Date(p.raw.created_at).getTime())/60000):0;
               const urgente=mins>20;
               return React.createElement('div',{key:p.id,style:{background:'#fff',borderRadius:11,boxShadow:urgente?'0 0 0 2px #dc2626':'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden'}},
                 React.createElement('div',{style:{background:urgente?'#dc2626':'#1e293b',padding:'8px 12px',display:'flex',justifyContent:'space-between',alignItems:'center'}},
@@ -1074,6 +1062,7 @@ function PedKDS({uid,db,reload,setM}){
             })
           )
     )
+  )
   );
 }
 
