@@ -3771,8 +3771,14 @@ function App(){
   const[cfg,setCfg]=useState({cw_token:'',uid:null});
 
   useEffect(()=>{
-    sb.auth.getSession().then(({data:{session}})=>{if(session)setUser(session.user);});
-    const{data:{subscription}}=sb.auth.onAuthStateChange((_,s)=>setUser(s?.user||null));
+    sb.auth.getSession().then(({data:{session}})=>{
+      if(session)setUser(session.user);
+      setInitializing(false);
+    });
+    const{data:{subscription}}=sb.auth.onAuthStateChange((_,s)=>{
+      setUser(s?.user||null);
+      setInitializing(false);
+    });
     return()=>subscription.unsubscribe();
   },[]);
 
