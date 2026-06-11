@@ -482,7 +482,28 @@ function PedEntregas({uid,db,reload,setM}){
   });
   const[novoNome,setNovoNome]=React.useState('');
   const[baseAddr,setBaseAddr]=React.useState(localStorage.getItem('base_addr_'+uid)||'Fernandópolis, SP');
-  const BASE_LAT=-20.2838,BASE_LON=-50.2468;
+  const[baseLat,setBaseLat]=React.useState(()=>parseFloat(localStorage.getItem('base_lat_'+uid)||'-20.2838'));
+  const[baseLon,setBaseLon]=React.useState(()=>parseFloat(localStorage.getItem('base_lon_'+uid)||'-50.2468'));
+  const[showConfig,setShowConfig]=React.useState(false);
+  const BASE_LAT=baseLat,BASE_LON=baseLon;
+
+  const salvarBase=async(addr)=>{
+    // Geocodifica via Nominatim (OpenStreetMap gratuito)
+    try{
+      const res=await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1');
+      const data=await res.json();
+      if(data&&data[0]){
+        const lat=parseFloat(data[0].lat);
+        const lon=parseFloat(data[0].lon);
+        setBaseLat(lat);setBaseLon(lon);
+        localStorage.setItem('base_lat_'+uid,String(lat));
+        localStorage.setItem('base_lon_'+uid,String(lon));
+        toast('Localização atualizada!',false,true);
+        return {lat,lon};
+      }else{toast('Endereço não encontrado',true);}
+    }catch(e){toast('Erro ao buscar endereço',true);}
+    return null;
+  };
 
   const saveEntregadores=(list)=>{setEntregadores(list);try{localStorage.setItem('motoboys_'+uid,JSON.stringify(list));}catch{}};
   const addEntregador=()=>{if(!novoNome.trim())return;saveEntregadores([...entregadores,{id:Date.now()+'',nome:novoNome.trim(),ativo:true,entregas:0,kmTotal:0}]);setNovoNome('');};
@@ -534,6 +555,48 @@ function PedEntregas({uid,db,reload,setM}){
       ),
       React.createElement('div',{style:{display:'flex',gap:4,background:'#f5f5f5',borderRadius:12,padding:4}},
         ABA_TABS.map(t=>React.createElement('button',{key:t.id,onClick:()=>setAba(t.id),style:{padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',background:aba===t.id?'#fff':'transparent',color:aba===t.id?'#111':'#888',boxShadow:aba===t.id?'0 1px 4px rgba(0,0,0,0.1)':'none',transition:'all 0.15s'}},t.l))
+      )
+    ),
+
+    // ── CONFIG MODAL ──
+    showConfig&&React.createElement('div',{
+      style:{position:'fixed',inset:0,background:'rgba(0,0,0,0.35)',backdropFilter:'blur(4px)',zIndex:600,display:'flex',alignItems:'center',justifyContent:'center',padding:16},
+      onClick:e=>e.target===e.currentTarget&&setShowConfig(false)
+    },
+      React.createElement('div',{style:{background:'#fff',borderRadius:16,width:'100%',maxWidth:480,boxShadow:'0 8px 40px rgba(0,0,0,0.14)',overflow:'hidden'},onMouseDown:e=>e.stopPropagation()},
+        React.createElement('div',{style:{padding:'16px 20px',borderBottom:'1px solid #f0f0f0',display:'flex',justifyContent:'space-between',alignItems:'center'}},
+          React.createElement('h3',{style:{fontSize:15,fontWeight:700,color:'#111'}},'Configurações de Entregas'),
+          React.createElement('button',{onClick:()=>setShowConfig(false),style:{background:'#f5f5f5',border:'none',borderRadius:8,width:28,height:28,cursor:'pointer',fontSize:16,color:'#666'}},'×')
+        ),
+        React.createElement('div',{style:{padding:'20px'}},
+          React.createElement('div',{style:{fontSize:10,color:'#dc2626',fontWeight:700,letterSpacing:'1.2px',textTransform:'uppercase',marginBottom:8}},'Endereço da loja (ponto de saída)'),
+          React.createElement('div',{style:{display:'flex',gap:8,marginBottom:12}},
+            React.createElement('input',{
+              id:'base-addr-input',
+              style:{flex:1,background:'#f5f5f5',border:'none',borderRadius:10,padding:'11px 14px',fontSize:13,color:'#111',outline:'none'},
+              defaultValue:baseAddr,
+              placeholder:'Ex: Rua das Flores, 123, Fernandópolis, SP'
+            }),
+            React.createElement('button',{
+              style:{background:'#dc2626',color:'#fff',border:'none',borderRadius:10,padding:'11px 16px',fontSize:13,fontWeight:700,cursor:'pointer'},
+              onClick:async()=>{
+                const inp=document.getElementById('base-addr-input');
+                const addr=inp&&inp.value;
+                if(!addr)return;
+                setBaseAddr(addr);
+                localStorage.setItem('base_addr_'+uid,addr);
+                const coords=await salvarBase(addr);
+                if(coords)setShowConfig(false);
+              }
+            },'Salvar')
+          ),
+          React.createElement('div',{style:{background:'#eff6ff',borderRadius:10,padding:'10px 14px',fontSize:12,color:'#2563eb',marginBottom:16,lineHeight:1.6}},
+            'O endereço será geocodificado automaticamente para posicionar o marcador no mapa. Use o endereço completo com rua, número e cidade.'
+          ),
+          baseLat&&baseLon&&React.createElement('div',{style:{background:'#f0fdf4',borderRadius:10,padding:'10px 14px',fontSize:12,color:'#16a34a'}},
+            '✓ Coordenadas: '+baseLat.toFixed(6)+', '+baseLon.toFixed(6)
+          )
+        )
       )
     ),
 
