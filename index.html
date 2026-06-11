@@ -803,12 +803,17 @@ function PedCaixa({uid,db,setDb,reload,setM}){
   const pedCancelados=pedidosHoje.filter(p=>p.status==='canceled');
   const pedAtivos=pedidosHoje.filter(p=>!['canceled','closed','delivered'].includes(p.status));
 
-  const agruparPag=(lista)=>{
+  const agruparPag=(lista,excluirIfoodOnline=false)=>{
     const g={};
     lista.forEach(p=>{
       (p.pagamentos||[]).forEach(pg=>{
         const k=(pg.payment_method||'').toLowerCase();
-        if(k==='ifood'||k==='online_credit_card')return;
+        const isOnline=pg.payment_type==='online';
+        // Exclui pagamentos online do iFood (iFood paga direto)
+        if(excluirIfoodOnline&&k==='ifood'&&isOnline)return;
+        if(excluirIfoodOnline&&k==='online_credit_card')return;
+        // "ifood" como método = pagamento online do iFood (não dinheiro)
+        if(k==='ifood'&&isOnline)return;
         const n=PM_MAP_CW[k]||k;
         g[n]=(g[n]||0)+Number(pg.value||pg.total||0);
       });
@@ -816,12 +821,13 @@ function PedCaixa({uid,db,setDb,reload,setM}){
     return g;
   };
 
-  const vendasPrincipais=agruparPag([...pedDelivery,...pedRetirada]);
+  // Vendas principais = delivery + retirada + ifood offline (dinheiro/cartão presencial)
+  const vendasPrincipais=agruparPag([...pedDelivery,...pedRetirada,...pedIfood],true);
   const totalPrincipal=Object.values(vendasPrincipais).reduce((s,v)=>s+v,0);
-  const vendasDelivery=agruparPag(pedDelivery);
+  const vendasDelivery=agruparPag(pedDelivery,true);
   const totalDelivery=pedDelivery.reduce((s,p)=>s+Number(p.total||0),0);
   const taxaEntregaDelivery=pedDelivery.reduce((s,p)=>s+Number(p.raw&&p.raw.delivery_fee||0),0);
-  const vendasRetirada=agruparPag(pedRetirada);
+  const vendasRetirada=agruparPag(pedRetirada,true);
   const totalRetirada=pedRetirada.reduce((s,p)=>s+Number(p.total||0),0);
   const totalIfood=pedIfood.reduce((s,p)=>s+Number(p.total||0),0);
   const taxaEntregaIfood=pedIfood.reduce((s,p)=>s+Number(p.raw&&p.raw.delivery_fee||0),0);
