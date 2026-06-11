@@ -622,10 +622,10 @@ function PedKDS({uid,db,reload,setM}){
   // ── ABA PEDIDOS: Kanban por status ──
   const COLUNAS=[
     {id:'waiting_confirmation',l:'Aguardando',bg:'#fef9c3',c:'#92400e',border:'#fde047'},
+    {id:'scheduled_confirmed',l:'Agendado',bg:'#fef3c7',c:'#b45309',border:'#fcd34d'},
     {id:'confirmed',l:'Em preparação',bg:'#dbeafe',c:'#1d4ed8',border:'#93c5fd'},
     {id:'ready',l:'Pronto',bg:'#d1fae5',c:'#065f46',border:'#6ee7b7'},
     {id:'released',l:'Saiu para entrega',bg:'#dcfce7',c:'#14532d',border:'#86efac'},
-    {id:'waiting_to_catch',l:'Ret. Balcão',bg:'#ede9fe',c:'#5b21b6',border:'#c4b5fd'},
     {id:'delivered',l:'Entregue',bg:'#f0fdf4',c:'#15803d',border:'#bbf7d0'},
     {id:'closed',l:'Finalizado',bg:'#e0f2fe',c:'#0369a1',border:'#7dd3fc'},
   ];
@@ -661,7 +661,7 @@ function PedKDS({uid,db,reload,setM}){
 
   // ── ABA COZINHA ──
   const fila=pedidosHoje
-    .filter(p=>['confirmed','released'].includes(p.status))
+    .filter(p=>['waiting_confirmation','scheduled_confirmed','confirmed'].includes(p.status))
     .sort((a,b)=>(a.raw?.created_at||'').localeCompare(b.raw?.created_at||''));
 
   return React.createElement('div',{style:{padding:'24px',animation:'fadeUp 0.2s ease'}},
