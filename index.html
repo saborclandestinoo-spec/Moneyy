@@ -149,7 +149,7 @@ const PED_SUBS=[
 const PED_PAGES=new Set(PED_SUBS.map(s=>s.id));
 const MODS=[
   {id:'pedidos',l:'Gestão de Pedidos',i:'#',subs:PED_SUBS},
-  {id:'estoque',l:'Estoque',i:'[]'},
+  {id:'estoque',l:'Estoque',i:'[]',subs:[{id:'estoque',l:'Estoque'},{id:'fichas',l:'Fichas Técnicas'}]},
 ];
 const FIN_SUBS=[
   {id:'fin_visao',l:'Visão Geral'},
@@ -1468,135 +1468,318 @@ function PedForm({uid,db,reload,close}){
 // ── ESTOQUE ──
 function Estoque({uid,db,reload,setM}){
   const{estoque}=db;
-  const[tab,setTab]=useState('Todos');
-  const cats=['Todos','Matéria-Prima','Produto Acabado','Embalagem'];
-  const list=tab==='Todos'?estoque:estoque.filter(e=>e.categoria===tab);
+  const[tab,setTab]=React.useState('Todos');
+  const[busca,setBusca]=React.useState('');
+  const cats=['Todos','Matéria-Prima','Produto Acabado','Embalagem','Descartável','Outros'];
+  
+  const list=React.useMemo(()=>{
+    let r=tab==='Todos'?estoque:estoque.filter(e=>e.categoria===tab);
+    if(busca)r=r.filter(e=>(e.nome||'').toLowerCase().includes(busca.toLowerCase()));
+    return r;
+  },[estoque,tab,busca]);
+
   const criticos=estoque.filter(e=>Number(e.qtd)<=Number(e.minimo));
+  const valTotal=estoque.reduce((s,e)=>s+(Number(e.qtd)*Number(e.custo)),0);
 
-  const mov=id=>setM({title:'Movimentar',body:React.createElement(MovEst,{id,db,reload,close:()=>setM(null)})});
   const novo=()=>setM({title:'Novo Item',body:React.createElement(NovoEst,{uid,reload,close:()=>setM(null)})});
+  const editar=(e)=>setM({title:'Editar — '+e.nome,body:React.createElement(NovoEst,{uid,reload,item:e,close:()=>setM(null)})});
+  const mov=(e)=>setM({title:'Movimentar — '+e.nome,body:React.createElement(MovEst,{id:e.id,db,reload,close:()=>setM(null)})});
 
-  return React.createElement(PW,{title:'Estoque',sub:'Matérias-primas, produtos e embalagens',
-    actions:[criticos.length>0&&React.createElement('span',{key:'c',style:{...BM.red,display:'inline-flex',padding:'5px 13px',borderRadius:20,fontSize:12,fontWeight:700,background:BM.red.bg,color:BM.red.c,border:`1px solid ${BM.red.b}`}},'⚠ '+criticos.length+' críticos'),React.createElement('button',{key:'n',style:C.btn,onClick:novo},'+ Adicionar')].filter(Boolean)},
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:13,marginBottom:20}},
+  return React.createElement(PW,{title:'Estoque',sub:'Matérias-primas, embalagens e produtos',
+    actions:[
+      criticos.length>0&&React.createElement('span',{key:'c',style:{background:'#fee2e2',color:'#dc2626',padding:'5px 12px',borderRadius:20,fontSize:12,fontWeight:700}},'⚠ '+criticos.length+' críticos'),
+      React.createElement('button',{key:'n',style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:novo},'+ Adicionar')
+    ].filter(Boolean)},
+
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}},
       React.createElement(SC,{label:'Total Itens',val:estoque.length}),
-      React.createElement(SC,{label:'Críticos',val:criticos.length,color:criticos.length>0?'#f87171':'#4ade80'}),
-      React.createElement(SC,{label:'Prod. Acabados',val:estoque.filter(e=>e.categoria==='Produto Acabado').reduce((s,e)=>s+Number(e.qtd),0)+' un',color:'#60a5fa'}),
-      React.createElement(SC,{label:'Val. Estoque',val:F(estoque.reduce((s,e)=>s+(Number(e.qtd)*Number(e.custo)),0)),color:'#dc2626'})
+      React.createElement(SC,{label:'Críticos',val:criticos.length,color:criticos.length>0?'#dc2626':'#16a34a'}),
+      React.createElement(SC,{label:'Valor em Estoque',val:F(valTotal),color:'#2563eb'}),
+      React.createElement(SC,{label:'Mat. Prima',val:estoque.filter(e=>e.categoria==='Matéria-Prima').length})
     ),
-    React.createElement('div',{style:{display:'flex',gap:5,marginBottom:14,flexWrap:'wrap'}},
-      cats.map(c=>React.createElement('button',{key:c,onClick:()=>setTab(c),style:{padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,background:tab===c?'#dc2626':'#181818',color:tab===c?'#fff':'#555',border:tab===c?'1px solid #e8293a':'1px solid #252525'}},c))
+
+    React.createElement('div',{style:{display:'flex',gap:6,marginBottom:14,flexWrap:'wrap',alignItems:'center',justifyContent:'space-between'}},
+      React.createElement('div',{style:{display:'flex',gap:5,flexWrap:'wrap'}},
+        cats.map(c=>React.createElement('button',{key:c,onClick:()=>setTab(c),style:{padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,background:tab===c?'#dc2626':'#f5f5f5',color:tab===c?'#fff':'#666',border:'none',cursor:'pointer'}},c))
+      ),
+      React.createElement('input',{placeholder:'Buscar...',value:busca,onChange:e=>setBusca(e.target.value),style:{background:'#f5f5f5',border:'none',borderRadius:9,padding:'7px 12px',fontSize:12,color:'#111',outline:'none',width:180}})
     ),
-    React.createElement('div',{style:C.card},
-      React.createElement(Tbl,{cols:['Nome','Cat.','Qtd','Mín.','Status','Custo','Val. Total','Fornecedor',''],
+
+    React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+      React.createElement(Tbl,{cols:['Nome','Categoria','Qtd','Mínimo','Status','Custo Unit.','Val. Total','Validade',''],
         rows:list.map(e=>{
           const diff=e.validade?Math.ceil((new Date(e.validade)-new Date())/86400000):999;
           const st=Number(e.qtd)<=Number(e.minimo)?'Crítico':diff<0?'Vencido':diff<30?'Vencendo':'OK';
-          return React.createElement(TR,{key:e.id,cells:[
-            React.createElement('span',{style:{fontWeight:600}},e.nome),
-            React.createElement('span',{style:{fontSize:11,color:'#555'}},e.categoria),
+          const stC=st==='Crítico'||st==='Vencido'?'red':st==='Vencendo'?'amber':'green';
+          return React.createElement(TR,{key:e.id,onClick:()=>editar(e),cells:[
+            React.createElement('span',{style:{fontWeight:600,fontSize:13}},e.nome),
+            React.createElement('span',{style:{fontSize:11,color:'#888'}},e.categoria),
             React.createElement('span',{style:{fontWeight:700,color:Number(e.qtd)<=Number(e.minimo)?'#dc2626':'#111'}},e.qtd+' '+e.unidade),
-            e.minimo+' '+e.unidade,
-            React.createElement(Badge,{t:st,c:st==='Crítico'||st==='Vencido'?'red':st==='Vencendo'?'amber':'green'}),
-            F(e.custo),F(Number(e.qtd)*Number(e.custo)),
-            React.createElement('span',{style:{fontSize:11,color:'#555'}},e.fornecedor||'—'),
-            React.createElement('button',{style:C.gsm,onClick:ev=>{ev.stopPropagation();mov(e.id);}},'Mov.'),
+            React.createElement('span',{style:{fontSize:12,color:'#aaa'}},e.minimo+' '+e.unidade),
+            React.createElement(Badge,{t:st,c:stC}),
+            React.createElement('span',{style:{fontSize:12}},F(e.custo)),
+            React.createElement('span',{style:{fontWeight:600}},F(Number(e.qtd)*Number(e.custo))),
+            React.createElement('span',{style:{fontSize:11,color:diff<30&&diff>=0?'#f59e0b':diff<0?'#dc2626':'#aaa'}},e.validade?FD(e.validade):'—'),
+            React.createElement('button',{onClick:ev=>{ev.stopPropagation();mov(e);},style:{background:'#f5f5f5',border:'none',borderRadius:7,padding:'4px 10px',fontSize:11,color:'#555',cursor:'pointer',fontWeight:600}},'Mover')
           ]});
-        })
+        }),
+        empty:'Nenhum item no estoque.'
       })
     )
   );
 }
 
+function NovoEst({uid,reload,close,item}){
+  const[nome,setNome]=React.useState(item?.nome||'');
+  const[cat,setCat]=React.useState(item?.categoria||'Matéria-Prima');
+  const[unidade,setUnidade]=React.useState(item?.unidade||'kg');
+  const[qtd,setQtd]=React.useState(String(item?.qtd||''));
+  const[minimo,setMinimo]=React.useState(String(item?.minimo||''));
+  const[custo,setCusto]=React.useState(String(item?.custo||''));
+  const[fornecedor,setFornecedor]=React.useState(item?.fornecedor||'');
+  const[validade,setValidade]=React.useState(item?.validade||'');
+  const[ld,setLd]=React.useState(false);
+  const isEdit=!!item?.id;
+
+  const CATS=['Matéria-Prima','Produto Acabado','Embalagem','Descartável','Outros'];
+  const UNIDS=['kg','g','L','ml','un','cx','pct','dz','m','cm'];
+
+  const salvar=async()=>{
+    if(!nome){toast('Informe o nome',true);return;}
+    setLd(true);
+    const payload={user_id:uid,nome,categoria:cat,unidade,qtd:parseFloat(qtd)||0,minimo:parseFloat(minimo)||0,custo:parseFloat(custo)||0,fornecedor,validade:validade||null};
+    if(isEdit){await sb.from('estoque').update(payload).eq('id',item.id);}
+    else{await sb.from('estoque').insert(payload);}
+    toast(isEdit?'Atualizado!':'Criado!',false,true);reload();close();setLd(false);
+  };
+
+  return React.createElement('div',null,
+    React.createElement(FloatInput,{label:'Nome *',acent:'#dc2626',value:nome,onChange:e=>setNome(e.target.value)}),
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}},
+      React.createElement(CustomSelect,{label:'Categoria',value:cat,onChange:setCat,options:CATS,acent:'#dc2626'}),
+      React.createElement(CustomSelect,{label:'Unidade',value:unidade,onChange:setUnidade,options:UNIDS,acent:'#dc2626'})
+    ),
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}},
+      React.createElement(FloatInput,{label:'Quantidade',acent:'#dc2626',type:'number',value:qtd,onChange:e=>setQtd(e.target.value)}),
+      React.createElement(FloatInput,{label:'Mínimo',acent:'#dc2626',type:'number',value:minimo,onChange:e=>setMinimo(e.target.value)}),
+      React.createElement(FloatInput,{label:'Custo/Unidade (R$)',acent:'#dc2626',type:'number',value:custo,onChange:e=>setCusto(e.target.value)})
+    ),
+    React.createElement(FloatInput,{label:'Fornecedor',acent:'#dc2626',value:fornecedor,onChange:e=>setFornecedor(e.target.value)}),
+    React.createElement(MiniDatePicker,{label:'Validade',value:validade,onChange:setValidade,acent:'#dc2626'}),
+    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',marginTop:8}},
+      React.createElement('button',{style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'},onClick:close},'Cancelar'),
+      React.createElement('button',{style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:salvar},ld?'Salvando...':isEdit?'Salvar':'Criar')
+    )
+  );
+}
+
 function MovEst({id,db,reload,close}){
-  const[tipo,setTipo]=useState('entrada');const[qtd,setQtd]=useState('');const[ld,setLd]=useState(false);
-  const e=db.estoque.find(x=>x.id===id);
+  const item=(db.estoque||[]).find(e=>e.id===id);
+  const[tipo,setTipo]=React.useState('entrada');
+  const[qtd,setQtd]=React.useState('');
+  const[obs,setObs]=React.useState('');
+  const[ld,setLd]=React.useState(false);
+  if(!item)return null;
+  const salvar=async()=>{
+    if(!qtd){toast('Informe a quantidade',true);return;}
+    setLd(true);
+    const delta=tipo==='entrada'?parseFloat(qtd):-parseFloat(qtd);
+    const novaQtd=Math.max(0,Number(item.qtd)+delta);
+    await sb.from('estoque').update({qtd:novaQtd}).eq('id',id);
+    await sb.from('movimentacoes').insert({user_id:item.user_id,tipo,categoria:item.categoria,descricao:(tipo==='entrada'?'Entrada':'Saída')+': '+item.nome+(obs?' — '+obs:''),valor:parseFloat(qtd)*Number(item.custo),origem:'estoque',data_movimentacao:TODAY()});
+    toast('Movimentado!',false,true);reload();close();setLd(false);
+  };
   return React.createElement('div',null,
-    React.createElement('div',{style:{background:'#181818',borderRadius:10,padding:'11px 13px',marginBottom:13}},React.createElement('div',{style:{fontWeight:700}},e?.nome),React.createElement('div',{style:{fontSize:12,color:'#555',marginTop:3}},'Atual: '+e?.qtd+' '+e?.unidade+' · Mín: '+e?.minimo)),
-    React.createElement(Sel,{label:'Tipo',v:tipo,set:setTipo,opts:[{v:'entrada',l:'Entrada (compra)'},{v:'saida',l:'Saída (uso/ajuste)'}]}),
-    React.createElement(Inp,{label:'Quantidade',v:qtd,set:setQtd,type:'number',ph:'0'}),
+    React.createElement('div',{style:{background:'#f8f9fc',borderRadius:10,padding:'12px 14px',marginBottom:14,display:'flex',justifyContent:'space-between'}},
+      React.createElement('div',null,React.createElement('div',{style:{fontWeight:700}},item.nome),React.createElement('div',{style:{fontSize:12,color:'#aaa'}},item.categoria)),
+      React.createElement('div',{style:{textAlign:'right'}},React.createElement('div',{style:{fontWeight:800,fontSize:18}},item.qtd+' '+item.unidade),React.createElement('div',{style:{fontSize:11,color:'#aaa'}},'estoque atual'))
+    ),
+    React.createElement('div',{style:{display:'flex',gap:8,marginBottom:14}},
+      ['entrada','saida'].map(t=>React.createElement('button',{key:t,onClick:()=>setTipo(t),style:{flex:1,padding:'10px',borderRadius:10,border:'none',cursor:'pointer',fontWeight:700,fontSize:13,background:tipo===t?(t==='entrada'?'#16a34a':'#dc2626'):'#f5f5f5',color:tipo===t?'#fff':'#666'}},t==='entrada'?'↑ Entrada':'↓ Saída'))
+    ),
+    React.createElement(FloatInput,{label:'Quantidade ('+item.unidade+')',acent:'#dc2626',type:'number',value:qtd,onChange:e=>setQtd(e.target.value)}),
+    React.createElement(FloatInput,{label:'Observação',acent:'#dc2626',value:obs,onChange:e=>setObs(e.target.value)}),
     React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
-      React.createElement('button',{style:C.ghost,onClick:close},'Cancelar'),
-      React.createElement('button',{style:C.btn,onClick:async()=>{
-        const q=parseFloat(qtd);if(!q){toast('Informe a quantidade',true);return;}
-        setLd(true);
-        await sb.from('estoque').update({qtd:tipo==='entrada'?Number(e.qtd)+q:Math.max(0,Number(e.qtd)-q)}).eq('id',id);
-        toast('Atualizado!',false,true);reload();close();setLd(false);
-      }},ld?React.createElement(Spin):'Confirmar')
+      React.createElement('button',{style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'},onClick:close},'Cancelar'),
+      React.createElement('button',{style:{background:tipo==='entrada'?'#16a34a':'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:salvar},ld?'...':'Confirmar')
     )
   );
 }
 
-function NovoEst({uid,reload,close}){
-  const[nome,setNome]=useState('');const[cat,setCat]=useState('Matéria-Prima');const[und,setUnd]=useState('kg');
-  const[qtd,setQtd]=useState('');const[min,setMin]=useState('');const[custo,setCusto]=useState('');const[forn,setForn]=useState('');const[val,setVal]=useState('');const[ld,setLd]=useState(false);
-  return React.createElement('div',null,
-    React.createElement(Inp,{label:'Nome',v:nome,set:setNome,ph:'Nome do item'}),
-    React.createElement(G2,null,
-      React.createElement(Sel,{label:'Categoria',v:cat,set:setCat,opts:['Matéria-Prima','Produto Acabado','Embalagem']}),
-      React.createElement(Sel,{label:'Unidade',v:und,set:setUnd,opts:['kg','l','und','g','ml','rolo','pct']})
-    ),
-    React.createElement(G2,null,
-      React.createElement(Inp,{label:'Qtd. Inicial',v:qtd,set:setQtd,type:'number',ph:'0'}),
-      React.createElement(Inp,{label:'Mínimo',v:min,set:setMin,type:'number',ph:'0'})
-    ),
-    React.createElement(G2,null,
-      React.createElement(Inp,{label:'Custo Unit. (R$)',v:custo,set:setCusto,type:'number',ph:'0.00'}),
-      React.createElement(Inp,{label:'Fornecedor',v:forn,set:setForn,ph:'Nome'})
-    ),
-    React.createElement(MiniDatePicker,{label:'Validade',value:val,onChange:setVal}),
-    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
-      React.createElement('button',{style:C.ghost,onClick:close},'Cancelar'),
-      React.createElement('button',{style:C.btn,onClick:async()=>{
-        if(!nome){toast('Informe o nome',true);return;}
-        setLd(true);
-        await sb.from('estoque').insert({user_id:uid,nome,categoria:cat,unidade:und,qtd:parseFloat(qtd)||0,minimo:parseFloat(min)||0,custo:parseFloat(custo)||0,fornecedor:forn,validade:val||null});
-        toast(nome+' adicionado!',false,true);reload();close();setLd(false);
-      }},ld?React.createElement(Spin):'Adicionar')
-    )
+// ── FICHAS TÉCNICAS ──
+function FichasTecnicas({uid,db,reload,setM}){
+  const{fichas,estoque}=db;
+  const[busca,setBusca]=React.useState('');
+
+  const list=(fichas||[]).filter(f=>!busca||(f.nome||'').toLowerCase().includes(busca.toLowerCase()));
+
+  const nova=()=>setM({title:'Nova Ficha Técnica',wide:true,body:React.createElement(FichaForm,{uid,db,reload,close:()=>setM(null)})});
+  const editar=(f)=>setM({title:'Editar — '+f.nome,wide:true,body:React.createElement(FichaForm,{uid,db,reload,ficha:f,close:()=>setM(null)})});
+
+  return React.createElement(PW,{title:'Fichas Técnicas',sub:'Receitas e composição de custo dos produtos',
+    actions:[React.createElement('button',{key:'n',style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:nova},'+ Nova Ficha')]},
+
+    React.createElement('input',{placeholder:'Buscar ficha...',value:busca,onChange:e=>setBusca(e.target.value),style:{background:'#f5f5f5',border:'none',borderRadius:9,padding:'9px 14px',fontSize:13,color:'#111',outline:'none',width:'100%',marginBottom:16,boxSizing:'border-box'}}),
+
+    list.length===0
+      ? React.createElement('div',{style:{textAlign:'center',padding:'60px',color:'#ccc',background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+          React.createElement('div',{style:{fontSize:32,marginBottom:8}},'📋'),
+          React.createElement('div',{style:{fontSize:14,marginBottom:12}},'Nenhuma ficha técnica cadastrada'),
+          React.createElement('button',{style:{background:'#dc2626',color:'#fff',padding:'10px 20px',borderRadius:10,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:nova},'Criar primeira ficha')
+        )
+      : React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:14}},
+          list.map(f=>React.createElement(FichaCard,{key:f.id,f,db,uid,reload,setM,editar}))
+        )
   );
 }
 
-// ── FINANCEIRO (abas internas) ──
-// Financeiro removed - now split into pages
+function FichaCard({f,db,uid,reload,setM,editar}){
+  const[ings,setIngs]=React.useState([]);
+  React.useEffect(()=>{
+    sb.from('ficha_ingredientes').select('*').eq('ficha_id',f.id).then(({data})=>setIngs(data||[]));
+  },[f.id]);
 
-function FinVisao({uid,db,reload,setM}){
-  const{contas,receber,pagar,movs,lancamentos}=db;
-  const saldo=contas.reduce((s,c)=>s+Number(c.saldo),0);
-  const mes=TODAY().slice(0,7);
-  const recMes=movs.filter(m=>m.tipo==='entrada'&&m.data_movimentacao?.slice(0,7)===mes).reduce((s,m)=>s+Number(m.valor),0);
-  const despMes=movs.filter(m=>m.tipo==='saida'&&m.data_movimentacao?.slice(0,7)===mes).reduce((s,m)=>s+Number(m.valor),0);
-  const aRec=receber.filter(r=>r.status==='Pendente').reduce((s,r)=>s+Number(r.valor_bruto),0);
-  const aPag=pagar.filter(p=>p.status==='Pendente').reduce((s,p)=>s+Number(p.valor),0);
-  const chartRef=useRef(null);
-  useEffect(()=>{
-    if(!chartRef.current)return;let c=null;
-    try{c=new Chart(chartRef.current,{type:'bar',data:{labels:['Jan','Fev','Mar','Abr','Mai',mes.slice(5)],datasets:[{label:'Receitas',data:[12000,18000,15000,22000,19000,recMes||0],backgroundColor:'rgba(220,38,38,0.75)',borderRadius:7,borderSkipped:false},{label:'Despesas',data:[9000,14000,11000,16000,13000,despMes||0],backgroundColor:'rgba(0,0,0,0.07)',borderRadius:7,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#aaa',font:{size:10,family:'Poppins'},boxWidth:7,padding:10}}},scales:{x:{grid:{display:false},ticks:{color:'#ccc',font:{size:10}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#ccc',font:{size:10}}}}}});}catch{}
-    return()=>{try{c&&c.destroy()}catch{}};
-  },[recMes,despMes]);
-  return React.createElement(PW,{title:'Financeiro',sub:'Visão geral das finanças e saldos'},
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:13,marginBottom:18}},
-      React.createElement(SC,{label:'Saldo Total',val:F(saldo),color:'#111'}),
-      React.createElement(SC,{label:'Receitas do Mês',val:F(recMes),color:'#16a34a'}),
-      React.createElement(SC,{label:'Despesas do Mês',val:F(despMes),color:'#dc2626'}),
-      React.createElement(SC,{label:'Lucro do Mês',val:F(recMes-despMes),color:recMes-despMes>=0?'#4ade80':'#f87171'}),
-      React.createElement(SC,{label:'A Receber',val:F(aRec),color:'#fbbf24',sub:receber.filter(r=>r.status==='Pendente').length+' pendentes'}),
-      React.createElement(SC,{label:'A Pagar',val:F(aPag),color:'#dc2626',sub:pagar.filter(p=>p.status==='Pendente').length+' pendentes'})
+  const custoTotal=ings.reduce((s,i)=>s+Number(i.quantidade)*Number(i.custo_unit||0),0);
+  const custoPorUnidade=f.rendimento>0?custoTotal/f.rendimento:0;
+
+  return React.createElement('div',{
+    onClick:()=>editar(f),
+    style:{background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden',cursor:'pointer',transition:'box-shadow 0.15s'}
+  },
+    React.createElement('div',{style:{background:'linear-gradient(135deg,#dc2626,#b91c1c)',padding:'16px',color:'#fff'}},
+      React.createElement('div',{style:{fontWeight:800,fontSize:15,marginBottom:4}},f.nome),
+      React.createElement('div',{style:{fontSize:11,opacity:0.8}},f.categoria||'Produto'),
+      f.tempo_preparo>0&&React.createElement('div',{style:{fontSize:11,opacity:0.8,marginTop:2}},'⏱ '+f.tempo_preparo+' min')
     ),
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1.5fr 1fr',gap:14}},
-      React.createElement('div',{style:C.card},React.createElement('div',{style:{fontWeight:700,marginBottom:13}},'Receitas × Despesas'),React.createElement('div',{style:{height:200}},React.createElement('canvas',{ref:chartRef}))),
-      React.createElement('div',{style:C.card},
-        React.createElement('div',{style:{fontWeight:700,marginBottom:13}},'Saldo por Conta'),
-        contas.length===0?React.createElement('div',{style:{color:'#333',textAlign:'center',padding:'20px 0',fontSize:13}},'Nenhuma conta'):
-        contas.map(c=>React.createElement('div',{key:c.id,style:{display:'flex',alignItems:'center',gap:9,marginBottom:10}},
-          React.createElement('div',{style:{width:9,height:9,borderRadius:'50%',background:c.cor||'#dc2626',flexShrink:0}}),
-          React.createElement('span',{style:{fontSize:13,flex:1,color:'#ccc'}},c.nome),
-          React.createElement('span',{style:{fontSize:13,fontWeight:700}},F(c.saldo))
-        ))
+    React.createElement('div',{style:{padding:'14px'}},
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}},
+        React.createElement('div',{style:{background:'#f8f9fc',borderRadius:8,padding:'8px'}},
+          React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:3}},'Rendimento'),
+          React.createElement('div',{style:{fontWeight:700,fontSize:13}},f.rendimento+' '+f.unidade_rendimento)
+        ),
+        React.createElement('div',{style:{background:'#f8f9fc',borderRadius:8,padding:'8px'}},
+          React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:3}},'Custo/Un'),
+          React.createElement('div',{style:{fontWeight:700,fontSize:13,color:'#dc2626'}},F(custoPorUnidade))
+        )
+      ),
+      ings.length>0&&React.createElement('div',null,
+        React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:6}},ings.length+' ingrediente(s)'),
+        ings.slice(0,3).map(i=>React.createElement('div',{key:i.id,style:{display:'flex',justifyContent:'space-between',fontSize:12,padding:'3px 0',borderBottom:'1px solid #f5f5f5'}},
+          React.createElement('span',{style:{color:'#555'}},i.nome),
+          React.createElement('span',{style:{color:'#aaa'}},i.quantidade+' '+i.unidade)
+        )),
+        ings.length>3&&React.createElement('div',{style:{fontSize:11,color:'#aaa',marginTop:4}},'+'+( ings.length-3)+' mais')
+      ),
+      React.createElement('div',{style:{marginTop:10,paddingTop:10,borderTop:'1px solid #f5f5f5',display:'flex',justifyContent:'space-between',alignItems:'center'}},
+        React.createElement('span',{style:{fontSize:12,color:'#888'}},'Custo total: '+F(custoTotal)),
+        React.createElement('span',{style:{fontSize:11,color:'#dc2626',fontWeight:600}},'Ver ficha →')
       )
     )
   );
 }
+
+function FichaForm({uid,db,reload,close,ficha}){
+  const{estoque}=db;
+  const[nome,setNome]=React.useState(ficha?.nome||'');
+  const[cat,setCat]=React.useState(ficha?.categoria||'Cookie');
+  const[rendimento,setRendimento]=React.useState(String(ficha?.rendimento||'1'));
+  const[unidRend,setUnidRend]=React.useState(ficha?.unidade_rendimento||'un');
+  const[tempo,setTempo]=React.useState(String(ficha?.tempo_preparo||''));
+  const[descricao,setDescricao]=React.useState(ficha?.descricao||'');
+  const[ings,setIngs]=React.useState([]);
+  const[ld,setLd]=React.useState(false);
+  const isEdit=!!ficha?.id;
+
+  React.useEffect(()=>{
+    if(ficha?.id){
+      sb.from('ficha_ingredientes').select('*').eq('ficha_id',ficha.id).then(({data})=>setIngs(data||[]));
+    }
+  },[ficha?.id]);
+
+  const addIng=()=>setIngs(p=>[...p,{id:'new_'+Date.now(),nome:'',quantidade:'',unidade:'g',custo_unit:'',estoque_id:''}]);
+  const updIng=(id,k,v)=>setIngs(p=>p.map(i=>i.id===id?{...i,[k]:v}:i));
+  const delIng=(id)=>setIngs(p=>p.filter(i=>i.id!==id));
+
+  const selecionarEstoque=(id,estoqueId)=>{
+    const item=(estoque||[]).find(e=>e.id===estoqueId);
+    if(item){updIng(id,'nome',item.nome);updIng(id,'unidade',item.unidade);updIng(id,'custo_unit',String(item.custo));updIng(id,'estoque_id',estoqueId);}
+  };
+
+  const custoTotal=ings.reduce((s,i)=>s+Number(i.quantidade||0)*Number(i.custo_unit||0),0);
+  const rend=parseFloat(rendimento)||1;
+  const custoPorUn=custoTotal/rend;
+
+  const salvar=async()=>{
+    if(!nome){toast('Informe o nome',true);return;}
+    setLd(true);
+    let fichaId=ficha?.id;
+    const payload={user_id:uid,nome,categoria:cat,rendimento:rend,unidade_rendimento:unidRend,tempo_preparo:parseInt(tempo)||0,descricao};
+    if(isEdit){await sb.from('fichas_tecnicas').update(payload).eq('id',fichaId);}
+    else{const{data}=await sb.from('fichas_tecnicas').insert(payload).select().single();fichaId=data?.id;}
+    if(fichaId){
+      // Delete existing and re-insert
+      await sb.from('ficha_ingredientes').delete().eq('ficha_id',fichaId);
+      const rows=ings.filter(i=>i.nome&&i.quantidade).map(i=>({ficha_id:fichaId,nome:i.nome,quantidade:parseFloat(i.quantidade)||0,unidade:i.unidade,custo_unit:parseFloat(i.custo_unit)||0,estoque_id:i.estoque_id||null}));
+      if(rows.length)await sb.from('ficha_ingredientes').insert(rows);
+    }
+    toast(isEdit?'Ficha atualizada!':'Ficha criada!',false,true);reload();close();setLd(false);
+  };
+
+  const excluir=async()=>{
+    if(!confirm('Excluir ficha "'+nome+'"?'))return;
+    await sb.from('fichas_tecnicas').delete().eq('id',ficha.id);
+    toast('Excluída!',false,true);reload();close();
+  };
+
+  return React.createElement('div',null,
+    // Info básica
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'2fr 1fr',gap:10,marginBottom:0}},
+      React.createElement(FloatInput,{label:'Nome do produto *',acent:'#dc2626',value:nome,onChange:e=>setNome(e.target.value)}),
+      React.createElement(CustomSelect,{label:'Categoria',value:cat,onChange:setCat,options:['Cookie','Bolo','Brownie','Trufa','Brigadeiro','Torta','Outro'],acent:'#dc2626'})
+    ),
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}},
+      React.createElement(FloatInput,{label:'Rendimento',acent:'#dc2626',type:'number',value:rendimento,onChange:e=>setRendimento(e.target.value)}),
+      React.createElement(CustomSelect,{label:'Unidade rendimento',value:unidRend,onChange:setUnidRend,options:['un','kg','g','L','ml','dz','cx'],acent:'#dc2626'}),
+      React.createElement(FloatInput,{label:'Tempo preparo (min)',acent:'#dc2626',type:'number',value:tempo,onChange:e=>setTempo(e.target.value)})
+    ),
+
+    // Custo preview
+    React.createElement('div',{style:{background:'#fff5f5',borderRadius:10,padding:'10px 14px',marginBottom:14,display:'flex',justifyContent:'space-between',fontSize:13}},
+      React.createElement('span',{style:{color:'#888'}},'Custo total: '+F(custoTotal)),
+      React.createElement('span',{style:{fontWeight:700,color:'#dc2626'}},'Custo/unidade: '+F(custoPorUn))
+    ),
+
+    // Ingredientes
+    React.createElement('div',{style:{marginBottom:14}},
+      React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}},
+        React.createElement('span',{style:{fontWeight:700,fontSize:13,color:'#111'}},'Ingredientes ('+ings.length+')'),
+        React.createElement('button',{onClick:addIng,style:{background:'#dc2626',color:'#fff',padding:'5px 12px',borderRadius:8,fontSize:12,fontWeight:600,border:'none',cursor:'pointer'}},'+ Adicionar')
+      ),
+      ings.map(ing=>React.createElement('div',{key:ing.id,style:{display:'grid',gridTemplateColumns:'2fr 1fr 1fr 1fr auto',gap:8,marginBottom:8,alignItems:'center'}},
+        React.createElement('div',{style:{position:'relative'}},
+          React.createElement(CustomSelect,{label:'',value:ing.estoque_id||'',onChange:v=>selecionarEstoque(ing.id,v),
+            options:[{v:'',l:'— Selecionar do estoque —'},...(estoque||[]).map(e=>({v:e.id,l:e.nome+' ('+e.unidade+')'}))],
+            acent:'#dc2626'
+          }),
+          !ing.estoque_id&&React.createElement(FloatInput,{label:'Nome',acent:'#dc2626',value:ing.nome,onChange:e=>updIng(ing.id,'nome',e.target.value)})
+        ),
+        React.createElement(FloatInput,{label:'Qtd',acent:'#dc2626',type:'number',value:ing.quantidade,onChange:e=>updIng(ing.id,'quantidade',e.target.value)}),
+        React.createElement(CustomSelect,{label:'Un',value:ing.unidade,onChange:v=>updIng(ing.id,'unidade',v),options:['g','kg','ml','L','un','colher','xícara'],acent:'#dc2626'}),
+        React.createElement(FloatInput,{label:'Custo/un',acent:'#dc2626',type:'number',value:ing.custo_unit,onChange:e=>updIng(ing.id,'custo_unit',e.target.value)}),
+        React.createElement('button',{onClick:()=>delIng(ing.id),style:{background:'#fee2e2',color:'#dc2626',border:'none',borderRadius:8,padding:'6px 10px',cursor:'pointer',fontWeight:700,fontSize:14,flexShrink:0}},'×')
+      ))
+    ),
+
+    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'space-between',alignItems:'center'}},
+      isEdit&&React.createElement('button',{style:{background:'#fee2e2',color:'#dc2626',padding:'9px 14px',borderRadius:10,fontSize:12,fontWeight:600,border:'none',cursor:'pointer'},onClick:excluir},'Excluir'),
+      React.createElement('div',{style:{display:'flex',gap:8,marginLeft:'auto'}},
+        React.createElement('button',{style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'},onClick:close},'Cancelar'),
+        React.createElement('button',{style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:salvar},ld?'Salvando...':isEdit?'Salvar':'Criar Ficha')
+      )
+    )
+  );
+}
+
 
 function FinReceber({uid,db,reload,setM}){
   const{lancamentos,contas}=db;
@@ -3473,7 +3656,7 @@ function ContaForm({uid,reload,close,conta}){
 // ── APP ──
 function App(){
   const[user,setUser]=useState(null);const[page,setPage]=useState('pedidos');
-  const[db,setDb]=useState({pedidos:[],pedidos_cw:[],estoque:[],contas:[],receber:[],pagar:[],movs:[],lancamentos:[],categorias_fin:[],centros_custo:[],formas_pag:[],caixas:[]});
+  const[db,setDb]=useState({pedidos:[],pedidos_cw:[],estoque:[],contas:[],receber:[],pagar:[],movs:[],lancamentos:[],categorias_fin:[],centros_custo:[],formas_pag:[],caixas:[],fichas:[]});
   const[modal,setModal]=useState(null);const[col,setCol]=useState(false);const[loading,setLoading]=useState(false);
   const[cfg,setCfg]=useState({cw_token:'',uid:null});
 
@@ -3486,7 +3669,7 @@ function App(){
   const reload=useCallback(async()=>{
     if(!user)return;
     const uid=user.id;
-    const[pedcw,ped,est,con,rec,pag,mov,lanc,catfin,centros,formasPag,cxs]=await Promise.all([
+    const[pedcw,ped,est,con,rec,pag,mov,lanc,catfin,centros,formasPag,cxs,fichs]=await Promise.all([
       sb.from('pedidos_cw').select('*').eq('user_id',uid).order('data_pedido',{ascending:false}).limit(200),
       sb.from('pedidos').select('*').eq('user_id',uid).order('criado_em',{ascending:false}),
       sb.from('estoque').select('*').eq('user_id',uid).order('nome'),
@@ -3499,6 +3682,7 @@ function App(){
       sb.from('centros_custo').select('*').eq('user_id',uid).order('nome'),
       sb.from('formas_pagamento').select('*').eq('user_id',uid).order('nome'),
       sb.from('caixas').select('*').eq('user_id',uid).order('criado_em',{ascending:false}).limit(30),
+      sb.from('fichas_tecnicas').select('*').eq('user_id',uid).order('nome'),
     ]);
     const contas=con.data||[];
     if(contas.length===0){
@@ -3507,9 +3691,9 @@ function App(){
         {user_id:uid,nome:'Caixa',tipo:'Caixa',banco:'',saldo:0,cor:'#f59e0b',ativo:true},
       ]);
       const{data:nc}=await sb.from('contas_bancarias').select('*').eq('user_id',uid);
-      setDb({pedidos:ped.data||[],pedidos_cw:pedcw.data||[],estoque:est.data||[],contas:nc||[],receber:rec.data||[],pagar:pag.data||[],movs:mov.data||[],lancamentos:lanc.data||[],categorias_fin:catfin.data||[],centros_custo:centros.data||[],formas_pag:formasPag.data||[],caixas:cxs.data||[]});
+      setDb({pedidos:ped.data||[],pedidos_cw:pedcw.data||[],estoque:est.data||[],contas:nc||[],receber:rec.data||[],pagar:pag.data||[],movs:mov.data||[],lancamentos:lanc.data||[],categorias_fin:catfin.data||[],centros_custo:centros.data||[],formas_pag:formasPag.data||[],caixas:cxs.data||[],fichas:fichs.data||[]});
     }else{
-      setDb({pedidos:ped.data||[],pedidos_cw:pedcw.data||[],estoque:est.data||[],contas,receber:rec.data||[],pagar:pag.data||[],movs:mov.data||[],lancamentos:lanc.data||[],categorias_fin:catfin.data||[],centros_custo:centros.data||[],formas_pag:formasPag.data||[],caixas:cxs.data||[]});
+      setDb({pedidos:ped.data||[],pedidos_cw:pedcw.data||[],estoque:est.data||[],contas,receber:rec.data||[],pagar:pag.data||[],movs:mov.data||[],lancamentos:lanc.data||[],categorias_fin:catfin.data||[],centros_custo:centros.data||[],formas_pag:formasPag.data||[],caixas:cxs.data||[],fichas:fichs.data||[]});
     }
     // load config
     const{data:cfgRows}=await sb.from('config_usuario').select('*').eq('user_id',uid);
@@ -3587,6 +3771,7 @@ function App(){
     ped_caixa:()=>React.createElement(PedCaixa,{uid,db,setDb,reload:async()=>{await refreshCaixas(uid);await refreshLanc(uid);},setM:setModal}),
     ped_entregas:()=>React.createElement(PedEntregas,{uid,db,reload,setM:setModal}),
     estoque:()=>React.createElement(Estoque,{uid,db,reload,setM:setModal}),
+    fichas:()=>React.createElement(FichasTecnicas,{uid,db,reload,setM:setModal}),
     fin_visao:()=>React.createElement(FinVisao,{uid,db,reload,setM:setModal}),
     fin_lancamentos:()=>React.createElement(FinLancamentos,{uid,db,reload,setM:setModal,refreshLanc:()=>refreshLanc(uid),refreshContas:()=>refreshContas(uid)}),
     fin_receber:()=>React.createElement(FinReceber,{uid,db,reload,setM:setModal}),
