@@ -937,12 +937,10 @@ function PedMesas({uid,db,reload,setM}){
 function PedKDS({uid,db,reload,setM}){
   const[pedidos_cw_local,setPedidosCwLocal]=React.useState(db.pedidos_cw||[]);
   const hoje=TODAY();
-  const[aba,setAba]=React.useState('pedidos');
+  const[aba,setAba]=React.useState('cozinha');
 
-  // Atualiza quando db muda
   React.useEffect(()=>{setPedidosCwLocal(db.pedidos_cw||[]);},[db.pedidos_cw]);
 
-  // Fetch fresco ao montar e a cada 30s
   const fetchPedidos=React.useCallback(()=>{
     sb.from('pedidos_cw').select('*').eq('user_id',uid)
       .gte('data_pedido',hoje).order('data_pedido',{ascending:false})
@@ -951,28 +949,33 @@ function PedKDS({uid,db,reload,setM}){
 
   React.useEffect(()=>{
     fetchPedidos();
-    const interval=setInterval(fetchPedidos,30000);
-    return()=>clearInterval(interval);
+    const t=setInterval(fetchPedidos,30000);
+    return()=>clearInterval(t);
   },[fetchPedidos]);
 
   const pedidos_cw=pedidos_cw_local;
 
   const pedidosHoje=React.useMemo(()=>(pedidos_cw||[]).filter(p=>{
     if(p.data_pedido===hoje)return true;
-    if(p.data_pedido===''||!p.data_pedido){
+    if(!p.data_pedido){
       const raw=p.raw||{};
       if(raw.created_at){const d=new Date(raw.created_at).toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});return d===hoje;}
     }
     return false;
   }),[pedidos_cw,hoje]);
 
-  // ── ABA PEDIDOS: Kanban por status ──
+  // ── ABA COZINHA ──
+  const fila=pedidosHoje
+    .filter(p=>['scheduled_confirmed','confirmed'].includes(p.status))
+    .sort((a,b)=>(b.raw&&b.raw.created_at||'').localeCompare(a.raw&&a.raw.created_at||''));
+
+  // ── ABA PEDIDOS (Kanban) ──
   const COLUNAS=[
     {id:'waiting_confirmation',l:'Aguardando',bg:'#fef9c3',c:'#92400e',border:'#fde047'},
     {id:'scheduled_confirmed',l:'Agendado',bg:'#fef3c7',c:'#b45309',border:'#fcd34d'},
     {id:'confirmed',l:'Em preparação',bg:'#dbeafe',c:'#1d4ed8',border:'#93c5fd'},
     {id:'ready',l:'Pronto',bg:'#d1fae5',c:'#065f46',border:'#6ee7b7'},
-    {id:'released',l:'Saiu para entrega',bg:'#dcfce7',c:'#14532d',border:'#86efac'},
+    {id:'released',l:'Saiu p/ entrega',bg:'#dcfce7',c:'#14532d',border:'#86efac'},
     {id:'delivered',l:'Entregue',bg:'#f0fdf4',c:'#15803d',border:'#bbf7d0'},
     {id:'closed',l:'Finalizado',bg:'#e0f2fe',c:'#0369a1',border:'#7dd3fc'},
   ];
@@ -982,14 +985,11 @@ function PedKDS({uid,db,reload,setM}){
     const qtd=itens.reduce((s,it)=>s+Number(it.quantity||1),0);
     const pags=p.pagamentos||[];
     const pagNome=pags.length?(PM_MAP_CW[(pags[0].payment_method||'').toLowerCase()]||pags[0].payment_method||'—'):'—';
-    const raw=p.raw||{};
-    const mins=raw.created_at?Math.floor((Date.now()-new Date(raw.created_at).getTime())/60000):0;
+    const mins=p.raw&&p.raw.created_at?Math.floor((Date.now()-new Date(p.raw.created_at).getTime())/60000):0;
     const urgente=mins>30&&!['delivered','closed','canceled'].includes(p.status);
     return React.createElement('div',{
       onClick:()=>setM({title:'Pedido #'+p.pedido_id,wide:true,body:React.createElement(PedidoCWDetalhe,{p,contas:db.contas,formas_pag:db.formas_pag,uid,reload,close:()=>setM(null)})}),
-      style:{background:'#fff',borderRadius:10,padding:'10px 12px',marginBottom:8,
-        boxShadow:urgente?'0 0 0 2px #dc2626':'0 1px 4px rgba(0,0,0,0.08)',
-        cursor:'pointer',borderLeft:'3px solid '+(urgente?'#dc2626':'#e0e0e0')}
+      style:{background:'#fff',borderRadius:10,padding:'10px 12px',marginBottom:8,boxShadow:urgente?'0 0 0 2px #dc2626':'0 1px 4px rgba(0,0,0,0.08)',cursor:'pointer',borderLeft:'3px solid '+(urgente?'#dc2626':'#e0e0e0')}
     },
       React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}},
         React.createElement('span',{style:{fontWeight:800,fontSize:13,color:'#dc2626'}},'#'+p.pedido_id),
@@ -997,117 +997,133 @@ function PedKDS({uid,db,reload,setM}){
       ),
       React.createElement('div',{style:{fontWeight:600,fontSize:12,color:'#111',marginBottom:3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},p.cliente||'—'),
       React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center'}},
-        React.createElement('span',{style:{fontSize:11,color:'#888'}},qtd+' cookie(s) · '+pagNome),
+        React.createElement('span',{style:{fontSize:11,color:'#888'}},qtd+' item(s) · '+pagNome),
         React.createElement('span',{style:{fontSize:12,fontWeight:700,color:'#16a34a'}},F(p.total))
-      ),
-      raw.order_type&&React.createElement('div',{style:{fontSize:10,color:'#aaa',marginTop:3}},
-        raw.order_type==='delivery'?'🛵 Delivery':raw.order_type==='takeout'?'🏃 Retirada':'🪑 Mesa'
       )
     );
   };
 
-  // ── ABA COZINHA ──
-  const fila=pedidosHoje
-    .filter(p=>['scheduled_confirmed','confirmed'].includes(p.status))
-    .sort((a,b)=>(b.raw&&b.raw.created_at||'').localeCompare(a.raw&&a.raw.created_at||''));
+  // Cozinha card - estilo da foto
+  const CozinhaCard=({p})=>{
+    const itens=(p.raw&&p.raw.items)||p.itens||[];
+    const mins=p.raw&&p.raw.created_at?Math.floor((Date.now()-new Date(p.raw.created_at).getTime())/60000):0;
+    const urgente=mins>20;
+    const isAgendado=p.status==='scheduled_confirmed';
+    const schedule=p.raw&&p.raw.schedule;
 
-  return React.createElement(React.Fragment,null,showConfig&&React.createElement('div',{onMouseDown:e=>e.stopPropagation(),onClick:e=>{if(e.target===e.currentTarget)setShowConfig(false);},style:{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',backdropFilter:'blur(4px)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',padding:24}},React.createElement('div',{style:{background:'#fff',borderRadius:16,width:'100%',maxWidth:480,boxShadow:'0 8px 40px rgba(0,0,0,0.2)',overflow:'hidden'},onMouseDown:e=>e.stopPropagation()},React.createElement('div',{style:{padding:'16px 20px',borderBottom:'1px solid #f0f0f0',display:'flex',justifyContent:'space-between',alignItems:'center'}},React.createElement('h3',{style:{fontSize:15,fontWeight:700,color:'#111'}},'⚙ Configurar Loja'),React.createElement('button',{onClick:()=>setShowConfig(false),style:{background:'#f5f5f5',border:'none',borderRadius:8,width:28,height:28,cursor:'pointer',fontSize:16,color:'#666'}},'×')),React.createElement('div',{style:{padding:'20px'}},React.createElement('div',{style:{fontSize:11,color:'#dc2626',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:8}},'Endereço da loja (ponto de saída)'),React.createElement('input',{id:'base-cfg-input',defaultValue:baseAddr,placeholder:'Rua, número, bairro, cidade, estado',style:{width:'100%',background:'#f5f5f5',border:'none',borderRadius:10,padding:'11px 14px',fontSize:13,color:'#111',outline:'none',boxSizing:'border-box',marginBottom:12}}),React.createElement('div',{style:{background:'#eff6ff',borderRadius:10,padding:'10px 14px',fontSize:12,color:'#2563eb',marginBottom:16,lineHeight:1.6}},'O endereço será usado como ponto de saída nas rotas e no mapa.'),baseLat&&baseLon&&React.createElement('div',{style:{background:'#f0fdf4',borderRadius:10,padding:'8px 14px',fontSize:11,color:'#16a34a',marginBottom:12}},'✓ Coords: '+baseLat.toFixed(5)+', '+baseLon.toFixed(5)),React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},React.createElement('button',{onClick:()=>setShowConfig(false),style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'}},'Cancelar'),React.createElement('button',{onClick:async()=>{const inp=document.getElementById('base-cfg-input');const addr=inp&&inp.value;if(!addr)return;setBaseAddr(addr);localStorage.setItem('base_addr_'+uid,addr);const r=await salvarBase(addr);if(r)setShowConfig(false);},style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},'Salvar e geocodificar'))))),React.createElement('div',{style:{padding:'24px',animation:'fadeUp 0.2s ease'}},
+    const marcarPronto=async(e)=>{
+      e.stopPropagation();
+      // Atualiza status local otimisticamente
+      setPedidosCwLocal(prev=>prev.map(x=>x.id===p.id?{...x,status:'ready'}:x));
+      toast('✓ Marcado como pronto!',false,true);
+    };
+
+    const iniciarTodos=async(e)=>{
+      e.stopPropagation();
+      setPedidosCwLocal(prev=>prev.map(x=>x.id===p.id?{...x,status:'confirmed'}:x));
+      toast('Em preparação!',false,true);
+    };
+
+    return React.createElement('div',{style:{
+      background:'#fff',borderRadius:12,
+      boxShadow:urgente?'0 0 0 2px #dc2626':'0 2px 8px rgba(0,0,0,0.08)',
+      overflow:'hidden',marginBottom:12
+    }},
+      // Header
+      React.createElement('div',{style:{padding:'12px 16px',borderBottom:'1px solid #f5f5f5',display:'flex',alignItems:'center',justifyContent:'space-between',background:urgente?'#fff5f5':'#fafafa'}},
+        React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10}},
+          React.createElement('span',{style:{fontSize:18}},'🚶'),
+          React.createElement('div',null,
+            React.createElement('div',{style:{fontWeight:800,fontSize:15,color:'#111'}},'#'+p.pedido_id),
+            React.createElement('div',{style:{fontSize:12,color:'#888',marginTop:1}},p.cliente||'—')
+          )
+        ),
+        React.createElement('div',{style:{textAlign:'right'}},
+          React.createElement('div',{style:{fontSize:13,fontWeight:700,color:urgente?'#dc2626':'#6b7280'}},mins+' min'),
+          isAgendado&&schedule&&React.createElement('div',{style:{fontSize:10,color:'#f59e0b',fontWeight:600,marginTop:2}},
+            '📅 '+new Date(schedule.scheduled_date_time_start).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'})
+          )
+        )
+      ),
+
+      // Botões ação
+      React.createElement('div',{style:{display:'flex',gap:8,padding:'10px 16px',borderBottom:'1px solid #f5f5f5'}},
+        isAgendado&&React.createElement('button',{onClick:iniciarTodos,style:{display:'flex',alignItems:'center',gap:6,flex:1,background:'#f5f5f5',color:'#555',border:'none',borderRadius:9,padding:'8px 12px',fontSize:12,fontWeight:600,cursor:'pointer',justifyContent:'center'}},
+          React.createElement('span',null,'▶'),React.createElement('span',null,'Iniciar todos')
+        ),
+        React.createElement('button',{onClick:marcarPronto,style:{display:'flex',alignItems:'center',gap:6,flex:1,background:'#f0fdf4',color:'#16a34a',border:'none',borderRadius:9,padding:'8px 12px',fontSize:12,fontWeight:700,cursor:'pointer',justifyContent:'center'}},
+          React.createElement('span',null,'✔✔'),React.createElement('span',null,'Todos prontos')
+        )
+      ),
+
+      // Itens
+      React.createElement('div',{style:{padding:'8px 0'}},
+        itens.map((it,j)=>React.createElement('div',{key:j,style:{display:'flex',alignItems:'flex-start',gap:12,padding:'8px 16px',borderBottom:j<itens.length-1?'1px solid #f8f8f8':'none'}},
+          React.createElement('div',{style:{width:22,height:22,borderRadius:4,background:'#f5f5f5',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,color:'#555',flexShrink:0}},it.quantity||it.qty||1),
+          React.createElement('div',{style:{flex:1}},
+            React.createElement('div',{style:{fontWeight:600,fontSize:14,color:'#111'}},it.name||it.nome||'?'),
+            it.observation&&React.createElement('div',{style:{fontSize:12,color:'#f59e0b',marginTop:2}},it.observation),
+            (it.options||[]).length>0&&React.createElement('div',null,
+              it.options.map((op,k)=>React.createElement('div',{key:k,style:{fontSize:11,color:'#888',marginTop:1}},'+ '+op.name))
+            )
+          )
+        ))
+      ),
+
+      // Obs do pedido
+      p.raw&&p.raw.observation&&React.createElement('div',{style:{padding:'8px 16px',background:'#fffbeb',fontSize:12,color:'#92400e',borderTop:'1px solid #fef3c7'}},
+        '📝 '+p.raw.observation
+      )
+    );
+  };
+
+  return React.createElement('div',{style:{padding:'24px',animation:'fadeUp 0.2s ease'}},
     // Header
     React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20,flexWrap:'wrap',gap:12}},
       React.createElement('div',null,
         React.createElement('h1',{style:{fontSize:22,fontWeight:800,color:'#111',letterSpacing:'-0.5px'}},'KDS'),
-        React.createElement('p',{style:{fontSize:12,color:'#aaa',marginTop:4}},new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',timeZone:'America/Sao_Paulo'})+' · '+pedidosHoje.length+' pedidos hoje')
+        React.createElement('p',{style:{fontSize:12,color:'#aaa',marginTop:4}},pedidosHoje.length+' pedidos hoje · '+fila.length+' na cozinha')
       ),
       React.createElement('div',{style:{display:'flex',gap:4,background:'#f5f5f5',borderRadius:12,padding:4}},
-        [{id:'pedidos',l:'📋 Pedidos'},{id:'cozinha',l:'👨‍🍳 Cozinha'}].map(t=>
-          React.createElement('button',{key:t.id,onClick:()=>setAba(t.id),style:{
-            padding:'8px 20px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',
-            background:aba===t.id?'#fff':'transparent',
-            color:aba===t.id?'#111':'#888',
-            boxShadow:aba===t.id?'0 1px 4px rgba(0,0,0,0.1)':'none',
-            transition:'all 0.15s'
-          }},t.l)
+        [{id:'cozinha',l:'👨‍🍳 Cozinha'},{id:'pedidos',l:'📋 Pedidos'}].map(t=>
+          React.createElement('button',{key:t.id,onClick:()=>setAba(t.id),style:{padding:'8px 20px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',background:aba===t.id?'#fff':'transparent',color:aba===t.id?'#111':'#888',boxShadow:aba===t.id?'0 1px 4px rgba(0,0,0,0.1)':'none',transition:'all 0.15s'}},t.l)
         )
       )
     ),
 
-    // ── ABA PEDIDOS: Kanban ──
+    // ── ABA COZINHA ──
+    aba==='cozinha'&&(
+      fila.length===0
+        ?React.createElement('div',{style:{textAlign:'center',padding:'60px',color:'#ccc',fontSize:14,background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+            React.createElement('div',{style:{fontSize:32,marginBottom:8}},'✅'),
+            'Nenhum pedido na cozinha'
+          )
+        :React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))',gap:0,alignItems:'start'}},
+            fila.map(p=>React.createElement(CozinhaCard,{key:p.id,p}))
+          )
+    ),
+
+    // ── ABA PEDIDOS (Kanban) ──
     aba==='pedidos'&&React.createElement('div',{style:{overflowX:'auto',paddingBottom:8}},
       React.createElement('div',{style:{display:'flex',gap:12,minWidth:'max-content',alignItems:'flex-start'}},
         COLUNAS.map(col=>{
-          const cards=pedidosHoje.filter(p=>p.status===col.id).sort((a,b)=>(b.raw?.created_at||'').localeCompare(a.raw?.created_at||''));
+          const cards=pedidosHoje.filter(p=>p.status===col.id).sort((a,b)=>(b.raw&&b.raw.created_at||'').localeCompare(a.raw&&a.raw.created_at||''));
           return React.createElement('div',{key:col.id,style:{width:220,flexShrink:0}},
-            // Header coluna
-            React.createElement('div',{style:{
-              background:col.bg,borderRadius:'10px 10px 0 0',padding:'10px 12px',
-              borderBottom:'2px solid '+col.border,marginBottom:0,
-              display:'flex',justifyContent:'space-between',alignItems:'center'
-            }},
+            React.createElement('div',{style:{background:col.bg,borderRadius:'10px 10px 0 0',padding:'10px 12px',borderBottom:'2px solid '+col.border,display:'flex',justifyContent:'space-between',alignItems:'center'}},
               React.createElement('span',{style:{fontWeight:700,fontSize:12,color:col.c}},col.l),
-              React.createElement('span',{style:{
-                background:col.border,color:col.c,borderRadius:'50%',
-                width:20,height:20,display:'flex',alignItems:'center',justifyContent:'center',
-                fontSize:11,fontWeight:800
-              }},cards.length)
+              React.createElement('span',{style:{background:col.border,color:col.c,borderRadius:'50%',width:20,height:20,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800}},cards.length)
             ),
-            // Cards
-            React.createElement('div',{style:{
-              background:'#f8f9fc',borderRadius:'0 0 10px 10px',
-              padding:'8px 8px',minHeight:80,
-              border:'1px solid '+col.border,borderTop:'none'
-            }},
+            React.createElement('div',{style:{background:'#f8f9fc',borderRadius:'0 0 10px 10px',padding:'8px',minHeight:80,border:'1px solid '+col.border,borderTop:'none'}},
               cards.length===0
-                ? React.createElement('div',{style:{textAlign:'center',padding:'20px 8px',color:'#ccc',fontSize:11}},'Vazio')
-                : cards.map(p=>React.createElement(KanbanCard,{key:p.id,p}))
+                ?React.createElement('div',{style:{textAlign:'center',padding:'16px 8px',color:'#ccc',fontSize:11}},'Vazio')
+                :cards.map(p=>React.createElement(KanbanCard,{key:p.id,p}))
             )
-          );
+          )
         })
       )
-    ),
-
-    // ── ABA COZINHA ──
-    aba==='cozinha'&&React.createElement('div',null,
-      fila.length===0
-        ? React.createElement('div',{style:{textAlign:'center',padding:'60px',color:'#ccc',fontSize:14,background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
-            '✅ Nenhum pedido na fila da cozinha'
-          )
-        : React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:10}},
-            fila.map((p)=>{
-              const itens=(p.raw&&p.raw.items)||p.itens||[];
-              const mins=p.raw&&p.raw.created_at?Math.floor((Date.now()-new Date(p.raw.created_at).getTime())/60000):0;
-              const urgente=mins>20;
-              return React.createElement('div',{key:p.id,style:{background:'#fff',borderRadius:11,boxShadow:urgente?'0 0 0 2px #dc2626':'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden'}},
-                React.createElement('div',{style:{background:urgente?'#dc2626':'#1e293b',padding:'8px 12px',display:'flex',justifyContent:'space-between',alignItems:'center'}},
-                  React.createElement('div',null,
-                    React.createElement('div',{style:{fontWeight:800,fontSize:14,color:'#fff'}},'#'+p.pedido_id),
-                    React.createElement('div',{style:{fontSize:11,color:'rgba(255,255,255,0.7)'}},p.cliente||'—')
-                  ),
-                  React.createElement('div',{style:{textAlign:'right'}},
-                    React.createElement('div',{style:{fontSize:13,fontWeight:700,color:urgente?'#fef08a':'#94a3b8'}},mins+'min'),
-                    p.canal==='ifood'&&React.createElement('div',{style:{fontSize:10,color:'#fb923c',fontWeight:600}},'iFood')
-                  )
-                ),
-                React.createElement('div',{style:{padding:'10px 12px'}},
-                  itens.map((it,j)=>React.createElement('div',{key:j,style:{display:'flex',justifyContent:'space-between',padding:'5px 0',borderBottom:j<itens.length-1?'1px solid #f5f5f5':'none'}},
-                    React.createElement('span',{style:{fontSize:12,color:'#111'}},
-                      React.createElement('strong',null,(it.quantity||it.qty||1)+'x '),
-                      (it.name||it.nome||'?')
-                    ),
-                    it.observation&&React.createElement('span',{style:{fontSize:11,color:'#f59e0b',fontStyle:'italic'}},it.observation)
-                  )),
-                  React.createElement('button',{
-                    style:{width:'100%',marginTop:8,padding:'8px',background:'#16a34a',color:'#fff',borderRadius:10,border:'none',fontWeight:700,fontSize:13,cursor:'pointer'},
-                    onClick:()=>toast('Marcado como pronto!',false,true)
-                  },'✓ Pronto')
-                )
-              );
-            })
-          )
     )
-  )
   );
 }
-
 
 function PedCaixa({uid,db,setDb,reload,setM}){
   const{pedidos_cw,lancamentos,contas,formas_pag,caixas}=db;
@@ -4368,20 +4384,25 @@ function App(){
   useEffect(()=>{
     if(!user)return;
     let debounce=null;
-    const channel=sb.channel('pedidos_realtime')
-      .on('postgres_changes',{
-        event:'*',
-        schema:'public',
-        table:'pedidos_cw',
-        filter:'user_id=eq.'+user.id
-      },async(payload)=>{
-        // Só atualiza pedidos_cw, sem reload completo
+    const channel=sb.channel('pedidos_realtime_'+user.id)
+      .on('postgres_changes',{event:'INSERT',schema:'public',table:'pedidos_cw'},async(payload)=>{
+        if(payload.new&&payload.new.user_id!==user.id)return;
         clearTimeout(debounce);
         debounce=setTimeout(async()=>{
-          const{data}=await sb.from('pedidos_cw').select('*').eq('user_id',user.id).order('data_pedido',{ascending:false}).limit(200);
-          if(data)setDb(prev=>({...prev,pedidos_cw:data}));
-          toast('Novo pedido recebido!',false,true);
-        },1000);
+          const hoje=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});
+          const{data}=await sb.from('pedidos_cw').select('*').eq('user_id',user.id).gte('data_pedido',hoje).order('data_pedido',{ascending:false});
+          if(data)setDb(prev=>({...prev,pedidos_cw:[...data,...(prev.pedidos_cw||[]).filter(p=>p.data_pedido<hoje)]}));
+          toast('🛎 Novo pedido!',false,true);
+        },800);
+      })
+      .on('postgres_changes',{event:'UPDATE',schema:'public',table:'pedidos_cw'},async(payload)=>{
+        if(payload.new&&payload.new.user_id!==user.id)return;
+        clearTimeout(debounce);
+        debounce=setTimeout(async()=>{
+          const hoje=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});
+          const{data}=await sb.from('pedidos_cw').select('*').eq('user_id',user.id).gte('data_pedido',hoje).order('data_pedido',{ascending:false});
+          if(data)setDb(prev=>({...prev,pedidos_cw:[...data,...(prev.pedidos_cw||[]).filter(p=>p.data_pedido<hoje)]}));
+        },800);
       })
       .subscribe();
     return()=>{clearTimeout(debounce);sb.removeChannel(channel);};
