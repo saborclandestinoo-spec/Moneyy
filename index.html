@@ -1352,60 +1352,129 @@ function PedHistorico({uid,db,reload,setM}){
   const[fil,setFil]=React.useState('');
   const[dtIni,setDtIni]=React.useState(()=>{const d=new Date();d.setDate(d.getDate()-30);return d.toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});});
   const[dtFim,setDtFim]=React.useState(TODAY());
+  const[syncing,setSyncing]=React.useState(false);
+  const[syncMsg,setSyncMsg]=React.useState('');
 
   const list=React.useMemo(()=>{
     let r=pedidos_cw||[];
-    if(dtIni)r=r.filter(p=>p.data_pedido>=dtIni);
-    if(dtFim)r=r.filter(p=>p.data_pedido<=dtFim);
+    if(dtIni)r=r.filter(p=>(p.data_pedido||'')>=dtIni);
+    if(dtFim)r=r.filter(p=>(p.data_pedido||'')<=dtFim);
     if(fil)r=r.filter(p=>p.status===fil);
-    if(busca){const b=busca.toLowerCase();r=r.filter(p=>(p.cliente||'').toLowerCase().includes(b)||(p.pedido_id||'').includes(b));}
-    return r;
+    if(busca){const b=busca.toLowerCase();r=r.filter(p=>(p.cliente||'').toLowerCase().includes(b)||(p.pedido_id||'').includes(b)||(p.raw&&p.raw.delivery_address&&(p.raw.delivery_address.street||'').toLowerCase().includes(b)));}
+    return r.sort((a,b)=>(b.data_pedido||'').localeCompare(a.data_pedido||''));
   },[pedidos_cw,dtIni,dtFim,fil,busca]);
 
   const total=list.reduce((s,p)=>s+Number(p.total||0),0);
   const entregues=list.filter(p=>p.status==='delivered'||p.status==='closed').length;
 
-  return React.createElement(PW,{title:'Histórico de Pedidos',sub:'Todos os pedidos sincronizados'},
+  // Sincroniza um dia específico via edge function
+  const sincronizarDia=async(data)=>{
+    const{data:cfg}=await sb.from('config_usuario').select('valor').eq('user_id',uid).eq('chave','cw_token').single();
+    const token=cfg&&cfg.valor;
+    if(!token){toast('Configure o token CW primeiro',true);return;}
+    setSyncing(true);setSyncMsg('Buscando '+FD(data)+'...');
+    try{
+      const EDGE='https://yjhuyquvnqgwxuyqcxll.supabase.co/functions/v1/cw-webhook';
+      const res=await fetch(EDGE+'?token='+encodeURIComponent(token)+'&uid='+uid+'&date='+data);
+      const json=await res.json();
+      setSyncMsg((json.total||0)+' pedidos em '+FD(data));
+      // Atualiza db
+      const{data:novPed}=await sb.from('pedidos_cw').select('*').eq('user_id',uid).order('data_pedido',{ascending:false}).limit(500);
+      if(novPed)setDb&&setDb(p=>({...p,pedidos_cw:novPed}));
+      else reload();
+    }catch(e){setSyncMsg('Erro: '+e.message);toast('Erro ao sincronizar',true);}
+    setSyncing(false);
+  };
+
+  // Sincroniza todo o período selecionado (dia a dia)
+  const sincronizarPeriodo=async()=>{
+    const{data:cfg}=await sb.from('config_usuario').select('valor').eq('user_id',uid).eq('chave','cw_token').single();
+    const token=cfg&&cfg.valor;
+    if(!token){toast('Configure o token CW primeiro',true);return;}
+    setSyncing(true);
+    const start=new Date(dtIni+'T12:00:00');
+    const end=new Date(dtFim+'T12:00:00');
+    const dias=[];
+    for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){dias.push(d.toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'}));}
+    const EDGE='https://yjhuyquvnqgwxuyqcxll.supabase.co/functions/v1/cw-webhook';
+    let totalPed=0;
+    for(let i=0;i<dias.length;i++){
+      const dia=dias[i];
+      setSyncMsg('Dia '+(i+1)+'/'+dias.length+' ('+FD(dia)+')...');
+      try{
+        const res=await fetch(EDGE+'?token='+encodeURIComponent(token)+'&uid='+uid+'&date='+dia);
+        const json=await res.json();
+        totalPed+=(json.total||0);
+      }catch(e){}
+      await new Promise(r=>setTimeout(r,500)); // throttle
+    }
+    setSyncMsg(totalPed+' pedidos sincronizados!');
+    toast(totalPed+' pedidos importados!',false,true);
+    reload();
+    setSyncing(false);
+  };
+
+  return React.createElement(PW,{title:'Histórico de Pedidos',sub:'Busque e sincronize pedidos de qualquer período',
+    actions:[
+      syncMsg&&React.createElement('span',{key:'msg',style:{fontSize:11,color:'#888'}},syncMsg),
+      React.createElement('button',{key:'sync',type:'button',disabled:syncing,
+        style:{background:syncing?'#f5f5f5':'#dc2626',color:syncing?'#aaa':'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:syncing?'default':'pointer'},
+        onClick:sincronizarPeriodo
+      },syncing?'Sincronizando...':'↻ Sincronizar período')
+    ]},
+
     // Filtros
-    React.createElement('div',{style:{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap',alignItems:'center'}},
-      React.createElement(MiniDatePicker,{label:'De',value:dtIni,onChange:setDtIni,acent:'#dc2626'}),
-      React.createElement(MiniDatePicker,{label:'Até',value:dtFim,onChange:setDtFim,acent:'#dc2626'}),
-      React.createElement('input',{placeholder:'Buscar cliente ou nº...',value:busca,onChange:e=>setBusca(e.target.value),style:{background:'#f5f5f5',border:'none',borderRadius:9,padding:'7px 12px',fontSize:12,color:'#111',outline:'none',flex:1,minWidth:160}}),
-      [['','Todos'],['waiting_confirmation','Aguardando'],['confirmed','Confirmado'],['delivered','Entregue'],['canceled','Cancelado'],['closed','Finalizado']].map(([v,l])=>
-        React.createElement('button',{key:v,onClick:()=>setFil(v),style:{padding:'6px 12px',borderRadius:20,fontSize:11,fontWeight:600,background:fil===v?'#dc2626':'#f5f5f5',color:fil===v?'#fff':'#666',border:'none',cursor:'pointer'}},l)
+    React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'16px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)',marginBottom:16}},
+      React.createElement('div',{style:{display:'flex',gap:10,flexWrap:'wrap',alignItems:'flex-end',marginBottom:12}},
+        React.createElement(MiniDatePicker,{label:'De',value:dtIni,onChange:setDtIni,acent:'#dc2626'}),
+        React.createElement(MiniDatePicker,{label:'Até',value:dtFim,onChange:setDtFim,acent:'#dc2626'}),
+        React.createElement('input',{placeholder:'🔍 Buscar cliente, nº ou endereço...',value:busca,onChange:e=>setBusca(e.target.value),style:{flex:1,minWidth:200,background:'#f5f5f5',border:'none',borderRadius:9,padding:'9px 12px',fontSize:13,color:'#111',outline:'none'}})
+      ),
+      React.createElement('div',{style:{display:'flex',gap:6,flexWrap:'wrap'}},
+        [['','Todos'],['waiting_confirmation','Aguardando'],['confirmed','Em preparação'],['released','Saiu p/ entrega'],['delivered','Entregue'],['closed','Finalizado'],['canceled','Cancelado']].map(([v,l])=>
+          React.createElement('button',{key:v,onClick:()=>setFil(v),style:{padding:'5px 12px',borderRadius:20,fontSize:11,fontWeight:600,background:fil===v?'#dc2626':'#f5f5f5',color:fil===v?'#fff':'#666',border:'none',cursor:'pointer'}},l)
+        )
       )
     ),
+
     // Stats
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:16}},
-      React.createElement(SC,{label:'Total pedidos',val:list.length}),
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:16}},
+      React.createElement(SC,{label:'Pedidos',val:list.length}),
       React.createElement(SC,{label:'Entregues',val:entregues,color:'#16a34a'}),
+      React.createElement(SC,{label:'Cancelados',val:list.filter(p=>p.status==='canceled').length,color:'#dc2626'}),
       React.createElement(SC,{label:'Faturamento',val:F(total),color:'#dc2626'})
     ),
+
     // Tabela
     React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
       React.createElement(Tbl,{cols:['Data','Nº','Cliente','Pagamento','Total','Canal','Status'],
         rows:list.map(p=>{
           const pags=p.pagamentos||[];
           const pagNome=pags.length?(PM_MAP_CW[(pags[0].payment_method||'').toLowerCase()]||pags[0].payment_method||'—'):'—';
-          const statusLabel=CW_STATUS[p.status]||p.status||'—';
-          const stC=p.status==='delivered'||p.status==='closed'?'green':p.status==='canceled'?'red':p.status==='confirmed'||p.status==='ready'?'blue':'amber';
+          const raw=p.raw||{};
+          const dtFmt=raw.created_at?new Date(raw.created_at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'}):FD(p.data_pedido);
           const canal=p.canal||'';
-          return React.createElement(TR,{key:p.id,cells:[
-            React.createElement('span',{style:{fontSize:11,color:'#888'}},FD(p.data_pedido)),
-            React.createElement('span',{style:{fontWeight:700,color:'#dc2626',fontSize:12}},'#'+p.pedido_id),
-            React.createElement('span',{style:{fontWeight:600}},p.cliente||'—'),
-            React.createElement('span',{style:{fontSize:12}},pagNome),
-            React.createElement('span',{style:{fontWeight:700}},F(p.total)),
-            canal?React.createElement('span',{style:{fontSize:10,background:canal==='ifood'?'#fee2e2':'#f5f5f5',color:canal==='ifood'?'#dc2626':'#666',padding:'2px 7px',borderRadius:20,fontWeight:600}},(canal==='ifood'?'iFood':canal).slice(0,12)):React.createElement('span',{style:{color:'#ddd'}},'—'),
-            React.createElement(Badge,{t:statusLabel,c:stC}),
-          ]});
+          const statusLabel=CW_STATUS[p.status]||p.status||'—';
+          const ST_STYLE={waiting_confirmation:{bg:'#fef9c3',c:'#92400e'},confirmed:{bg:'#dbeafe',c:'#1d4ed8'},released:{bg:'#dcfce7',c:'#14532d'},waiting_to_catch:{bg:'#ede9fe',c:'#5b21b6'},ready:{bg:'#d1fae5',c:'#065f46'},delivered:{bg:'#d1fae5',c:'#14532d'},closed:{bg:'#e0f2fe',c:'#0369a1'},canceled:{bg:'#fee2e2',c:'#991b1b'},scheduled_confirmed:{bg:'#fef3c7',c:'#92400e'}};
+          const ss=ST_STYLE[p.status]||{bg:'#f5f5f5',c:'#555'};
+          return React.createElement(TR,{key:p.id,
+            onClick:()=>setM({title:'Pedido #'+p.pedido_id,wide:true,body:React.createElement(PedidoCWDetalhe,{p,contas:db.contas,formas_pag:db.formas_pag,uid,reload,close:()=>setM(null)})}),
+            cells:[
+              React.createElement('span',{style:{fontSize:11,color:'#888'}},dtFmt),
+              React.createElement('span',{style:{fontWeight:700,color:'#dc2626',fontSize:12}},'#'+p.pedido_id),
+              React.createElement('span',{style:{fontWeight:600}},p.cliente||'—'),
+              React.createElement('span',{style:{fontSize:12}},pagNome),
+              React.createElement('span',{style:{fontWeight:700}},F(p.total)),
+              canal?React.createElement('span',{style:{fontSize:10,background:canal==='ifood'?'#fee2e2':'#f5f5f5',color:canal==='ifood'?'#dc2626':'#666',padding:'2px 7px',borderRadius:20,fontWeight:600}},(canal==='ifood'?'iFood':canal).slice(0,10)):React.createElement('span',{style:{color:'#ddd'}},'—'),
+              React.createElement('span',{style:{fontSize:11,fontWeight:700,color:ss.c,background:ss.bg,padding:'3px 10px',borderRadius:20,whiteSpace:'nowrap'}},statusLabel),
+            ]
+          });
         }),
-        empty:'Nenhum pedido no período selecionado.'
+        empty:'Nenhum pedido no período. Clique em "Sincronizar período" para buscar.'
       })
     )
   );
 }
-
 
 function PedidosCW({uid,db,setDb,reload,setM,cfg,setCfg}){
   const{pedidos_cw,contas,formas_pag}=db;
