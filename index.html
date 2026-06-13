@@ -782,13 +782,15 @@ function PedEntregas({uid,db,reload,setM}){
         const cor=COR[i%COR.length];
         const FCOR={PIX:'#16a34a',Dinheiro:'#6b7280','Cartão Crédito':'#f59e0b','Cartão Débito':'#3b82f6',iFood:'#dc2626'};
         // Calcula totais do motoboy (baseado nos pedidos atribuídos)
-        const meusPed=rotas[e.id]||[];
+        // Todos pedidos do dia (entregues + em rota + pendentes)
+        const todosPedDia=[...pedidosEntregues,...pedidosEmRota,...pedidosEntrega];
         const formas={PIX:0,Dinheiro:0,'Cartão Crédito':0,'Cartão Débito':0,iFood:0};
         let totalBruto=0;
-        meusPed.forEach(p=>{
+        todosPedDia.forEach(p=>{
           totalBruto+=Number(p.total||0);
           (p.pagamentos||[]).forEach(pg=>{
-            const k=(pg.payment_method||'').toLowerCase();const v=Number(pg.value||pg.total||0);
+            const k=(pg.payment_method||'').toLowerCase();
+            const v=Number(pg.value||pg.total||0);
             if(k==='pix'||k==='pix_auto')formas.PIX+=v;
             else if(k==='money'||k==='cash')formas.Dinheiro+=v;
             else if(k==='ifood'||k==='online_credit_card')formas.iFood+=v;
@@ -797,7 +799,8 @@ function PedEntregas({uid,db,reload,setM}){
           });
         });
         const totalFormas=Object.values(formas).reduce((s,v)=>s+v,0);
-        if(totalFormas===0&&meusPed.length===0)return null;
+        const meusPed=rotas[e.id]||[];
+        if(totalFormas===0&&todosPedDia.length===0)return null;
 
         return React.createElement('div',{key:e.id,style:{background:'#fff',borderRadius:14,padding:'18px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)',marginBottom:14,borderLeft:'4px solid '+cor}},
           React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}},
@@ -805,7 +808,7 @@ function PedEntregas({uid,db,reload,setM}){
               React.createElement('div',{style:{width:32,height:32,borderRadius:'50%',background:cor+'20',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16}},'🛵'),
               React.createElement('div',null,
                 React.createElement('div',{style:{fontWeight:700,fontSize:14}},e.nome),
-                React.createElement('div',{style:{fontSize:11,color:'#aaa'}},meusPed.length+' pedidos')
+                React.createElement('div',{style:{fontSize:11,color:'#aaa'}},todosPedDia.length+' pedidos do dia')
               )
             ),
             React.createElement('div',{style:{textAlign:'right'}},
