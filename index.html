@@ -484,26 +484,17 @@ function MapaEntregas({pedidosEntrega,pedidosEntregues,entregadores,rotas,BASE_L
 function EntregasConfig({uid,baseAddr,setBaseAddr,baseLat,baseLon,setBaseLat,setBaseLon,salvarBase,close}){
   const[addr,setAddr]=React.useState(baseAddr||'');
   const[loading,setLoading]=React.useState(false);
-
   const salvar=async()=>{
     if(!addr.trim()){toast('Informe o endereço',true);return;}
     setLoading(true);
-    setBaseAddr(addr);
-    localStorage.setItem('base_addr_'+uid,addr);
-    const r=await salvarBase(addr);
-    setLoading(false);
-    if(r)close();
+    setBaseAddr(addr);localStorage.setItem('base_addr_'+uid,addr);
+    const r=await salvarBase(addr);setLoading(false);if(r)close();
   };
-
   return React.createElement('div',null,
-    React.createElement('div',{style:{background:'#eff6ff',borderRadius:10,padding:'12px 14px',fontSize:12,color:'#2563eb',marginBottom:16,lineHeight:1.7}},
-      '📍 Configure o endereço completo da sua confeitaria. Ele será usado como ponto de saída nas rotas e no mapa.'
-    ),
+    React.createElement('div',{style:{background:'#eff6ff',borderRadius:10,padding:'12px 14px',fontSize:12,color:'#2563eb',marginBottom:16,lineHeight:1.7}},'📍 Configure o endereço completo da sua confeitaria. Será usado como ponto de saída nas rotas e no mapa.'),
     React.createElement(FloatInput,{label:'Endereço completo *',acent:'#dc2626',value:addr,onChange:e=>setAddr(e.target.value)}),
     React.createElement('div',{style:{fontSize:11,color:'#aaa',marginBottom:16,marginTop:-8}},'Ex: Rua das Flores, 123, Centro, Fernandópolis, SP'),
-    baseLat&&baseLon&&React.createElement('div',{style:{background:'#f0fdf4',borderRadius:10,padding:'10px 14px',fontSize:12,color:'#16a34a',marginBottom:16}},
-      '✓ Localização salva: '+baseLat.toFixed(5)+', '+baseLon.toFixed(5)
-    ),
+    baseLat&&baseLon&&React.createElement('div',{style:{background:'#f0fdf4',borderRadius:10,padding:'8px 14px',fontSize:12,color:'#16a34a',marginBottom:16}},'✓ Coords: '+baseLat.toFixed(5)+', '+baseLon.toFixed(5)),
     React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
       React.createElement('button',{onClick:close,style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'}},'Cancelar'),
       React.createElement('button',{onClick:salvar,disabled:loading,style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},loading?'Buscando...':'Salvar e localizar')
@@ -511,14 +502,11 @@ function EntregasConfig({uid,baseAddr,setBaseAddr,baseLat,baseLon,setBaseLat,set
   );
 }
 
-
 function PedEntregas({uid,db,reload,setM}){
   const{pedidos_cw}=db;
   const hoje=TODAY();
   const[aba,setAba]=React.useState('mapa');
-  const[entregadores,setEntregadores]=React.useState(()=>{
-    try{return JSON.parse(localStorage.getItem('motoboys_'+uid)||'[]');}catch{return[];}
-  });
+  const[entregadores,setEntregadores]=React.useState(()=>{try{return JSON.parse(localStorage.getItem('motoboys_'+uid)||'[]');}catch{return[];}});
   const[novoNome,setNovoNome]=React.useState('');
   const[baseAddr,setBaseAddr]=React.useState(localStorage.getItem('base_addr_'+uid)||'Fernandópolis, SP');
   const[baseLat,setBaseLat]=React.useState(()=>parseFloat(localStorage.getItem('base_lat_'+uid)||'-20.2838'));
@@ -526,33 +514,34 @@ function PedEntregas({uid,db,reload,setM}){
   const BASE_LAT=baseLat,BASE_LON=baseLon;
 
   const salvarBase=async(addr)=>{
-    // Geocodifica via Nominatim (OpenStreetMap gratuito)
     try{
       const res=await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1');
       const data=await res.json();
       if(data&&data[0]){
-        const lat=parseFloat(data[0].lat);
-        const lon=parseFloat(data[0].lon);
+        const lat=parseFloat(data[0].lat);const lon=parseFloat(data[0].lon);
         setBaseLat(lat);setBaseLon(lon);
-        localStorage.setItem('base_lat_'+uid,String(lat));
-        localStorage.setItem('base_lon_'+uid,String(lon));
-        toast('Localização atualizada!',false,true);
-        return {lat,lon};
+        localStorage.setItem('base_lat_'+uid,String(lat));localStorage.setItem('base_lon_'+uid,String(lon));
+        toast('Localização atualizada!',false,true);return{lat,lon};
       }else{toast('Endereço não encontrado',true);}
     }catch(e){toast('Erro ao buscar endereço',true);}
     return null;
   };
 
   const saveEntregadores=(list)=>{setEntregadores(list);try{localStorage.setItem('motoboys_'+uid,JSON.stringify(list));}catch{}};
-  const addEntregador=()=>{if(!novoNome.trim())return;saveEntregadores([...entregadores,{id:Date.now()+'',nome:novoNome.trim(),ativo:true,entregas:0,kmTotal:0}]);setNovoNome('');};
+  const addEntregador=()=>{if(!novoNome.trim())return;saveEntregadores([...entregadores,{id:Date.now()+'',nome:novoNome.trim(),status:'disponivel',entregas:0}]);setNovoNome('');};
   const removerEntregador=(id)=>saveEntregadores(entregadores.filter(e=>e.id!==id));
-  const toggleEntregador=(id)=>saveEntregadores(entregadores.map(e=>e.id===id?{...e,ativo:!e.ativo}:e));
+  const setStatus=(id,st)=>saveEntregadores(entregadores.map(e=>e.id===id?{...e,status:st}:e));
 
+  // Pedidos pendentes (aguardando entrega)
   const pedidosEntrega=React.useMemo(()=>(pedidos_cw||[]).filter(p=>{
     const isHoje=p.data_pedido===hoje||(p.raw&&p.raw.created_at&&new Date(p.raw.created_at).toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'})===hoje);
-    const isDelivery=p.raw&&p.raw.order_type==='delivery';
-    const isAtivo=['waiting_confirmation','scheduled_confirmed','confirmed','ready','released'].includes(p.status);
-    return isHoje&&isDelivery&&isAtivo;
+    return isHoje&&p.raw&&p.raw.order_type==='delivery'&&['waiting_confirmation','scheduled_confirmed','confirmed','ready'].includes(p.status);
+  }),[pedidos_cw,hoje]);
+
+  // Pedidos em rota (released)
+  const pedidosEmRota=React.useMemo(()=>(pedidos_cw||[]).filter(p=>{
+    const isHoje=p.data_pedido===hoje||(p.raw&&p.raw.created_at&&new Date(p.raw.created_at).toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'})===hoje);
+    return isHoje&&p.raw&&p.raw.order_type==='delivery'&&p.status==='released';
   }),[pedidos_cw,hoje]);
 
   const pedidosEntregues=React.useMemo(()=>(pedidos_cw||[]).filter(p=>{
@@ -560,222 +549,213 @@ function PedEntregas({uid,db,reload,setM}){
     return isHoje&&(p.status==='delivered'||p.status==='closed')&&p.raw&&p.raw.order_type==='delivery';
   }),[pedidos_cw,hoje]);
 
-  const entregadoresAtivos=entregadores.filter(e=>e.ativo);
+  const entregadoresAtivos=entregadores.filter(e=>e.status!=='pausado');
   const rotas=React.useMemo(()=>entregadoresAtivos.length?distribuirPedidos(pedidosEntrega,entregadoresAtivos,BASE_LAT,BASE_LON):{},[pedidosEntrega,entregadoresAtivos]);
 
-  const urlMaps=(rota,origem)=>{
+  const urlMaps=(rota)=>{
     if(!rota.length)return'';
     const paradas=rota.map(p=>{const a=p.raw&&p.raw.delivery_address||{};return a.latitude&&a.longitude?a.latitude+','+a.longitude:encodeURIComponent([a.street,a.number,a.neighborhood,a.city].filter(Boolean).join(', '));});
-    const org=BASE_LAT+','+BASE_LON;
-    const dest=paradas[paradas.length-1];
-    const wp=paradas.slice(0,-1).join('|');
-    return'https://www.google.com/maps/dir/?api=1&origin='+org+'&destination='+dest+(wp?'&waypoints='+wp:'')+'&travelmode=driving&optimize=true';
+    const dest=paradas[paradas.length-1];const wp=paradas.slice(0,-1).join('|');
+    return'https://www.google.com/maps/dir/?api=1&origin='+BASE_LAT+','+BASE_LON+'&destination='+dest+(wp?'&waypoints='+wp:'')+'&travelmode=driving&optimize=true';
   };
 
   const COR=['#dc2626','#2563eb','#16a34a','#f59e0b','#7c3aed','#0891b2'];
+  const STATUS_BADGE={disponivel:{l:'Disponível',bg:'#f0fdf4',c:'#16a34a'},em_rota:{l:'Em rota',bg:'#dbeafe',c:'#2563eb'},pausado:{l:'Pausado',bg:'#f5f5f5',c:'#9ca3af'}};
 
-  // Métricas por entregador
-  const metricasPorEntregador=React.useMemo(()=>{
-    const m={};
-    entregadores.forEach(e=>{m[e.id]={entregas:0,total:0,km:0,tempos:[]};});
-    // Para simplificar sem GPS real, conta pedidos atribuídos por nome no campo motoboy
-    return m;
-  },[entregadores,pedidosEntregues]);
-
-  const ABA_TABS=[{id:'mapa',l:'🗺 Mapa'},{id:'rotas',l:'📋 Rotas'},{id:'painel',l:'🛵 Painel'},{id:'metricas',l:'📊 Métricas'}];
+  const ABA_TABS=[{id:'mapa',l:'🗺 Mapa'},{id:'despacho',l:'📦 Despacho'},{id:'painel',l:'🛵 Painel'},{id:'financeiro',l:'💰 Financeiro'},{id:'metricas',l:'📊 Métricas'}];
 
   return React.createElement('div',{style:{padding:'24px',animation:'fadeUp 0.2s ease'}},
+
     // Header
     React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20,flexWrap:'wrap',gap:12}},
       React.createElement('div',null,
         React.createElement('h1',{style:{fontSize:22,fontWeight:800,color:'#111',letterSpacing:'-0.5px'}},'Gestão de Entregas'),
-        React.createElement('p',{style:{fontSize:12,color:'#aaa',marginTop:4}},pedidosEntrega.length+' pendentes · '+pedidosEntregues.length+' entregues hoje')
+        React.createElement('p',{style:{fontSize:12,color:'#aaa',marginTop:4}},pedidosEntrega.length+' aguardando · '+pedidosEmRota.length+' em rota · '+pedidosEntregues.length+' entregues')
       ),
-      React.createElement('div',{style:{display:'flex',gap:4,background:'#f5f5f5',borderRadius:12,padding:4}},
-        ABA_TABS.map(t=>React.createElement('button',{key:t.id,onClick:()=>setAba(t.id),style:{padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',background:aba===t.id?'#fff':'transparent',color:aba===t.id?'#111':'#888',boxShadow:aba===t.id?'0 1px 4px rgba(0,0,0,0.1)':'none',transition:'all 0.15s'}},t.l))
+      React.createElement('div',{style:{display:'flex',gap:8,alignItems:'center'}},
+        React.createElement('button',{onClick:()=>setM({title:'⚙ Configurar Loja',body:React.createElement(EntregasConfig,{uid,baseAddr,setBaseAddr,baseLat,baseLon,setBaseLat,setBaseLon,salvarBase,close:()=>setM(null)})}),style:{background:'#f5f5f5',color:'#555',padding:'8px 14px',borderRadius:9,fontSize:12,fontWeight:600,border:'none',cursor:'pointer'}},'⚙ Configurar'),
+        React.createElement('div',{style:{display:'flex',gap:4,background:'#f5f5f5',borderRadius:12,padding:4}},
+          ABA_TABS.map(t=>React.createElement('button',{key:t.id,onClick:()=>setAba(t.id),style:{padding:'7px 14px',borderRadius:9,fontSize:12,fontWeight:600,border:'none',cursor:'pointer',background:aba===t.id?'#fff':'transparent',color:aba===t.id?'#111':'#888',boxShadow:aba===t.id?'0 1px 4px rgba(0,0,0,0.1)':'none',whiteSpace:'nowrap'}},t.l))
+        )
       )
     ),
 
-        // ── ABA MAPA ──
+    // ── ABA MAPA ──
     aba==='mapa'&&React.createElement('div',null,
-      // Legenda entregadores
-      entregadores.length>0&&React.createElement('div',{style:{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12}},
-        entregadores.map((e,i)=>React.createElement('div',{key:e.id,style:{display:'flex',alignItems:'center',gap:6,padding:'5px 12px',borderRadius:20,background:'#fff',boxShadow:'0 1px 4px rgba(0,0,0,0.08)'}},
+      // Legenda
+      React.createElement('div',{style:{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12,alignItems:'center'}},
+        entregadores.map((e,i)=>React.createElement('div',{key:e.id,style:{display:'flex',alignItems:'center',gap:6,padding:'5px 12px',borderRadius:20,background:'#fff',boxShadow:'0 1px 4px rgba(0,0,0,0.08)',opacity:e.status==='pausado'?0.5:1}},
           React.createElement('div',{style:{width:10,height:10,borderRadius:3,background:COR[i%COR.length]}}),
           React.createElement('span',{style:{fontSize:12,fontWeight:600}},e.nome),
-          React.createElement('span',{style:{fontSize:10,color:'#aaa'}},'('+(rotas[e.id]||[]).length+' pedidos)')
+          React.createElement('span',{style:{fontSize:10,color:'#aaa'}},'('+((rotas[e.id]||[]).length)+' pedidos)')
         )),
         React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6,padding:'5px 12px',borderRadius:20,background:'#fff',boxShadow:'0 1px 4px rgba(0,0,0,0.08)'}},
           React.createElement('div',{style:{width:10,height:10,borderRadius:3,background:'#16a34a'}}),
           React.createElement('span',{style:{fontSize:12,fontWeight:600}},'Entregues')
+        ),
+        React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6,padding:'5px 12px',borderRadius:20,background:'#fff',boxShadow:'0 1px 4px rgba(0,0,0,0.08)'}},
+          React.createElement('div',{style:{width:10,height:10,borderRadius:'50%',background:'#111'}}),
+          React.createElement('span',{style:{fontSize:12,fontWeight:600}},'🏠 '+baseAddr.split(',')[0])
         )
       ),
       typeof L!=='undefined'
-        ?React.createElement(MapaEntregas,{pedidosEntrega,pedidosEntregues,entregadores,rotas,BASE_LAT,BASE_LON,COR,uid,setBaseLat,setBaseLon})
+        ?React.createElement(MapaEntregas,{pedidosEntrega:[...pedidosEntrega,...pedidosEmRota],pedidosEntregues,entregadores,rotas,BASE_LAT,BASE_LON,COR,uid,setBaseLat,setBaseLon})
         :React.createElement('div',{style:{background:'#f8f9fc',borderRadius:14,padding:'40px',textAlign:'center',color:'#aaa'}},'Carregando mapa...')
     ),
 
-    // ── ABA ROTAS ──
-    aba==='rotas'&&React.createElement('div',null,
-      // Config entregadores + base
-      React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'16px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)',marginBottom:16}},
-        React.createElement('div',{style:{display:'flex',gap:10,marginBottom:12,flexWrap:'wrap'}},
-          React.createElement('div',{style:{flex:1,minWidth:200}},
-            React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:6}},'📍 Endereço de saída'),
-            React.createElement('input',{style:{width:'100%',background:'#f5f5f5',border:'none',borderRadius:9,padding:'9px 12px',fontSize:13,color:'#111',outline:'none',boxSizing:'border-box'},placeholder:'Endereço da confeitaria...',value:baseAddr,onChange:e=>{setBaseAddr(e.target.value);localStorage.setItem('base_addr_'+uid,e.target.value);}})
-          ),
-          React.createElement('div',{style:{flex:2,minWidth:200}},
-            React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:6}},'Entregadores'),
-            React.createElement('div',{style:{display:'flex',gap:8}},
-              React.createElement('input',{style:{flex:1,background:'#f5f5f5',border:'none',borderRadius:9,padding:'9px 12px',fontSize:13,outline:'none'},placeholder:'Nome do entregador...',value:novoNome,onChange:e=>setNovoNome(e.target.value),onKeyDown:e=>e.key==='Enter'&&addEntregador()}),
-              React.createElement('button',{style:{background:'#dc2626',color:'#fff',padding:'9px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:addEntregador},'+ Add')
-            )
-          )
-        ),
-        entregadores.length>0&&React.createElement('div',{style:{display:'flex',gap:8,flexWrap:'wrap'}},
-          entregadores.map((e,i)=>React.createElement('div',{key:e.id,style:{display:'flex',alignItems:'center',gap:7,padding:'6px 12px',borderRadius:20,background:e.ativo?COR[i%COR.length]+'15':'#f5f5f5',border:'1.5px solid '+(e.ativo?COR[i%COR.length]:'#e0e0e0')}},
-            React.createElement('div',{style:{width:8,height:8,borderRadius:'50%',background:e.ativo?COR[i%COR.length]:'#ccc'}}),
-            React.createElement('span',{style:{fontSize:13,fontWeight:600,color:e.ativo?'#111':'#aaa'}},e.nome),
-            React.createElement('button',{onClick:()=>toggleEntregador(e.id),style:{fontSize:11,background:'none',border:'none',cursor:'pointer',color:'#aaa'}},' ●'),
-            React.createElement('button',{onClick:()=>removerEntregador(e.id),style:{fontSize:11,background:'none',border:'none',cursor:'pointer',color:'#dc2626',fontWeight:700}},'×')
-          ))
+    // ── ABA DESPACHO ──
+    aba==='despacho'&&React.createElement('div',null,
+      // Entregadores disponíveis
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:10,marginBottom:20}},
+        entregadores.map((e,i)=>{
+          const cor=COR[i%COR.length];
+          const sb2=STATUS_BADGE[e.status]||STATUS_BADGE.disponivel;
+          const meusRota=(rotas[e.id]||[]).length;
+          return React.createElement('div',{key:e.id,style:{background:'#fff',borderRadius:12,padding:'14px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)',borderTop:'3px solid '+cor}},
+            React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}},
+              React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8}},
+                React.createElement('div',{style:{width:32,height:32,borderRadius:'50%',background:cor+'20',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16}},'🛵'),
+                React.createElement('div',{style:{fontWeight:700,fontSize:13}},e.nome)
+              ),
+              React.createElement('button',{onClick:()=>removerEntregador(e.id),style:{background:'none',border:'none',color:'#dc2626',cursor:'pointer',fontSize:12,fontWeight:700}},'×')
+            ),
+            React.createElement('div',{style:{display:'flex',gap:5,marginBottom:8}},
+              ['disponivel','em_rota','pausado'].map(st=>
+                React.createElement('button',{key:st,onClick:()=>setStatus(e.id,st),style:{flex:1,padding:'4px 4px',borderRadius:7,border:'none',cursor:'pointer',fontSize:10,fontWeight:600,background:e.status===st?cor:'#f5f5f5',color:e.status===st?'#fff':'#888'}},
+                  st==='disponivel'?'✓ Livre':st==='em_rota'?'🛵 Rota':'⏸ Pausa'
+                )
+              )
+            ),
+            React.createElement('div',{style:{fontSize:11,color:'#888',textAlign:'center'}},meusRota+' pedido(s) na fila')
+          );
+        }),
+        // Adicionar entregador
+        React.createElement('div',{style:{background:'#f8f9fc',borderRadius:12,padding:'14px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)',border:'2px dashed #e0e0e0',display:'flex',flexDirection:'column',gap:8}},
+          React.createElement('input',{style:{background:'#fff',border:'1px solid #e0e0e0',borderRadius:8,padding:'8px 10px',fontSize:13,outline:'none'},placeholder:'Nome do entregador...',value:novoNome,onChange:e=>setNovoNome(e.target.value),onKeyDown:e=>e.key==='Enter'&&addEntregador()}),
+          React.createElement('button',{onClick:addEntregador,style:{background:'#dc2626',color:'#fff',border:'none',borderRadius:8,padding:'8px',fontSize:12,fontWeight:700,cursor:'pointer'}},'+ Adicionar')
         )
       ),
 
-      pedidosEntrega.length===0
-        ?React.createElement('div',{style:{textAlign:'center',padding:'50px',color:'#ccc',background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},React.createElement('div',{style:{fontSize:36,marginBottom:10}},'🛵'),React.createElement('div',{style:{fontSize:14}},'Nenhum pedido de entrega pendente'))
-        :entregadoresAtivos.length===0
-        ?React.createElement('div',{style:{background:'#fffbeb',borderRadius:12,padding:'14px 18px',fontSize:13,color:'#92400e'}},'Cadastre pelo menos 1 entregador ativo para gerar as rotas')
-        :React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(320px,1fr))',gap:16}},
-            entregadoresAtivos.map((e,i)=>{
-              const rota=rotas[e.id]||[];
-              const cor=COR[i%COR.length];
-              const distTotal=rota.reduce((s,p)=>s+(p.distancia||0),0);
-              const mapsUrl=urlMaps(rota);
-              return React.createElement('div',{key:e.id,style:{background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden'}},
-                React.createElement('div',{style:{background:cor,padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center'}},
-                  React.createElement('div',null,
-                    React.createElement('div',{style:{fontWeight:800,fontSize:15,color:'#fff'}},'🛵 '+e.nome),
-                    React.createElement('div',{style:{fontSize:11,color:'rgba(255,255,255,0.8)',marginTop:2}},rota.length+' entrega(s) · ~'+distTotal.toFixed(1)+' km')
+      // Fila de pedidos aguardando despacho
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}},
+        // Aguardando
+        React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'16px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+          React.createElement('div',{style:{fontWeight:700,fontSize:14,marginBottom:14,display:'flex',justifyContent:'space-between'}},
+            React.createElement('span',null,'📦 Aguardando despacho'),
+            React.createElement('span',{style:{background:'#fef3c7',color:'#92400e',borderRadius:20,padding:'2px 10px',fontSize:12}},pedidosEntrega.length)
+          ),
+          pedidosEntrega.length===0
+            ?React.createElement('div',{style:{textAlign:'center',padding:'20px',color:'#ccc',fontSize:13}},'Nenhum pedido aguardando')
+            :pedidosEntrega.map(p=>{
+                const addr=p.raw&&p.raw.delivery_address||{};
+                const addrStr=[addr.street,addr.number,addr.neighborhood].filter(Boolean).join(', ');
+                const mins=p.raw&&p.raw.created_at?Math.floor((Date.now()-new Date(p.raw.created_at).getTime())/60000):0;
+                return React.createElement('div',{key:p.id,style:{padding:'10px 0',borderBottom:'1px solid #f5f5f5'}},
+                  React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:3}},
+                    React.createElement('span',{style:{fontWeight:700,color:'#dc2626',fontSize:13}},'#'+p.pedido_id),
+                    React.createElement('span',{style:{fontSize:11,color:mins>20?'#dc2626':'#aaa',fontWeight:mins>20?700:400}},mins+'min')
                   ),
-                  mapsUrl&&React.createElement('a',{href:mapsUrl,target:'_blank',style:{background:'rgba(255,255,255,0.2)',color:'#fff',padding:'7px 14px',borderRadius:9,fontSize:12,fontWeight:700,textDecoration:'none'}},'📍 Iniciar rota')
-                ),
-                React.createElement('div',{style:{padding:'6px 16px 4px',background:cor+'10',fontSize:11,color:cor,fontWeight:600,borderBottom:'1px solid '+cor+'20'}},
-                  '🏠 Saída: '+baseAddr
-                ),
-                React.createElement('div',{style:{padding:'6px 0'}},
-                  rota.length===0
-                    ?React.createElement('div',{style:{padding:'16px',color:'#ccc',textAlign:'center',fontSize:13}},'Sem pedidos')
-                    :rota.map((p,j)=>{
-                        const addr=p.raw&&p.raw.delivery_address||{};
-                        const addrStr=[addr.street,addr.number,addr.neighborhood].filter(Boolean).join(', ');
-                        const itens=p.raw&&p.raw.items||p.itens||[];
-                        const qtd=itens.reduce((s,it)=>s+Number(it.quantity||1),0);
-                        const st=CW_STATUS[p.status]||p.status;
-                        return React.createElement('div',{key:p.id,style:{display:'flex',gap:10,padding:'10px 16px',borderBottom:j<rota.length-1?'1px solid #f5f5f5':'none',alignItems:'flex-start'}},
-                          React.createElement('div',{style:{width:22,height:22,borderRadius:'50%',background:cor,color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800,flexShrink:0}},j+1),
-                          React.createElement('div',{style:{flex:1,minWidth:0}},
-                            React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:2}},
-                              React.createElement('span',{style:{fontWeight:700,fontSize:12,color:'#dc2626'}},'#'+p.pedido_id+' · '+p.cliente),
-                              React.createElement('span',{style:{fontSize:10,color:'#aaa'}},p.distancia?(p.distancia.toFixed(1)+' km'):'')
-                            ),
-                            addrStr&&React.createElement('div',{style:{fontSize:11,color:'#888',marginBottom:2}},addrStr),
-                            addr.reference&&React.createElement('div',{style:{fontSize:10,color:'#f59e0b',fontStyle:'italic',marginBottom:2}},addr.reference),
-                            React.createElement('div',{style:{display:'flex',gap:8,alignItems:'center'}},
-                              React.createElement('span',{style:{fontSize:11,color:'#555'}},qtd+' 🍪'),
-                              React.createElement('span',{style:{fontSize:11,fontWeight:700,color:'#16a34a'}},F(p.total)),
-                              React.createElement('span',{style:{fontSize:10,background:'#f5f5f5',color:'#666',padding:'1px 6px',borderRadius:10}},st)
-                            )
-                          )
-                        );
-                      })
-                ),
-                rota.length>0&&React.createElement('div',{style:{padding:'10px 16px',background:'#fafafa',borderTop:'1px solid #f0f0f0',display:'flex',justifyContent:'space-between',fontSize:12}},
-                  React.createElement('span',{style:{color:'#888'}},'Total a receber'),
-                  React.createElement('span',{style:{fontWeight:700}},F(rota.reduce((s,p)=>s+Number(p.total||0),0)))
-                )
-              );
-            })
-          )
+                  React.createElement('div',{style:{fontSize:12,fontWeight:500,marginBottom:2}},p.cliente||'—'),
+                  React.createElement('div',{style:{fontSize:11,color:'#888',marginBottom:6}},addrStr||'—'),
+                  // Botões de despacho por entregador
+                  React.createElement('div',{style:{display:'flex',gap:5,flexWrap:'wrap'}},
+                    entregadoresAtivos.map((e,i)=>React.createElement('button',{key:e.id,style:{background:COR[i%COR.length],color:'#fff',border:'none',borderRadius:7,padding:'3px 10px',fontSize:11,cursor:'pointer',fontWeight:600}},
+                      '→ '+e.nome
+                    ))
+                  )
+                );
+              })
+        ),
+
+        // Em rota
+        React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'16px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+          React.createElement('div',{style:{fontWeight:700,fontSize:14,marginBottom:14,display:'flex',justifyContent:'space-between'}},
+            React.createElement('span',null,'🛵 Em rota'),
+            React.createElement('span',{style:{background:'#dbeafe',color:'#1d4ed8',borderRadius:20,padding:'2px 10px',fontSize:12}},pedidosEmRota.length)
+          ),
+          pedidosEmRota.length===0
+            ?React.createElement('div',{style:{textAlign:'center',padding:'20px',color:'#ccc',fontSize:13}},'Nenhuma entrega em andamento')
+            :pedidosEmRota.map(p=>{
+                const addr=p.raw&&p.raw.delivery_address||{};
+                const addrStr=[addr.street,addr.number,addr.neighborhood].filter(Boolean).join(', ');
+                const mins=p.raw&&p.raw.created_at?Math.floor((Date.now()-new Date(p.raw.created_at).getTime())/60000):0;
+                return React.createElement('div',{key:p.id,style:{padding:'10px 0',borderBottom:'1px solid #f5f5f5'}},
+                  React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:3}},
+                    React.createElement('span',{style:{fontWeight:700,color:'#2563eb',fontSize:13}},'#'+p.pedido_id),
+                    React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6}},
+                      React.createElement('div',{style:{width:7,height:7,borderRadius:'50%',background:'#2563eb',animation:'pulse 1.5s infinite'}}),
+                      React.createElement('span',{style:{fontSize:11,color:'#2563eb',fontWeight:600}},mins+'min')
+                    )
+                  ),
+                  React.createElement('div',{style:{fontSize:12,fontWeight:500,marginBottom:2}},p.cliente||'—'),
+                  React.createElement('div',{style:{fontSize:11,color:'#888'}},addrStr||'—'),
+                  React.createElement('div',{style:{fontSize:11,fontWeight:700,color:'#16a34a',marginTop:4}},F(p.total))
+                );
+              })
+        )
+      )
     ),
 
     // ── ABA PAINEL ──
     aba==='painel'&&React.createElement('div',null,
-      // KPIs
       React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}},
-        React.createElement(SC,{label:'Pendentes',val:pedidosEntrega.length,color:'#f59e0b'}),
-        React.createElement(SC,{label:'Entregues hoje',val:pedidosEntregues.length,color:'#16a34a'}),
-        React.createElement(SC,{label:'Entregadores ativos',val:entregadoresAtivos.length,color:'#2563eb'}),
-        React.createElement(SC,{label:'Total entregue',val:F(pedidosEntregues.reduce((s,p)=>s+Number(p.total||0),0)),color:'#dc2626'})
+        React.createElement(SC,{label:'Aguardando',val:pedidosEntrega.length,color:'#f59e0b'}),
+        React.createElement(SC,{label:'Em rota',val:pedidosEmRota.length,color:'#2563eb'}),
+        React.createElement(SC,{label:'Entregues',val:pedidosEntregues.length,color:'#16a34a'}),
+        React.createElement(SC,{label:'Faturamento',val:F(pedidosEntregues.reduce((s,p)=>s+Number(p.total||0),0)),color:'#dc2626'})
       ),
 
-      // Cards dos entregadores
-      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(320px,1fr))',gap:14,marginBottom:20}},
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))',gap:14,marginBottom:20}},
         entregadores.map((e,i)=>{
           const cor=COR[i%COR.length];
           const meusPedidos=rotas[e.id]||[];
           const dist=meusPedidos.reduce((s,p)=>s+(p.distancia||0),0);
-          // Calcula breakdown por forma de pagamento dos pedidos atribuídos
-          const formasPed={PIX:0,Dinheiro:0,Cartão:0,iFood:0,Outros:0};
-          meusPedidos.forEach(p=>{
-            (p.pagamentos||[]).forEach(pg=>{
-              const k=(pg.payment_method||'').toLowerCase();
-              const v=Number(pg.value||pg.total||0);
-              if(k==='pix'||k==='pix_auto')formasPed.PIX+=v;
-              else if(k==='money'||k==='cash')formasPed.Dinheiro+=v;
-              else if(k==='ifood'||k==='online_credit_card')formasPed.iFood+=v;
-              else if(k.includes('card'))formasPed.Cartão+=v;
-              else formasPed.Outros+=v;
-            });
-          });
+          const sb2=STATUS_BADGE[e.status]||STATUS_BADGE.disponivel;
+          const formasPed={PIX:0,Dinheiro:0,Cartão:0,iFood:0};
+          meusPedidos.forEach(p=>{(p.pagamentos||[]).forEach(pg=>{const k=(pg.payment_method||'').toLowerCase();const v=Number(pg.value||pg.total||0);if(k==='pix'||k==='pix_auto')formasPed.PIX+=v;else if(k==='money'||k==='cash')formasPed.Dinheiro+=v;else if(k==='ifood'||k==='online_credit_card')formasPed.iFood+=v;else if(k.includes('card'))formasPed.Cartão+=v;});});
           const totalFormas=Object.values(formasPed).reduce((s,v)=>s+v,0);
-          const FORMA_COR={PIX:'#16a34a',Dinheiro:'#6b7280',Cartão:'#f59e0b',iFood:'#dc2626',Outros:'#2563eb'};
+          const FCOR={PIX:'#16a34a',Dinheiro:'#6b7280',Cartão:'#f59e0b',iFood:'#dc2626'};
 
-          return React.createElement('div',{key:e.id,style:{background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden',opacity:e.ativo?1:0.6}},
-            // Header
+          return React.createElement('div',{key:e.id,style:{background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden'}},
             React.createElement('div',{style:{background:cor,padding:'14px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}},
               React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10}},
                 React.createElement('div',{style:{width:36,height:36,borderRadius:'50%',background:'rgba(255,255,255,0.25)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}},'🛵'),
                 React.createElement('div',null,
                   React.createElement('div',{style:{fontWeight:800,fontSize:14,color:'#fff'}},e.nome),
-                  React.createElement('div',{style:{fontSize:11,color:'rgba(255,255,255,0.8)'}},e.ativo?'● Ativo':'○ Inativo')
+                  React.createElement('div',{style:{fontSize:11,color:'rgba(255,255,255,0.8)',marginTop:2}},sb2.l)
                 )
               ),
-              React.createElement('button',{onClick:()=>toggleEntregador(e.id),style:{background:'rgba(255,255,255,0.2)',color:'#fff',border:'none',borderRadius:8,padding:'5px 10px',fontSize:11,cursor:'pointer',fontWeight:600}},e.ativo?'Pausar':'Ativar')
+              React.createElement('div',{style:{display:'flex',gap:5}},
+                ['disponivel','em_rota','pausado'].map(st=>React.createElement('button',{key:st,onClick:()=>setStatus(e.id,st),style:{padding:'4px 8px',borderRadius:7,border:'none',cursor:'pointer',fontSize:10,fontWeight:600,background:e.status===st?'rgba(255,255,255,0.3)':'rgba(0,0,0,0.15)',color:'#fff'}},st==='disponivel'?'✓':st==='em_rota'?'🛵':'⏸'))
+              )
             ),
             React.createElement('div',{style:{padding:'14px 16px'}},
-              // KPIs
               React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:12}},
-                [['Pendentes',meusPedidos.length,cor],['Km',dist.toFixed(1)+'km','#555'],['Total',F(totalFormas),'#16a34a']].map(([l,v,c])=>
+                [['Pendentes',meusPedidos.length,cor],['Km','~'+dist.toFixed(1),'#555'],['Total',F(totalFormas),'#16a34a']].map(([l,v,c])=>
                   React.createElement('div',{key:l,style:{textAlign:'center',background:'#f8f9fc',borderRadius:8,padding:'8px 4px'}},
                     React.createElement('div',{style:{fontSize:14,fontWeight:800,color:c}},String(v)),
                     React.createElement('div',{style:{fontSize:10,color:'#aaa',marginTop:2}},l)
                   )
                 )
               ),
-              // Breakdown formas de pagamento
+              // Formas de pagamento
               totalFormas>0&&React.createElement('div',{style:{marginBottom:12}},
-                React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:8}},'Por forma de pagamento'),
                 Object.entries(formasPed).filter(([,v])=>v>0).map(([f,v])=>{
-                  const fc=FORMA_COR[f]||'#555';
                   const pct=totalFormas>0?Math.round(v/totalFormas*100):0;
-                  return React.createElement('div',{key:f,style:{marginBottom:7}},
-                    React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:3}},
-                      React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6}},
-                        React.createElement('div',{style:{width:7,height:7,borderRadius:'50%',background:fc}}),
-                        React.createElement('span',{style:{fontSize:12,color:'#555'}},f)
-                      ),
-                      React.createElement('span',{style:{fontSize:12,fontWeight:700}},F(v))
+                  return React.createElement('div',{key:f,style:{marginBottom:6}},
+                    React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:2}},
+                      React.createElement('div',{style:{display:'flex',alignItems:'center',gap:5}},React.createElement('div',{style:{width:6,height:6,borderRadius:'50%',background:FCOR[f]||'#555'}}),React.createElement('span',{style:{fontSize:11,color:'#555'}},f)),
+                      React.createElement('span',{style:{fontSize:11,fontWeight:700}},F(v))
                     ),
-                    React.createElement('div',{style:{height:4,background:'#f5f5f5',borderRadius:4,overflow:'hidden'}},
-                      React.createElement('div',{style:{height:'100%',width:pct+'%',background:fc,borderRadius:4}})
+                    React.createElement('div',{style:{height:3,background:'#f5f5f5',borderRadius:4,overflow:'hidden'}},
+                      React.createElement('div',{style:{height:'100%',width:pct+'%',background:FCOR[f]||'#555',borderRadius:4}})
                     )
                   );
                 })
               ),
               // Próxima entrega
               meusPedidos.length>0&&React.createElement('div',{style:{background:'#f8f9fc',borderRadius:9,padding:'9px 12px',marginBottom:10}},
-                React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:6}},'Próxima entrega'),
+                React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',letterSpacing:'1px',marginBottom:5}},'Próxima entrega'),
                 React.createElement('div',{style:{fontWeight:600,fontSize:13,color:'#111',marginBottom:2}},'#'+meusPedidos[0].pedido_id+' · '+(meusPedidos[0].cliente||'—')),
                 React.createElement('div',{style:{fontSize:11,color:'#888',marginBottom:4}},((meusPedidos[0].raw&&meusPedidos[0].raw.delivery_address)||{}).street||'—'),
                 React.createElement('div',{style:{display:'flex',justifyContent:'space-between'}},
@@ -787,104 +767,117 @@ function PedEntregas({uid,db,reload,setM}){
             )
           );
         })
+      )
+    ),
+
+    // ── ABA FINANCEIRO ──
+    aba==='financeiro'&&React.createElement('div',null,
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:20}},
+        React.createElement(SC,{label:'Total em entregas',val:F(pedidosEntregues.reduce((s,p)=>s+Number(p.total||0),0)),color:'#dc2626'}),
+        React.createElement(SC,{label:'Taxas de entrega',val:F(pedidosEntregues.reduce((s,p)=>s+Number(p.raw&&p.raw.delivery_fee||0),0)),color:'#2563eb'}),
+        React.createElement(SC,{label:'Entregas concluídas',val:pedidosEntregues.length,color:'#16a34a'})
       ),
 
-      // Pedidos pendentes por status
-      pedidosEntrega.length>0&&React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'18px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
-        React.createElement('div',{style:{fontWeight:700,fontSize:14,color:'#111',marginBottom:14}},'Pedidos pendentes de entrega'),
-        React.createElement(Tbl,{cols:['Nº','Cliente','Endereço','Total','Status'],
-          rows:pedidosEntrega.map(p=>{
-            const addr=p.raw&&p.raw.delivery_address||{};
-            const addrStr=[addr.street,addr.number,addr.neighborhood].filter(Boolean).join(', ');
-            const st=CW_STATUS[p.status]||p.status;
-            const stC=['confirmed','released'].includes(p.status)?'blue':p.status==='ready'?'green':'amber';
-            return React.createElement(TR,{key:p.id,cells:[
-              React.createElement('span',{style:{fontWeight:700,color:'#dc2626'}},'#'+p.pedido_id),
-              React.createElement('span',{style:{fontWeight:600}},p.cliente||'—'),
-              React.createElement('span',{style:{fontSize:11,color:'#888'}},addrStr||'—'),
-              React.createElement('span',{style:{fontWeight:700}},F(p.total)),
-              React.createElement(Badge,{t:st,c:stC})
-            ]});
-          }),
-          empty:'Sem pedidos pendentes'
-        })
-      )
+      entregadores.map((e,i)=>{
+        const cor=COR[i%COR.length];
+        const FCOR={PIX:'#16a34a',Dinheiro:'#6b7280','Cartão Crédito':'#f59e0b','Cartão Débito':'#3b82f6',iFood:'#dc2626'};
+        // Calcula totais do motoboy (baseado nos pedidos atribuídos)
+        const meusPed=rotas[e.id]||[];
+        const formas={PIX:0,Dinheiro:0,'Cartão Crédito':0,'Cartão Débito':0,iFood:0};
+        let totalBruto=0;
+        meusPed.forEach(p=>{
+          totalBruto+=Number(p.total||0);
+          (p.pagamentos||[]).forEach(pg=>{
+            const k=(pg.payment_method||'').toLowerCase();const v=Number(pg.value||pg.total||0);
+            if(k==='pix'||k==='pix_auto')formas.PIX+=v;
+            else if(k==='money'||k==='cash')formas.Dinheiro+=v;
+            else if(k==='ifood'||k==='online_credit_card')formas.iFood+=v;
+            else if(k==='credit_card')formas['Cartão Crédito']+=v;
+            else if(k==='debit_card')formas['Cartão Débito']+=v;
+          });
+        });
+        const totalFormas=Object.values(formas).reduce((s,v)=>s+v,0);
+        if(totalFormas===0&&meusPed.length===0)return null;
+
+        return React.createElement('div',{key:e.id,style:{background:'#fff',borderRadius:14,padding:'18px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)',marginBottom:14,borderLeft:'4px solid '+cor}},
+          React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}},
+            React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10}},
+              React.createElement('div',{style:{width:32,height:32,borderRadius:'50%',background:cor+'20',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16}},'🛵'),
+              React.createElement('div',null,
+                React.createElement('div',{style:{fontWeight:700,fontSize:14}},e.nome),
+                React.createElement('div',{style:{fontSize:11,color:'#aaa'}},meusPed.length+' pedidos')
+              )
+            ),
+            React.createElement('div',{style:{textAlign:'right'}},
+              React.createElement('div',{style:{fontSize:11,color:'#aaa'}},'Total a receber'),
+              React.createElement('div',{style:{fontWeight:800,fontSize:20,color:cor}},F(totalFormas))
+            )
+          ),
+          React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))',gap:8}},
+            Object.entries(formas).filter(([,v])=>v>0).map(([f,v])=>
+              React.createElement('div',{key:f,style:{background:'#f8f9fc',borderRadius:10,padding:'10px 12px',borderLeft:'3px solid '+(FCOR[f]||'#555')}},
+                React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:4}},f),
+                React.createElement('div',{style:{fontSize:16,fontWeight:800,color:FCOR[f]||'#111'}},F(v))
+              )
+            )
+          )
+        );
+      }).filter(Boolean),
+
+      // Se nenhum entregador tem pedidos
+      entregadores.length===0&&React.createElement('div',{style:{textAlign:'center',padding:'40px',color:'#ccc',background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},'Cadastre entregadores na aba Despacho')
     ),
 
     // ── ABA MÉTRICAS ──
     aba==='metricas'&&React.createElement('div',null,
-      // Resumo do dia
       React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}},
         React.createElement(SC,{label:'Total entregues',val:pedidosEntregues.length,color:'#16a34a'}),
-        React.createElement(SC,{label:'Faturamento entregue',val:F(pedidosEntregues.reduce((s,p)=>s+Number(p.total||0),0)),color:'#dc2626'}),
-        React.createElement(SC,{label:'Taxa entrega',val:F(pedidosEntregues.reduce((s,p)=>s+Number(p.raw&&p.raw.delivery_fee||0),0)),color:'#2563eb'}),
+        React.createElement(SC,{label:'Faturamento',val:F(pedidosEntregues.reduce((s,p)=>s+Number(p.total||0),0)),color:'#dc2626'}),
+        React.createElement(SC,{label:'Taxa de entrega',val:F(pedidosEntregues.reduce((s,p)=>s+Number(p.raw&&p.raw.delivery_fee||0),0)),color:'#2563eb'}),
         React.createElement(SC,{label:'Ticket médio',val:F(pedidosEntregues.length>0?pedidosEntregues.reduce((s,p)=>s+Number(p.total||0),0)/pedidosEntregues.length:0),color:'#7c3aed'})
       ),
 
-      // Bairros mais atendidos
-      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}},
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}},
+        // Bairros
         React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'18px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
           React.createElement('div',{style:{fontWeight:700,fontSize:14,color:'#111',marginBottom:14}},'Bairros mais atendidos'),
           (()=>{
             const bairros={};
-            [...pedidosEntregues,...pedidosEntrega].forEach(p=>{
-              const b=(p.raw&&p.raw.delivery_address&&p.raw.delivery_address.neighborhood)||'Não informado';
-              bairros[b]=(bairros[b]||0)+1;
-            });
+            [...pedidosEntregues,...pedidosEntrega,...pedidosEmRota].forEach(p=>{const b=(p.raw&&p.raw.delivery_address&&p.raw.delivery_address.neighborhood)||'—';bairros[b]=(bairros[b]||0)+1;});
             const top=Object.entries(bairros).sort((a,b)=>b[1]-a[1]).slice(0,8);
             const max=top[0]&&top[0][1]||1;
             return top.length===0
               ?React.createElement('div',{style:{color:'#ccc',fontSize:13,textAlign:'center',padding:'20px'}},'Sem dados')
               :top.map(([b,n])=>React.createElement('div',{key:b,style:{marginBottom:10}},
-                  React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:4}},
+                  React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:3}},
                     React.createElement('span',{style:{fontSize:12,color:'#555',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:'70%'}},b),
-                    React.createElement('span',{style:{fontSize:12,fontWeight:700}},n+' pedido(s)')
+                    React.createElement('span',{style:{fontSize:12,fontWeight:700}},n+'x')
                   ),
-                  React.createElement('div',{style:{height:4,background:'#f5f5f5',borderRadius:4,overflow:'hidden'}},
-                    React.createElement('div',{style:{height:'100%',width:(n/max*100)+'%',background:'#dc2626',borderRadius:4}})
-                  )
+                  React.createElement('div',{style:{height:4,background:'#f5f5f5',borderRadius:4,overflow:'hidden'}},React.createElement('div',{style:{height:'100%',width:(n/max*100)+'%',background:'#dc2626',borderRadius:4}}))
                 ));
           })()
         ),
 
+        // Desempenho por motoboy
         React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'18px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
-          React.createElement('div',{style:{fontWeight:700,fontSize:14,color:'#111',marginBottom:14}},'Desempenho por entregador'),
+          React.createElement('div',{style:{fontWeight:700,fontSize:14,color:'#111',marginBottom:14}},'Desempenho dos entregadores'),
           entregadores.length===0
-            ?React.createElement('div',{style:{color:'#ccc',fontSize:13,textAlign:'center',padding:'20px'}},'Cadastre entregadores')
+            ?React.createElement('div',{style:{color:'#ccc',fontSize:13,textAlign:'center',padding:'20px'}},'Sem entregadores')
             :entregadores.map((e,i)=>{
                 const cor=COR[i%COR.length];
                 const meusPend=rotas[e.id]||[];
                 const dist=meusPend.reduce((s,p)=>s+(p.distancia||0),0);
+                const sb2=STATUS_BADGE[e.status]||STATUS_BADGE.disponivel;
                 return React.createElement('div',{key:e.id,style:{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:'1px solid #f5f5f5'}},
                   React.createElement('div',{style:{width:36,height:36,borderRadius:'50%',background:cor+'20',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,flexShrink:0}},'🛵'),
                   React.createElement('div',{style:{flex:1}},
                     React.createElement('div',{style:{fontWeight:600,fontSize:13}},e.nome),
                     React.createElement('div',{style:{fontSize:11,color:'#aaa'}},meusPend.length+' pendentes · ~'+dist.toFixed(1)+' km')
                   ),
-                  React.createElement('div',{style:{width:8,height:8,borderRadius:'50%',background:e.ativo?'#16a34a':'#e0e0e0',flexShrink:0}})
+                  React.createElement('span',{style:{fontSize:10,fontWeight:700,color:sb2.c,background:sb2.bg,padding:'3px 8px',borderRadius:20}},sb2.l)
                 );
               })
         )
-      ),
-
-      // Histórico de entregas do dia
-      React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'18px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
-        React.createElement('div',{style:{fontWeight:700,fontSize:14,color:'#111',marginBottom:14}},'Entregas concluídas hoje ('+pedidosEntregues.length+')'),
-        pedidosEntregues.length===0
-          ?React.createElement('div',{style:{color:'#ccc',fontSize:13,textAlign:'center',padding:'20px'}},'Nenhuma entrega concluída ainda')
-          :React.createElement(Tbl,{cols:['Nº','Cliente','Bairro','Taxa entrega','Total'],
-              rows:pedidosEntregues.map(p=>{
-                const addr=p.raw&&p.raw.delivery_address||{};
-                return React.createElement(TR,{key:p.id,cells:[
-                  React.createElement('span',{style:{fontWeight:700,color:'#16a34a'}},'#'+p.pedido_id),
-                  React.createElement('span',{style:{fontWeight:600}},p.cliente||'—'),
-                  React.createElement('span',{style:{fontSize:11,color:'#888'}},addr.neighborhood||'—'),
-                  React.createElement('span',{style:{fontSize:12}},F(p.raw&&p.raw.delivery_fee||0)),
-                  React.createElement('span',{style:{fontWeight:700}},F(p.total))
-                ]});
-              }),
-              empty:'Sem entregas'
-            })
       )
     )
   );
