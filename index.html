@@ -1217,7 +1217,10 @@ function PedCaixa({uid,db,setDb,reload,setM}){
       (p.pagamentos||[]).forEach(pg=>{
         const k=(pg.payment_method||'').toLowerCase();
         const pmNome=PM_MAP_CW[k]||k;
-        const forma=(formas_pag||[]).find(f=>f.status==='ativa'&&(f.nome||'').toLowerCase().includes(pmNome.toLowerCase().split(' ')[0]));
+        const norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+        const forma=(formas_pag||[]).find(f=>f.status==='ativa'&&norm(f.nome)===norm(pmNome))
+          ||(formas_pag||[]).find(f=>f.status==='ativa'&&norm(f.nome).includes(norm(pmNome)))
+          ||(formas_pag||[]).find(f=>f.status==='ativa'&&norm(pmNome).includes(norm(f.nome)));
         const valor=Number(pg.value||pg.total||0);if(!valor)return;
         const taxa=forma&&forma.taxa_pct?valor*(forma.taxa_pct/100):0;
         const dias=forma&&forma.dias||0;
@@ -1233,8 +1236,8 @@ function PedCaixa({uid,db,setDb,reload,setM}){
       const liq=parseFloat((g.bruto-g.taxa).toFixed(2));
       let dt=hoje;
       if(g.dias>0){const d=new Date(hoje+'T12:00:00');d.setDate(d.getDate()+g.dias);dt=d.toISOString().split('T')[0];}
-      rows.push({user_id:uid,tipo:'receita',descricao:'Vendas '+g.forma+' — '+hoje,valor:liq,data:dt,venc:dt,data_pag:g.dias===0?dt:null,pago:g.dias===0,conta_id:g.contaId,categoria:'3.1 Receita de Venda de Produtos',forma_pag:g.forma,obs:'consolidado_cw'});
-      if(g.taxa>0)rows.push({user_id:uid,tipo:'despesa',descricao:'Taxa '+g.forma+' — '+hoje,valor:parseFloat(g.taxa.toFixed(2)),data:hoje,venc:hoje,data_pag:hoje,pago:true,conta_id:g.contaId,categoria:'4.2.4 Taxas',forma_pag:g.forma,obs:'consolidado_cw'});
+      rows.push({user_id:uid,tipo:'receita',descricao:'Vendas '+g.forma,valor:liq,data:dt,venc:dt,data_pag:g.dias===0?dt:null,pago:g.dias===0,conta_id:g.contaId,categoria:'3.1 Receita de Venda de Produtos',forma_pag:g.forma,obs:'consolidado_cw'});
+      if(g.taxa>0)rows.push({user_id:uid,tipo:'despesa',descricao:'Taxa '+g.forma,valor:parseFloat(g.taxa.toFixed(2)),data:hoje,venc:hoje,data_pag:hoje,pago:true,conta_id:g.contaId,categoria:'4.2.4 Taxas',forma_pag:g.forma,obs:'consolidado_cw'});
     }
     if(rows.length)await sb.from('lancamentos').insert(rows);
     return rows.length;
