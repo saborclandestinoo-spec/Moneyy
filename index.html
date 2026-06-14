@@ -1122,10 +1122,280 @@ function PedKDS({uid,db,reload,setM}){
   );
 }
 
+// ── Modal: Abrir Caixa ──
+function AbrirCaixaModal({uid,reload,close}){
+  const[valor,setValor]=React.useState('0');
+  const[obs,setObs]=React.useState('');
+  const[ld,setLd]=React.useState(false);
+  const confirmar=async()=>{
+    setLd(true);
+    const hoje=TODAY();
+    await sb.from('caixas').insert({user_id:uid,data:hoje,status:'aberto',saldo_abertura:parseFloat(valor)||0,suprimentos:0,sangrias:0,obs});
+    toast('Caixa aberto!',false,true);reload();close();setLd(false);
+  };
+  return React.createElement('div',null,
+    React.createElement('div',{style:{background:'#eff6ff',borderRadius:10,padding:'12px 14px',fontSize:12,color:'#2563eb',marginBottom:16,lineHeight:1.7}},
+      '💰 Informe quanto dinheiro físico tem no caixa agora (fundo de troco). O caixa abre zerado por padrão.'
+    ),
+    React.createElement(FloatInput,{label:'Saldo de abertura (R$)',acent:'#16a34a',type:'number',value:valor,onChange:e=>setValor(e.target.value)}),
+    React.createElement(FloatInput,{label:'Observação (opcional)',acent:'#16a34a',value:obs,onChange:e=>setObs(e.target.value)}),
+    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',marginTop:8}},
+      React.createElement('button',{style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'},onClick:close},'Cancelar'),
+      React.createElement('button',{style:{background:'#16a34a',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:confirmar},ld?'Abrindo...':'🔓 Abrir Caixa')
+    )
+  );
+}
+
+// ── Modal: Suprimento / Sangria ──
+function MovCaixaModal({uid,caixa,tipo,reload,close}){
+  const[valor,setValor]=React.useState('');
+  const[desc,setDesc]=React.useState('');
+  const[ld,setLd]=React.useState(false);
+  const isSuprimento=tipo==='suprimento';
+  const confirmar=async()=>{
+    const v=parseFloat(valor)||0;
+    if(v<=0){toast('Informe um valor válido',true);return;}
+    setLd(true);
+    const campo=isSuprimento?'suprimentos':'sangrias';
+    const atual=Number(caixa[campo]||0);
+    await sb.from('caixas').update({[campo]:atual+v}).eq('id',caixa.id);
+    toast((isSuprimento?'Suprimento':'Sangria')+' registrado!',false,true);reload();close();setLd(false);
+  };
+  return React.createElement('div',null,
+    React.createElement('div',{style:{background:isSuprimento?'#f0fdf4':'#fff5f5',borderRadius:10,padding:'12px 14px',fontSize:12,color:isSuprimento?'#16a34a':'#dc2626',marginBottom:16,lineHeight:1.7}},
+      isSuprimento?'➕ Suprimento: dinheiro adicionado ao caixa (troco extra, reforço).':'➖ Sangria: retirada de dinheiro do caixa (depósito, pagamento, retirada do dono).'
+    ),
+    React.createElement(FloatInput,{label:'Valor (R$) *',acent:isSuprimento?'#16a34a':'#dc2626',type:'number',value:valor,onChange:e=>setValor(e.target.value)}),
+    React.createElement(FloatInput,{label:'Motivo / Observação',acent:isSuprimento?'#16a34a':'#dc2626',value:desc,onChange:e=>setDesc(e.target.value)}),
+    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',marginTop:8}},
+      React.createElement('button',{style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'},onClick:close},'Cancelar'),
+      React.createElement('button',{style:{background:isSuprimento?'#16a34a':'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:confirmar},ld?'Salvando...':'Confirmar')
+    )
+  );
+}
+
+// ── Modal: Fechar Caixa ──
+function FecharCaixaModal({uid,caixa,esperado,gerarLancamentos,reload,close,setLd}){
+  const[contado,setContado]=React.useState(esperado.toFixed(2));
+  const diff=parseFloat(contado||0)-esperado;
+  const confirmar=async()=>{
+    setLd(true);
+    const n=await gerarLancamentos();
+    await sb.from('caixas').update({status:'fechado',saldo_fechamento:parseFloat(contado)||0,fechado_em:new Date().toISOString()}).eq('id',caixa.id);
+    toast(n+' lançamentos gerados! Caixa fechado.',false,true);reload();close();setLd(false);
+  };
+  return React.createElement('div',null,
+    React.createElement('div',{style:{background:'#fffbeb',borderRadius:10,padding:'12px 14px',fontSize:12,color:'#92400e',marginBottom:16,lineHeight:1.7}},
+      '🔒 Ao fechar, os lançamentos financeiros do dia serão gerados e o caixa ficará zerado para o próximo dia.'
+    ),
+    React.createElement('div',{style:{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid #f5f5f5',fontSize:13}},
+      React.createElement('span',{style:{color:'#555'}},'Valor esperado em caixa'),
+      React.createElement('span',{style:{fontWeight:700}},F(esperado))
+    ),
+    React.createElement(FloatInput,{label:'Valor contado em caixa (R$)',acent:'#dc2626',type:'number',value:contado,onChange:e=>setContado(e.target.value)}),
+    Math.abs(diff)>0.005&&React.createElement('div',{style:{background:diff>0?'#f0fdf4':'#fff5f5',borderRadius:10,padding:'10px 14px',fontSize:12,color:diff>0?'#16a34a':'#dc2626',marginBottom:8}},
+      (diff>0?'Sobra de ':'Falta de ')+F(Math.abs(diff))+' em relação ao esperado'
+    ),
+    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',marginTop:8}},
+      React.createElement('button',{style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'},onClick:close},'Cancelar'),
+      React.createElement('button',{style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:confirmar},'🔒 Fechar Caixa')
+    )
+  );
+}
+
+// ── Relatório profissional de Caixa (usado no dia atual e no histórico) ──
+function CaixaReport({uid,caixa,db}){
+  const{contas,formas_pag}=db;
+  const data=caixa.data;
+  const[pedidosDia,setPedidosDia]=React.useState(null);
+  const[lancs,setLancs]=React.useState([]);
+
+  React.useEffect(()=>{
+    let mounted=true;
+    sb.from('pedidos_cw').select('*').eq('user_id',uid).eq('data_pedido',data).then(({data:d})=>{if(mounted)setPedidosDia(d||[]);});
+    sb.from('lancamentos').select('*').eq('user_id',uid).eq('data',data).eq('obs','consolidado_cw').then(({data:d})=>{if(mounted)setLancs(d||[]);});
+    return()=>{mounted=false;};
+  },[uid,data]);
+
+  if(pedidosDia===null)return React.createElement('div',{style:{padding:'40px',textAlign:'center',color:'#aaa'}},'Carregando relatório...');
+
+  const pedNaoCancelados=pedidosDia.filter(p=>p.status!=='canceled');
+  const pedIfood=pedNaoCancelados.filter(p=>p.canal==='ifood');
+  const pedDelivery=pedNaoCancelados.filter(p=>p.raw&&p.raw.order_type==='delivery'&&p.canal!=='ifood');
+  const pedRetirada=pedNaoCancelados.filter(p=>p.raw&&p.raw.order_type!=='delivery'&&p.canal!=='ifood');
+  const pedCancelados=pedidosDia.filter(p=>p.status==='canceled');
+
+  const agruparPag=(lista,excluirIfoodOnline=false)=>{
+    const g={};
+    lista.forEach(p=>{(p.pagamentos||[]).forEach(pg=>{
+      const k=(pg.payment_method||'').toLowerCase();
+      const isOnline=pg.payment_type==='online';
+      if(excluirIfoodOnline&&k==='ifood'&&isOnline)return;
+      if(excluirIfoodOnline&&k==='online_credit_card')return;
+      if(k==='ifood'&&isOnline)return;
+      const n=PM_MAP_CW[k]||k;
+      g[n]=(g[n]||0)+Number(pg.value||pg.total||0);
+    });});
+    return g;
+  };
+  const agruparPagTodos=(lista)=>{
+    const g={};
+    lista.forEach(p=>{(p.pagamentos||[]).forEach(pg=>{
+      const k=(pg.payment_method||'').toLowerCase();
+      const n=k==='ifood'?'iFood Online':PM_MAP_CW[k]||k;
+      g[n]=(g[n]||0)+Number(pg.value||pg.total||0);
+    });});
+    return g;
+  };
+
+  const vendasPrincipais=agruparPagTodos(pedNaoCancelados);
+  const totalPrincipal=Object.values(vendasPrincipais).reduce((s,v)=>s+v,0);
+  const vendasDelivery=agruparPag(pedDelivery,true);
+  const totalDelivery=pedDelivery.reduce((s,p)=>s+Number(p.total||0),0);
+  const taxaEntregaDelivery=pedDelivery.reduce((s,p)=>s+Number(p.raw&&p.raw.delivery_fee||0),0);
+  const vendasRetirada=agruparPag(pedRetirada,true);
+  const totalRetirada=pedRetirada.reduce((s,p)=>s+Number(p.total||0),0);
+  const totalIfood=pedIfood.reduce((s,p)=>s+Number(p.total||0),0);
+  const taxaEntregaIfood=pedIfood.reduce((s,p)=>s+Number(p.raw&&p.raw.delivery_fee||0),0);
+  const taxaAdIfood=pedIfood.reduce((s,p)=>s+Number(p.raw&&p.raw.additional_fee||0),0);
+  const descIfood=pedIfood.reduce((s,p)=>s+((p.raw&&p.raw.discounts||[]).reduce((sd,d)=>sd+Number(d.total||0),0)),0);
+  const totalCancelados=pedCancelados.reduce((s,p)=>s+Number(p.total||0),0);
+  const cancelDelivery=pedCancelados.filter(p=>p.raw&&p.raw.order_type==='delivery');
+  const cancelRetirada=pedCancelados.filter(p=>!(p.raw&&p.raw.order_type==='delivery'));
+
+  const totalCookies=pedNaoCancelados.reduce((s,p)=>{const itens=(p.raw&&p.raw.items)||p.itens||[];return s+itens.reduce((si,it)=>si+Number(it.quantity||1),0);},0);
+  const faturamentoTotal=pedNaoCancelados.reduce((s,p)=>s+Number(p.total||0),0);
+  const ticketMedio=pedNaoCancelados.length>0?faturamentoTotal/pedNaoCancelados.length:0;
+
+  const vendasDinheiro=vendasPrincipais['Dinheiro']||0;
+  const abertura=Number(caixa.saldo_abertura||0);
+  const suprimentos=Number(caixa.suprimentos||0);
+  const sangrias=Number(caixa.sangrias||0);
+  const esperado=abertura+suprimentos-sangrias+vendasDinheiro;
+  const contado=caixa.saldo_fechamento;
+  const diff=contado!=null?Number(contado)-esperado:null;
+
+  const horaCaixa=(dt)=>dt?new Date(dt).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'}):'—';
+
+  const Secao=({title,total,children})=>React.createElement('div',{style:{marginBottom:18}},
+    React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'2px solid #111',marginBottom:8}},
+      React.createElement('span',{style:{fontWeight:800,fontSize:13,letterSpacing:'1px',textTransform:'uppercase'}},title),
+      total!=null&&React.createElement('span',{style:{fontWeight:800,fontSize:14}},F(total))
+    ),
+    children
+  );
+  const Linha=({label,valor,bold,cor,sub})=>React.createElement('div',{style:{display:'flex',justifyContent:'space-between',padding:'5px 0',fontSize:13}},
+    React.createElement('div',null,
+      React.createElement('span',{style:{color:cor||'#333',fontWeight:bold?700:400}},label),
+      sub&&React.createElement('div',{style:{fontSize:11,color:'#aaa'}},sub)
+    ),
+    React.createElement('span',{style:{fontWeight:bold?800:600,color:cor||'#111'}},F(valor))
+  );
+
+  return React.createElement('div',{id:'caixa-report',style:{fontFamily:'inherit',maxWidth:560,margin:'0 auto'}},
+    // Header
+    React.createElement('div',{style:{textAlign:'center',marginBottom:16,paddingBottom:16,borderBottom:'2px solid #111'}},
+      React.createElement('div',{style:{fontWeight:800,fontSize:18}},'RELATÓRIO DE CAIXA'),
+      React.createElement('div',{style:{fontSize:13,color:'#666',marginTop:4}},new Date(data+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'})),
+      React.createElement('div',{style:{fontSize:11,color:'#aaa',marginTop:4}},'Sessão #'+caixa.id.slice(0,8).toUpperCase()+' · '+(caixa.status==='fechado'?'FECHADO':'ABERTO')),
+      React.createElement('div',{style:{fontSize:11,color:'#aaa'}},'Aberto: '+horaCaixa(caixa.aberto_em)+(caixa.fechado_em?' · Fechado: '+horaCaixa(caixa.fechado_em):''))
+    ),
+
+    // KPIs
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:18}},
+      [['Pedidos',pedNaoCancelados.length],['Cookies',totalCookies],['Faturamento',F(faturamentoTotal)],['Ticket Médio',F(ticketMedio)]].map(([l,v])=>
+        React.createElement('div',{key:l,style:{background:'#f8f9fc',borderRadius:8,padding:'8px',textAlign:'center'}},
+          React.createElement('div',{style:{fontSize:13,fontWeight:800,color:'#111'}},String(v)),
+          React.createElement('div',{style:{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginTop:2}},l)
+        )
+      )
+    ),
+
+    // Resumo do Caixa (dinheiro físico)
+    React.createElement(Secao,{title:'Resumo do Caixa'},
+      React.createElement(Linha,{label:'Saldo de Abertura',valor:abertura}),
+      suprimentos>0&&React.createElement(Linha,{label:'(+) Suprimentos',valor:suprimentos,cor:'#16a34a'}),
+      sangrias>0&&React.createElement(Linha,{label:'(-) Sangrias',valor:-sangrias,cor:'#dc2626'}),
+      React.createElement(Linha,{label:'(+) Vendas em Dinheiro',valor:vendasDinheiro,cor:'#16a34a'}),
+      React.createElement('div',{style:{borderTop:'1px solid #eee',marginTop:4,paddingTop:4}}),
+      React.createElement(Linha,{label:'= Valor esperado em caixa',valor:esperado,bold:true}),
+      contado!=null&&React.createElement(Linha,{label:'Valor contado no fechamento',valor:Number(contado),bold:true,cor:'#2563eb'}),
+      diff!=null&&Math.abs(diff)>0.005&&React.createElement(Linha,{label:diff>0?'Sobra de caixa':'Falta de caixa',valor:Math.abs(diff),cor:diff>0?'#16a34a':'#dc2626',bold:true})
+    ),
+
+    // Resumo das Vendas
+    React.createElement(Secao,{title:'Resumo das Vendas',total:totalPrincipal},
+      Object.keys(vendasPrincipais).length===0
+        ?React.createElement('div',{style:{color:'#ccc',fontSize:12,textAlign:'center',padding:'8px 0'}},'Nenhuma venda')
+        :Object.entries(vendasPrincipais).sort((a,b)=>b[1]-a[1]).map(([f,v])=>React.createElement(Linha,{key:f,label:f,valor:v}))
+    ),
+
+    // iFood
+    totalIfood>0&&React.createElement(Secao,{title:'Vendas iFood *',total:totalIfood},
+      taxaEntregaIfood>0&&React.createElement(Linha,{label:'Taxas de Entrega',valor:taxaEntregaIfood}),
+      taxaAdIfood>0&&React.createElement(Linha,{label:'Taxas Adicionais',valor:taxaAdIfood}),
+      descIfood>0&&React.createElement(Linha,{label:'Descontos (iFood)',valor:-descIfood,cor:'#16a34a'}),
+      React.createElement('div',{style:{fontSize:10,color:'#aaa',marginTop:6,fontStyle:'italic'}},'* Vendas iFood não somam no Resumo das Vendas')
+    ),
+
+    // Delivery
+    React.createElement(Secao,{title:'Vendas Delivery',total:totalDelivery},
+      Object.keys(vendasDelivery).length===0
+        ?React.createElement('div',{style:{color:'#ccc',fontSize:12,textAlign:'center',padding:'8px 0'}},'Nenhuma entrega')
+        :Object.entries(vendasDelivery).sort((a,b)=>b[1]-a[1]).map(([f,v])=>React.createElement(Linha,{key:'d'+f,label:f,valor:v})),
+      taxaEntregaDelivery>0&&React.createElement(Linha,{label:'Taxas de Entrega',valor:taxaEntregaDelivery,cor:'#aaa'})
+    ),
+
+    // Retirada
+    React.createElement(Secao,{title:'Vendas Retirada',total:totalRetirada},
+      Object.keys(vendasRetirada).length===0
+        ?React.createElement('div',{style:{color:'#ccc',fontSize:12,textAlign:'center',padding:'8px 0'}},'Nenhuma retirada')
+        :Object.entries(vendasRetirada).sort((a,b)=>b[1]-a[1]).map(([f,v])=>React.createElement(Linha,{key:'r'+f,label:f,valor:v}))
+    ),
+
+    // Cancelados
+    pedCancelados.length>0&&React.createElement(Secao,{title:'Pedidos Cancelados',total:totalCancelados},
+      cancelDelivery.length>0&&React.createElement(Linha,{label:'Delivery ('+cancelDelivery.length+' pedido(s))',valor:cancelDelivery.reduce((s,p)=>s+Number(p.total||0),0),cor:'#dc2626'}),
+      cancelRetirada.length>0&&React.createElement(Linha,{label:'Retirada ('+cancelRetirada.length+' pedido(s))',valor:cancelRetirada.reduce((s,p)=>s+Number(p.total||0),0),cor:'#dc2626'})
+    ),
+
+    // Lançamentos gerados
+    lancs.length>0&&React.createElement(Secao,{title:'Lançamentos Financeiros Gerados'},
+      lancs.map(l=>React.createElement(Linha,{key:l.id,label:l.descricao,valor:l.tipo==='receita'?l.valor:-l.valor,cor:l.tipo==='receita'?'#16a34a':'#dc2626'}))
+    ),
+
+    caixa.obs&&React.createElement('div',{style:{fontSize:12,color:'#888',marginTop:10,fontStyle:'italic'}},'Obs: '+caixa.obs),
+
+    React.createElement('div',{style:{textAlign:'center',marginTop:20,paddingTop:12,borderTop:'1px solid #eee',fontSize:10,color:'#ccc'}},
+      'Gerado pelo Moneyy ERP em '+new Date().toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'})
+    )
+  );
+}
+
+// ── Modal wrapper para o relatório com botão imprimir ──
+function CaixaReportModal({uid,caixa,db,close}){
+  const imprimir=()=>{
+    const el=document.getElementById('caixa-report');
+    if(!el)return;
+    const w=window.open('','_blank');
+    w.document.write('<html><head><title>Relatório de Caixa</title><style>body{font-family:Poppins,Arial,sans-serif;padding:24px;color:#111;}</style></head><body>'+el.innerHTML+'</body></html>');
+    w.document.close();
+    setTimeout(()=>w.print(),300);
+  };
+  return React.createElement('div',null,
+    React.createElement(CaixaReport,{uid,caixa,db}),
+    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',marginTop:16,paddingTop:12,borderTop:'1px solid #f0f0f0'}},
+      React.createElement('button',{style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'},onClick:close},'Fechar'),
+      React.createElement('button',{style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:imprimir},'🖨 Imprimir')
+    )
+  );
+}
+
 function PedCaixa({uid,db,setDb,reload,setM}){
   const{pedidos_cw,lancamentos,contas,formas_pag,caixas}=db;
   const hoje=TODAY();
   const[ld,setLd]=React.useState(false);
+  const[aba,setAba]=React.useState('hoje');
   const[pedidosLocal,setPedidosLocal]=React.useState(pedidos_cw||[]);
 
   React.useEffect(()=>{setPedidosLocal(pedidos_cw||[]);},[pedidos_cw]);
@@ -1158,10 +1428,8 @@ function PedCaixa({uid,db,setDb,reload,setM}){
       (p.pagamentos||[]).forEach(pg=>{
         const k=(pg.payment_method||'').toLowerCase();
         const isOnline=pg.payment_type==='online';
-        // Exclui pagamentos online do iFood (iFood paga direto)
         if(excluirIfoodOnline&&k==='ifood'&&isOnline)return;
         if(excluirIfoodOnline&&k==='online_credit_card')return;
-        // "ifood" como método = pagamento online do iFood (não dinheiro)
         if(k==='ifood'&&isOnline)return;
         const n=PM_MAP_CW[k]||k;
         g[n]=(g[n]||0)+Number(pg.value||pg.total||0);
@@ -1169,8 +1437,6 @@ function PedCaixa({uid,db,setDb,reload,setM}){
     });
     return g;
   };
-
-  // Resumo total = TODOS os pedidos incluindo iFood online
   const agruparPagTodos=(lista)=>{
     const g={};
     lista.forEach(p=>{
@@ -1196,19 +1462,19 @@ function PedCaixa({uid,db,setDb,reload,setM}){
   const totalCancelados=pedCancelados.reduce((s,p)=>s+Number(p.total||0),0);
 
   const vendasDinheiro=vendasPrincipais['Dinheiro']||0;
-  const saldoInicial=caixaHoje&&caixaHoje.saldo_abertura||0;
-  const valorCaixa=saldoInicial+vendasDinheiro;
+  const abertura=Number(caixaHoje&&caixaHoje.saldo_abertura||0);
+  const suprimentos=Number(caixaHoje&&caixaHoje.suprimentos||0);
+  const sangrias=Number(caixaHoje&&caixaHoje.sangrias||0);
+  const valorEsperado=abertura+suprimentos-sangrias+vendasDinheiro;
 
   const totalCookies=pedNaoCancelados.reduce((s,p)=>{
     const itens=(p.raw&&p.raw.items)||p.itens||[];
     return s+itens.reduce((si,it)=>si+Number(it.quantity||1),0);
   },0);
-  // Faturamento = soma de p.total de todos não cancelados (igual gestão de pedidos)
   const faturamentoTotal=pedNaoCancelados.reduce((s,p)=>s+Number(p.total||0),0);
   const ticketMedio=pedNaoCancelados.length>0?faturamentoTotal/pedNaoCancelados.length:0;
 
   const lancHoje=(lancamentos||[]).filter(l=>l.data===hoje&&l.obs==='consolidado_cw'&&l.tipo==='receita');
-  const totalLiquido=lancHoje.reduce((s,l)=>s+Number(l.valor||0),0);
 
   const gerarLancamentos=async()=>{
     await sb.from('lancamentos').delete().eq('user_id',uid).eq('data',hoje).eq('obs','consolidado_cw');
@@ -1243,12 +1509,21 @@ function PedCaixa({uid,db,setDb,reload,setM}){
     return rows.length;
   };
 
-  const abrirCaixa=async()=>{setLd(true);const tot=(contas||[]).reduce((s,c)=>s+Number(c.saldo||0),0);await sb.from('caixas').insert({user_id:uid,data:hoje,status:'aberto',saldo_abertura:tot});toast('Caixa aberto!',false,true);reload();setLd(false);};
-  const fecharCaixa=async()=>{if(pedAtivos.length>0&&!confirm(pedAtivos.length+' em aberto. Fechar?'))return;setLd(true);const n=await gerarLancamentos();const tot=(contas||[]).reduce((s,c)=>s+Number(c.saldo||0),0);await sb.from('caixas').update({status:'fechado',saldo_fechamento:tot,fechado_em:new Date().toISOString()}).eq('id',caixaHoje.id);toast(n+' lançamentos!',false,true);reload();setLd(false);};
-  const reabrirCaixa=async()=>{await sb.from('caixas').update({status:'aberto',fechado_em:null,saldo_fechamento:null}).eq('id',caixaHoje.id);await sb.from('lancamentos').delete().eq('user_id',uid).eq('data',hoje).eq('obs','consolidado_cw');toast('Reaberto',false,true);reload();};
+  const abrirCaixa=()=>setM({title:'🔓 Abrir Caixa',body:React.createElement(AbrirCaixaModal,{uid,reload,close:()=>setM(null)})});
+  const fecharCaixa=()=>{
+    if(pedAtivos.length>0&&!confirm(pedAtivos.length+' pedido(s) em aberto. Fechar mesmo assim?'))return;
+    setM({title:'🔒 Fechar Caixa',body:React.createElement(FecharCaixaModal,{uid,caixa:caixaHoje,esperado:valorEsperado,gerarLancamentos,reload,close:()=>setM(null),setLd})});
+  };
+  const reabrirCaixa=async()=>{
+    await sb.from('caixas').update({status:'aberto',fechado_em:null,saldo_fechamento:null}).eq('id',caixaHoje.id);
+    await sb.from('lancamentos').delete().eq('user_id',uid).eq('data',hoje).eq('obs','consolidado_cw');
+    toast('Reaberto',false,true);reload();
+  };
+  const abrirMov=(tipo)=>setM({title:tipo==='suprimento'?'➕ Suprimento':'➖ Sangria',body:React.createElement(MovCaixaModal,{uid,caixa:caixaHoje,tipo,reload,close:()=>setM(null)})});
+  const verRelatorio=(caixa)=>setM({title:'Relatório de Caixa — '+FD(caixa.data),wide:true,body:React.createElement(CaixaReportModal,{uid,caixa,db,close:()=>setM(null)})});
 
   const horaCaixa=(dt)=>dt?new Date(dt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'}):null;
-  const FORMA_COR={PIX:'#16a34a','Cartão Crédito':'#f59e0b','Cartão Débito':'#3b82f6',Dinheiro:'#6b7280',Transferencia:'#2563eb'};
+  const FORMA_COR={PIX:'#16a34a','Cartão Crédito':'#f59e0b','Cartão Débito':'#3b82f6',Dinheiro:'#6b7280','iFood Online':'#dc2626'};
 
   const CardVendas=({title,grupos,total,taxaEntrega,extra})=>React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'18px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
     React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}},
@@ -1282,14 +1557,30 @@ function PedCaixa({uid,db,setDb,reload,setM}){
     extra
   );
 
+  // ── Histórico ──
+  const historico=(caixas||[]).filter(c=>c.data!==hoje).sort((a,b)=>(b.data||'').localeCompare(a.data||''));
+
   return React.createElement(PW,{title:'Caixa',sub:new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',timeZone:'America/Sao_Paulo'}),
     actions:[
       caixaAberto&&React.createElement('div',{key:'st',style:{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#16a34a',fontWeight:700,padding:'6px 12px',background:'#f0fdf4',borderRadius:20,border:'1px solid #bbf7d0'}},React.createElement('div',{style:{width:6,height:6,borderRadius:'50%',background:'#16a34a',animation:'pulse 1.5s infinite'}}),'Aberto '+horaCaixa(caixaHoje&&caixaHoje.aberto_em)),
       caixaFechado&&React.createElement('div',{key:'st',style:{fontSize:12,color:'#6b7280',fontWeight:600,padding:'6px 12px',background:'#f5f5f5',borderRadius:20}},'Fechado '+horaCaixa(caixaHoje&&caixaHoje.fechado_em)),
+      caixaAberto&&React.createElement('button',{key:'sup',type:'button',onClick:()=>abrirMov('suprimento'),style:{background:'#f0fdf4',color:'#16a34a',padding:'8px 14px',borderRadius:9,fontSize:12,fontWeight:700,border:'none',cursor:'pointer'}},'➕ Suprimento'),
+      caixaAberto&&React.createElement('button',{key:'sang',type:'button',onClick:()=>abrirMov('sangria'),style:{background:'#fff5f5',color:'#dc2626',padding:'8px 14px',borderRadius:9,fontSize:12,fontWeight:700,border:'none',cursor:'pointer'}},'➖ Sangria'),
+      caixaFechado&&React.createElement('button',{key:'rel',type:'button',onClick:()=>verRelatorio(caixaHoje),style:{background:'#f5f5f5',color:'#555',padding:'8px 14px',borderRadius:9,fontSize:12,fontWeight:600,border:'none',cursor:'pointer'}},'📄 Relatório'),
       !caixaHoje&&React.createElement('button',{key:'ab',type:'button',onClick:abrirCaixa,disabled:ld,style:{background:'#16a34a',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},'🔓 Abrir Caixa'),
-      caixaAberto&&React.createElement('button',{key:'fc',type:'button',onClick:fecharCaixa,disabled:ld,style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},ld?'Fechando...':'🔒 Fechar Caixa'),
+      caixaAberto&&React.createElement('button',{key:'fc',type:'button',onClick:fecharCaixa,disabled:ld,style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},'🔒 Fechar Caixa'),
       caixaFechado&&React.createElement('button',{key:'ra',type:'button',onClick:reabrirCaixa,style:{background:'#f5f5f5',color:'#555',padding:'9px 14px',borderRadius:10,fontSize:12,border:'none',cursor:'pointer'}},'↩ Reabrir'),
     ].filter(Boolean)},
+
+    // Tabs
+    React.createElement('div',{style:{display:'flex',gap:4,background:'#f5f5f5',borderRadius:12,padding:4,marginBottom:20,width:'fit-content'}},
+      [{id:'hoje',l:'Caixa de hoje'},{id:'historico',l:'📋 Histórico'}].map(t=>
+        React.createElement('button',{key:t.id,onClick:()=>setAba(t.id),style:{padding:'8px 18px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',background:aba===t.id?'#fff':'transparent',color:aba===t.id?'#111':'#888',boxShadow:aba===t.id?'0 1px 4px rgba(0,0,0,0.1)':'none'}},t.l)
+      )
+    ),
+
+    // ── ABA HOJE ──
+    aba==='hoje'&&React.createElement('div',null,
 
     !caixaHoje&&React.createElement('div',{style:{background:'linear-gradient(135deg,#16a34a,#15803d)',borderRadius:14,padding:'20px 24px',marginBottom:20,display:'flex',alignItems:'center',justifyContent:'space-between'}},
       React.createElement('div',null,React.createElement('div',{style:{fontWeight:800,fontSize:16,color:'#fff',marginBottom:4}},'Caixa não aberto hoje'),React.createElement('div',{style:{fontSize:12,color:'rgba(255,255,255,0.8)'}},'Abra o caixa para registrar as vendas')),
@@ -1306,12 +1597,18 @@ function PedCaixa({uid,db,setDb,reload,setM}){
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}},
       React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'18px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
         React.createElement('div',{style:{fontWeight:700,fontSize:14,color:'#111',marginBottom:14}},'Resumo do Caixa'),
-        [['Saldo Inicial',saldoInicial,'#555'],['Vendas Dinheiro',vendasDinheiro,'#6b7280'],['Valor em Caixa',valorCaixa,'#16a34a']].map(([l,v,c])=>
-          React.createElement('div',{key:l,style:{display:'flex',justifyContent:'space-between',padding:'9px 0',borderBottom:'1px solid #f5f5f5'}},
-            React.createElement('span',{style:{fontSize:13,color:'#555'}},l),
+        caixaHoje?[
+          ['Saldo de Abertura',abertura,'#555'],
+          ...(suprimentos>0?[['(+) Suprimentos',suprimentos,'#16a34a']]:[]),
+          ...(sangrias>0?[['(-) Sangrias',-sangrias,'#dc2626']]:[]),
+          ['(+) Vendas em Dinheiro',vendasDinheiro,'#16a34a'],
+          ['= Valor esperado em caixa',valorEsperado,'#111']
+        ].map(([l,v,c],i)=>
+          React.createElement('div',{key:l,style:{display:'flex',justifyContent:'space-between',padding:'9px 0',borderBottom:i<4?'1px solid #f5f5f5':'none',borderTop:i===4?'2px solid #111':'none',marginTop:i===4?4:0}},
+            React.createElement('span',{style:{fontSize:13,color:'#555',fontWeight:i===4?700:400}},l),
             React.createElement('span',{style:{fontSize:14,fontWeight:700,color:c}},F(v))
           )
-        ),
+        ):React.createElement('div',{style:{color:'#ccc',fontSize:13,textAlign:'center',padding:'16px 0'}},'Caixa não aberto'),
         React.createElement('div',{style:{marginTop:14}}),
         React.createElement('div',{style:{fontWeight:700,fontSize:14,color:'#111',marginBottom:14}},'Contas'),
         (contas||[]).map(c=>React.createElement('div',{key:c.id,style:{display:'flex',justifyContent:'space-between',padding:'9px 0',borderBottom:'1px solid #f5f5f5'}},
@@ -1359,8 +1656,36 @@ function PedCaixa({uid,db,setDb,reload,setM}){
         React.createElement('span',{style:{fontWeight:700,color:'#16a34a'}},'+'+F(l.valor))
       ))
     )
+    ),
+
+    // ── ABA HISTÓRICO ──
+    aba==='historico'&&React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+      historico.length===0
+        ?React.createElement('div',{style:{textAlign:'center',padding:'50px',color:'#ccc'}},
+            React.createElement('div',{style:{fontSize:32,marginBottom:8}},'📋'),
+            'Nenhum caixa anterior registrado'
+          )
+        :React.createElement(Tbl,{cols:['Data','Status','Abertura','Suprim.','Sangrias','Contado','Aberto em','Fechado em',''],
+            rows:historico.map(c=>{
+              const stC=c.status==='fechado'?'green':'amber';
+              return React.createElement(TR,{key:c.id,onClick:()=>verRelatorio(c),cells:[
+                React.createElement('span',{style:{fontWeight:700}},FD(c.data)),
+                React.createElement(Badge,{t:c.status==='fechado'?'Fechado':'Aberto',c:stC}),
+                React.createElement('span',null,F(c.saldo_abertura||0)),
+                React.createElement('span',{style:{color:'#16a34a'}},c.suprimentos>0?'+'+F(c.suprimentos):'—'),
+                React.createElement('span',{style:{color:'#dc2626'}},c.sangrias>0?'-'+F(c.sangrias):'—'),
+                React.createElement('span',{style:{fontWeight:700}},c.saldo_fechamento!=null?F(c.saldo_fechamento):'—'),
+                React.createElement('span',{style:{fontSize:11,color:'#aaa'}},horaCaixa(c.aberto_em)||'—'),
+                React.createElement('span',{style:{fontSize:11,color:'#aaa'}},horaCaixa(c.fechado_em)||'—'),
+                React.createElement('span',{style:{fontSize:11,color:'#dc2626',fontWeight:600}},'📄 Ver')
+              ]});
+            }),
+            empty:'Nenhum caixa anterior'
+          })
+    )
   );
 }
+
 
 function PedHistorico({uid,db,reload,setM}){
   const{pedidos_cw}=db;
