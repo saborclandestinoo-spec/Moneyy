@@ -155,8 +155,6 @@ const MODS=[
 ];
 const FIN_SUBS=[
   {id:'fin_visao',l:'Visão Geral'},
-  {id:'fin_dre',l:'DRE'},
-  {id:'fin_balanco',l:'Balanço Patrimonial'},
   {id:'fin_lancamentos',l:'Lançamentos'},
   {id:'fin_receber',l:'A Receber'},
   {id:'fin_pagar',l:'A Pagar'},
@@ -167,11 +165,17 @@ const FIN_SUBS=[
   {id:'fin_formas',l:'Formas de Pagamento'},
 ];
 const FIN_PAGES=new Set(FIN_SUBS.map(s=>s.id));
+const DESEMP_SUBS=[
+  {id:'fin_dre',l:'DRE'},
+  {id:'fin_balanco',l:'Balanço Patrimonial'},
+];
+const DESEMP_PAGES=new Set(DESEMP_SUBS.map(s=>s.id));
 
 function Sidebar({page,setPage,user,logout,col,setCol}){
   const W=col?64:228;
   const nm=user?.user_metadata?.name||user?.email?.split('@')[0]||'Usuario';
   const isFinPage=FIN_PAGES.has(page);
+  const isDesempenhoPage=DESEMP_PAGES.has(page);
   const accentR='#dc2626';
   const navBtn=(id,label,icon,depth)=>{
     const active=page===id;
@@ -261,6 +265,32 @@ function Sidebar({page,setPage,user,logout,col,setCol}){
             );
           })
         )
+      )
+    ),
+    // Desempenho header (DRE + Balanço)
+    React.createElement('div',{style:{marginTop:4}},
+      React.createElement('button',{
+        onClick:()=>setPage('fin_dre'),title:col?'Desempenho':'',
+        style:{display:'flex',alignItems:'center',gap:col?0:8,padding:col?'11px':'9px 10px',borderRadius:10,justifyContent:col?'center':'flex-start',color:isDesempenhoPage?accentR:'#666',background:isDesempenhoPage?'#fff5f5':'transparent',transition:'all 0.12s',width:'100%',border:'none',fontWeight:700,fontSize:13}
+      },
+        col?React.createElement('span',{style:{fontSize:16}},'📊'):
+        React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%'}},
+          React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8}},
+            React.createElement('span',{style:{fontWeight:700,color:isDesempenhoPage?accentR:'#555',fontSize:13,whiteSpace:'nowrap'}},'Desempenho')
+          )
+        )
+      ),
+      !col&&React.createElement('div',{style:{marginLeft:0,display:'flex',flexDirection:'column',gap:1,marginTop:2}},
+        DESEMP_SUBS.map(s=>{
+          const active=page===s.id;
+          return React.createElement('button',{
+            key:s.id,onClick:()=>setPage(s.id),
+            style:{display:'flex',alignItems:'center',gap:8,padding:'7px 10px 7px 22px',borderRadius:9,color:active?'#fff':'#888',background:active?accentR:'transparent',transition:'all 0.12s',width:'100%',border:'none',fontWeight:active?600:400,fontSize:12,boxShadow:active?'0 3px 10px rgba(220,38,38,0.15)':'none'}
+          },
+            React.createElement('span',{style:{width:4,height:4,borderRadius:'50%',background:active?'rgba(255,255,255,0.8)':'#ddd',flexShrink:0}}),
+            React.createElement('span',{style:{whiteSpace:'nowrap'}},s.l)
+          );
+        })
       )
     ),
     // User + collapse
