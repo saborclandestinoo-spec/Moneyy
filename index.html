@@ -1955,6 +1955,12 @@ function PedidosCW({uid,db,setDb,reload,setM,cfg,setCfg}){
         const{data}=await sb.from('pedidos_cw').select('*').eq('user_id',uid).gte('data_pedido',hoje).order('data_pedido',{ascending:false});
         if(data&&setDb)setDb(prev=>({...prev,pedidos_cw:[...data,...(prev.pedidos_cw||[]).filter(p=>p.data_pedido<hoje)]}));
         if(!silent)toast((json.total||0)+' pedidos atualizados',false,true);
+        // Processa baixa de estoque para pedidos entregues/finalizados encontrados na sincronização
+        if(data&&window._processarBaixaEstoque){
+          for(const p of data){
+            if(['delivered','closed'].includes(p.status))await window._processarBaixaEstoque(p);
+          }
+        }
         // Auto-abre o caixa se chegou pedido hoje e ainda não foi aberto
         if(data&&data.length>0){
           const{data:caixaExiste}=await sb.from('caixas').select('id').eq('user_id',uid).eq('data',hoje).maybeSingle();
@@ -2597,12 +2603,15 @@ function FichasTecnicas({uid,db,reload,setM}){
 }
 
 function FichaCard({f,db,uid,reload,setM,editar}){
+  const{estoque}=db;
   const[ings,setIngs]=React.useState([]);
   React.useEffect(()=>{
     sb.from('ficha_ingredientes').select('*').eq('ficha_id',f.id).then(({data})=>setIngs(data||[]));
   },[f.id]);
 
   const custoTotal=ings.reduce((s,i)=>s+Number(i.quantidade)*Number(i.custo_unit||0),0);
+  const prodAcabado=(estoque||[]).find(e=>e.nome===f.nome&&e.categoria==='Produto Acabado');
+  const qtdEstoque=prodAcabado?Number(prodAcabado.qtd||0):0;
 
   const CAT_CORES={
     Cookie:'#dc2626', Bolo:'#7c3aed', Brownie:'#92400e',
@@ -2618,15 +2627,26 @@ function FichaCard({f,db,uid,reload,setM,editar}){
     React.createElement('div',{style:{background:cor,padding:'20px 16px 16px',position:'relative'}},
       React.createElement('div',{style:{fontSize:11,color:'rgba(255,255,255,0.7)',fontWeight:600,letterSpacing:'1px',textTransform:'uppercase',marginBottom:6}},f.categoria||'Cookie'),
       React.createElement('div',{style:{fontWeight:800,fontSize:17,color:'#fff',lineHeight:1.2}},f.nome),
-      f.tempo_preparo>0&&React.createElement('div',{style:{fontSize:11,color:'rgba(255,255,255,0.7)',marginTop:6}},'⏱ '+f.tempo_preparo+' min')
+      f.tempo_preparo>0&&React.createElement('div',{style:{fontSize:11,color:'rgba(255,255,255,0.7)',marginTop:6}},'⏱ '+f.tempo_preparo+' min'),
+      React.createElement('div',{style:{display:'flex',gap:5,marginTop:6,flexWrap:'wrap'}},
+        f.nome_cw&&React.createElement('span',{style:{fontSize:10,color:'rgba(255,255,255,0.85)',background:'rgba(255,255,255,0.2)',padding:'2px 8px',borderRadius:20}},'🔗 '+f.nome_cw),
+        f.nome_ifood&&React.createElement('span',{style:{fontSize:10,color:'rgba(255,255,255,0.85)',background:'rgba(255,255,255,0.2)',padding:'2px 8px',borderRadius:20}},'🍔 '+f.nome_ifood),
+        !f.nome_cw&&!f.nome_ifood&&React.createElement('span',{style:{fontSize:10,color:'#fef08a',background:'rgba(0,0,0,0.2)',padding:'2px 8px',borderRadius:20}},'⚠ Sem vínculo')
+      )
     ),
     // Corpo
     React.createElement('div',{style:{padding:'14px 16px'}},
       // Custo destaque
-      React.createElement('div',{style:{display:'flex',alignItems:'baseline',gap:4,marginBottom:12}},
-        React.createElement('span',{style:{fontSize:11,color:'#aaa',fontWeight:600}},'CUSTO/UN'),
-        React.createElement('span',{style:{fontSize:24,fontWeight:800,color:cor,marginLeft:8}},
-          custoTotal>0?'R$ '+custoTotal.toFixed(4).replace('.',','):'—'
+      React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:12}},
+        React.createElement('div',{style:{display:'flex',alignItems:'baseline',gap:4}},
+          React.createElement('span',{style:{fontSize:11,color:'#aaa',fontWeight:600}},'CUSTO/UN'),
+          React.createElement('span',{style:{fontSize:24,fontWeight:800,color:cor,marginLeft:8}},
+            custoTotal>0?'R$ '+custoTotal.toFixed(4).replace('.',','):'—'
+          )
+        ),
+        React.createElement('div',{style:{textAlign:'right'}},
+          React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:600}},'EM ESTOQUE'),
+          React.createElement('div',{style:{fontSize:16,fontWeight:800,color:qtdEstoque>0?'#16a34a':'#dc2626'}},qtdEstoque+' un')
         )
       ),
       // Ingredientes preview
@@ -2648,6 +2668,8 @@ function FichaCard({f,db,uid,reload,setM,editar}){
 function FichaForm({uid,db,reload,close,ficha}){
   const{estoque}=db;
   const[nome,setNome]=React.useState(ficha?.nome||'');
+  const[nomeCw,setNomeCw]=React.useState(ficha?.nome_cw||'');
+  const[nomeIfood,setNomeIfood]=React.useState(ficha?.nome_ifood||'');
   const[cat,setCat]=React.useState(ficha?.categoria||'Cookie');
   const[tempo,setTempo]=React.useState(String(ficha?.tempo_preparo||''));
   const[descricao,setDescricao]=React.useState(ficha?.descricao||'');
@@ -2680,7 +2702,7 @@ function FichaForm({uid,db,reload,close,ficha}){
     if(!nome){toast('Informe o nome',true);return;}
     setLd(true);
     let fichaId=ficha?.id;
-    const payload={user_id:uid,nome,categoria:cat,rendimento:1,unidade_rendimento:'un',tempo_preparo:parseInt(tempo)||0,descricao};
+    const payload={user_id:uid,nome,nome_cw:nomeCw||null,nome_ifood:nomeIfood||null,categoria:cat,rendimento:1,unidade_rendimento:'un',tempo_preparo:parseInt(tempo)||0,descricao};
     if(isEdit){await sb.from('fichas_tecnicas').update(payload).eq('id',fichaId);}
     else{const{data}=await sb.from('fichas_tecnicas').insert(payload).select().single();fichaId=data?.id;}
     if(fichaId){
@@ -2709,6 +2731,14 @@ function FichaForm({uid,db,reload,close,ficha}){
       React.createElement(FloatInput,{label:'Nome do produto *',acent:cor,value:nome,onChange:e=>setNome(e.target.value)}),
       React.createElement(CustomSelect,{label:'Categoria',value:cat,onChange:setCat,options:['Cookie','Bolo','Brownie','Trufa','Brigadeiro','Torta','Outro'],acent:cor}),
       React.createElement(FloatInput,{label:'Tempo preparo (min)',acent:cor,type:'number',value:tempo,onChange:e=>setTempo(e.target.value)})
+    ),
+
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}},
+      React.createElement(FloatInput,{label:'Nome no Cardápio Web (ex: Nut-09)',acent:cor,value:nomeCw,onChange:e=>setNomeCw(e.target.value)}),
+      React.createElement(FloatInput,{label:'Nome no iFood',acent:cor,value:nomeIfood,onChange:e=>setNomeIfood(e.target.value)})
+    ),
+    React.createElement('div',{style:{fontSize:11,color:'#aaa',marginBottom:14,marginTop:-8}},
+      'Usados para identificar este produto automaticamente nos pedidos e dar baixa no estoque ao entregar.'
     ),
 
     // Custo preview
@@ -5561,6 +5591,60 @@ function App(){
     if(data)setDb(p=>({...p,centros_custo:data}));
   };
 
+  // Dá baixa no estoque de Produto Acabado quando um pedido é entregue/finalizado.
+  // Usa estoque_baixas para garantir que cada pedido só baixa estoque uma vez (idempotência).
+  const processarBaixaEstoque=async(pedido)=>{
+    if(!pedido||!['delivered','closed'].includes(pedido.status))return;
+    const sourceId=String(pedido.source_id||pedido.id||'');
+    if(!sourceId)return;
+
+    // Verifica se já foi processado
+    const{data:jaProcessado}=await sb.from('estoque_baixas').select('id').eq('user_id',user.id).eq('pedido_source_id',sourceId).maybeSingle();
+    if(jaProcessado)return;
+
+    const itens=(pedido.raw&&pedido.raw.items)||pedido.itens||[];
+    if(!itens.length)return;
+
+    const{data:fichas}=await sb.from('fichas_tecnicas').select('*').eq('user_id',user.id);
+    const{data:estoqueAtual}=await sb.from('estoque').select('*').eq('user_id',user.id).eq('categoria','Produto Acabado');
+
+    const semVinculo=[];
+    const isIfood=pedido.canal==='ifood';
+    for(const it of itens){
+      const nomeItem=(it.name||it.nome||'').trim();
+      if(!nomeItem)continue;
+      const ficha=(fichas||[]).find(f=>{
+        const campo=isIfood?f.nome_ifood:f.nome_cw;
+        return campo&&campo.toLowerCase()===nomeItem.toLowerCase();
+      })||(fichas||[]).find(f=>f.nome_cw&&f.nome_cw.toLowerCase()===nomeItem.toLowerCase())
+        ||(fichas||[]).find(f=>f.nome_ifood&&f.nome_ifood.toLowerCase()===nomeItem.toLowerCase());
+      if(!ficha){semVinculo.push(nomeItem);continue;}
+      const prod=(estoqueAtual||[]).find(e=>e.nome===ficha.nome);
+      const qtdVendida=Number(it.quantity||it.qty||1);
+      if(prod){
+        const novaQtd=Math.max(0,Number(prod.qtd||0)-qtdVendida);
+        await sb.from('estoque').update({qtd:novaQtd,qtd_estoque:novaQtd}).eq('id',prod.id);
+      }
+      // Se não existe produto acabado cadastrado ainda, não cria — só alerta quando vender sem produção prévia
+    }
+
+    // Marca como processado (mesmo com itens sem vínculo, para não tentar de novo)
+    await sb.from('estoque_baixas').insert({user_id:user.id,pedido_source_id:sourceId});
+
+    if(semVinculo.length>0){
+      toast('⚠ Pedido #'+(pedido.pedido_id||'')+': sem vínculo de estoque para '+semVinculo.join(', '),true);
+    }
+
+    // Atualiza estoque na tela
+    const{data:novoEstoque}=await sb.from('estoque').select('*').eq('user_id',user.id).order('nome');
+    if(novoEstoque)setDb(p=>({...p,estoque:novoEstoque}));
+  };
+
+  React.useEffect(()=>{
+    window._processarBaixaEstoque=processarBaixaEstoque;
+    return()=>{window._processarBaixaEstoque=null;};
+  },[user]);
+
   // Realtime — atualiza pedidos automaticamente quando chega novo pedido
   useEffect(()=>{
     if(!user)return;
@@ -5586,6 +5670,9 @@ function App(){
       })
       .on('postgres_changes',{event:'UPDATE',schema:'public',table:'pedidos_cw'},async(payload)=>{
         if(payload.new&&payload.new.user_id!==user.id)return;
+        if(payload.new&&['delivered','closed'].includes(payload.new.status)){
+          processarBaixaEstoque(payload.new);
+        }
         clearTimeout(debounce);
         debounce=setTimeout(async()=>{
           const hoje=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});
