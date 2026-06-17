@@ -395,10 +395,11 @@ function MapaEntregas({pedidosEntrega,pedidosEntregues,entregadores,rotas,BASE_L
   const mapRef=React.useRef(null);
   const mapObjRef=React.useRef(null);
   const markersRef=React.useRef([]);
+  const[rotasReais,setRotasReais]=React.useState({});
+  const[carregandoRotas,setCarregandoRotas]=React.useState(false);
 
   React.useEffect(()=>{
     if(!mapRef.current||mapObjRef.current)return;
-    // Init map
     const map=L.map(mapRef.current,{zoomControl:true,scrollWheelZoom:true}).setView([BASE_LAT,BASE_LON],13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
       attribution:'© OpenStreetMap',maxZoom:19
@@ -407,14 +408,51 @@ function MapaEntregas({pedidosEntrega,pedidosEntregues,entregadores,rotas,BASE_L
     return()=>{if(mapObjRef.current){mapObjRef.current.remove();mapObjRef.current=null;}};
   },[]);
 
+  // Busca a geometria real da rota pelas ruas via OSRM (gratuito, sem API key)
+  React.useEffect(()=>{
+    const entregadoresAtivos=(entregadores||[]).filter(e=>e.ativo);
+    if(entregadoresAtivos.length===0){setRotasReais({});return;}
+
+    let cancelado=false;
+    setCarregandoRotas(true);
+
+    const buscarTodas=async()=>{
+      const novasRotas={};
+      for(const e of entregadoresAtivos){
+        const rota=rotas[e.id]||[];
+        if(rota.length===0)continue;
+        const pontos=[[BASE_LON,BASE_LAT],...rota.map(p=>{
+          const addr=p.raw&&p.raw.delivery_address||{};
+          const lat=parseFloat(addr.latitude);const lon=parseFloat(addr.longitude);
+          return lat&&lon?[lon,lat]:null;
+        }).filter(Boolean)];
+        if(pontos.length<2)continue;
+        try{
+          const coordsStr=pontos.map(p=>p[0]+','+p[1]).join(';');
+          const url='https://router.project-osrm.org/route/v1/driving/'+coordsStr+'?overview=full&geometries=geojson';
+          const res=await fetch(url);
+          const data=await res.json();
+          if(data.routes&&data.routes[0]){
+            const coords=data.routes[0].geometry.coordinates.map(c=>[c[1],c[0]]); // [lon,lat]->[lat,lon]
+            novasRotas[e.id]={path:coords,distanciaKm:data.routes[0].distance/1000,duracaoMin:data.routes[0].duration/60};
+          }
+        }catch(err){
+          // Falha de rede/timeout: sem rota real para este entregador, cai no fallback de linha reta
+        }
+      }
+      if(!cancelado)setRotasReais(novasRotas);
+      setCarregandoRotas(false);
+    };
+    buscarTodas();
+    return()=>{cancelado=true;};
+  },[rotas,entregadores,BASE_LAT,BASE_LON]);
+
   React.useEffect(()=>{
     const map=mapObjRef.current;
     if(!map)return;
-    // Clear markers
     markersRef.current.forEach(m=>m.remove());
     markersRef.current=[];
 
-    // Base marker (confeitaria)
     const baseIcon=L.divIcon({className:'',html:'<div style="background:#111;color:#fff;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 3px 12px rgba(0,0,0,0.4);border:3px solid #fff;cursor:move" title="Arraste para mover">🏠</div>',iconSize:[36,36],iconAnchor:[18,18]});
     const baseM=L.marker([BASE_LAT,BASE_LON],{icon:baseIcon,draggable:true}).addTo(map);
     baseM.bindPopup('<b>🏠 Confeitaria</b><br>Ponto de saída<br><small>Arraste para reposicionar</small>');
@@ -427,7 +465,6 @@ function MapaEntregas({pedidosEntrega,pedidosEntregues,entregadores,rotas,BASE_L
     });
     markersRef.current.push(baseM);
 
-    // Pedidos pendentes com cor do entregador
     const entregadoresAtivos=(entregadores||[]).filter(e=>e.ativo);
     const pedParaEnt={};
     entregadoresAtivos.forEach(e=>{(rotas[e.id]||[]).forEach(p=>{pedParaEnt[p.id]=e;});});
@@ -440,7 +477,6 @@ function MapaEntregas({pedidosEntrega,pedidosEntregues,entregadores,rotas,BASE_L
       if(!lat||!lon)return;
 
       const ent=pedParaEnt[p.id];
-      const entIdx=entregadoresAtivos.findIndex(e=>e.id===ent&&ent.id);
       const cor=ent?(COR[entregadoresAtivos.indexOf(ent)%COR.length]):'#6b7280';
       const isEntregue=p.status==='delivered'||p.status==='closed';
       const bgCor=isEntregue?'#16a34a':cor;
@@ -456,28 +492,40 @@ function MapaEntregas({pedidosEntrega,pedidosEntregues,entregadores,rotas,BASE_L
       markersRef.current.push(m);
     });
 
-    // Linhas de rota por entregador
+    // Linhas de rota por entregador — usa geometria real das ruas (OSRM) quando disponível
     entregadoresAtivos.forEach((e,i)=>{
       const rota=rotas[e.id]||[];
       const cor=COR[i%COR.length];
       if(rota.length===0)return;
 
-      const pontos=[[BASE_LAT,BASE_LON],...rota.map(p=>{
-        const addr=p.raw&&p.raw.delivery_address||{};
-        const lat=parseFloat(addr.latitude);
-        const lon=parseFloat(addr.longitude);
-        return lat&&lon?[lat,lon]:null;
-      }).filter(Boolean)];
-
-      if(pontos.length>1){
-        const line=L.polyline(pontos,{color:cor,weight:3,opacity:0.7,dashArray:'8,4'}).addTo(map);
+      const real=rotasReais[e.id];
+      if(real&&real.path&&real.path.length>1){
+        const line=L.polyline(real.path,{color:cor,weight:4,opacity:0.85}).addTo(map);
         markersRef.current.push(line);
+      }else{
+        // Fallback: linha reta enquanto a rota real não carregou ou falhou
+        const pontos=[[BASE_LAT,BASE_LON],...rota.map(p=>{
+          const addr=p.raw&&p.raw.delivery_address||{};
+          const lat=parseFloat(addr.latitude);
+          const lon=parseFloat(addr.longitude);
+          return lat&&lon?[lat,lon]:null;
+        }).filter(Boolean)];
+        if(pontos.length>1){
+          const line=L.polyline(pontos,{color:cor,weight:3,opacity:0.5,dashArray:'8,4'}).addTo(map);
+          markersRef.current.push(line);
+        }
       }
     });
 
-  },[pedidosEntrega,pedidosEntregues,entregadores,rotas]);
+  },[pedidosEntrega,pedidosEntregues,entregadores,rotas,rotasReais]);
 
-  return React.createElement('div',{ref:mapRef,style:{width:'100%',height:'calc(100vh - 220px)',minHeight:480,borderRadius:14,overflow:'hidden',boxShadow:'0 2px 12px rgba(0,0,0,0.12)',zIndex:1}});
+  return React.createElement('div',{style:{position:'relative'}},
+    carregandoRotas&&React.createElement('div',{style:{position:'absolute',top:10,right:10,zIndex:500,background:'#fff',borderRadius:9,padding:'6px 12px',fontSize:11,fontWeight:600,color:'#7c3aed',boxShadow:'0 2px 8px rgba(0,0,0,0.15)',display:'flex',alignItems:'center',gap:6}},
+      React.createElement('div',{style:{width:10,height:10,border:'2px solid #ede9fe',borderTopColor:'#7c3aed',borderRadius:'50%',animation:'spin 0.7s linear infinite'}}),
+      'Calculando rotas pelas ruas...'
+    ),
+    React.createElement('div',{ref:mapRef,style:{width:'100%',height:'calc(100vh - 220px)',minHeight:480,borderRadius:14,overflow:'hidden',boxShadow:'0 2px 12px rgba(0,0,0,0.12)',zIndex:1}})
+  );
 }
 
 
