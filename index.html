@@ -3940,7 +3940,7 @@ function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas,refreshEst
     else if(filStatus==='pagos')r=r.filter(l=>!!l.pago);
     return r.sort((a,b)=>{
       if(a.data!==b.data)return a.data>b.data?-1:1;
-      return(b.id||'').localeCompare(a.id||'');
+      return(b.criado_em||'').localeCompare(a.criado_em||'');
     });
   },[allPer,filTipo,filConta,filCat,busca,filStatus,hoje]);
 
@@ -5885,7 +5885,7 @@ function App(){
       sb.from('contas_receber').select('*').eq('user_id',uid).order('criado_em',{ascending:false}),
       sb.from('contas_pagar').select('*').eq('user_id',uid).order('vencimento'),
       sb.from('movimentacoes').select('*').eq('user_id',uid).order('data_movimentacao',{ascending:false}),
-      sb.from('lancamentos').select('*').eq('user_id',uid).order('data',{ascending:false}).order('id',{ascending:false}).limit(500),
+      sb.from('lancamentos').select('*').eq('user_id',uid).order('data',{ascending:false}).order('criado_em',{ascending:false}).limit(500),
       sb.from('categorias_fin').select('*').eq('user_id',uid).order('nome'),
       sb.from('centros_custo').select('*').eq('user_id',uid).order('nome'),
       sb.from('formas_pagamento').select('*').eq('user_id',uid).order('nome'),
@@ -5924,7 +5924,7 @@ function App(){
     if(data)setDb(p=>({...p,contas:data}));
   };
   const refreshLanc=async(uid2)=>{
-    const{data}=await sb.from('lancamentos').select('*').eq('user_id',uid2||user?.id).order('data',{ascending:false}).order('id',{ascending:false}).limit(500);
+    const{data}=await sb.from('lancamentos').select('*').eq('user_id',uid2||user?.id).order('data',{ascending:false}).order('criado_em',{ascending:false}).limit(500);
     if(data)setDb(p=>({...p,lancamentos:data}));
   };
   const refreshEstoque=async(uid2)=>{
