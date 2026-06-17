@@ -1257,30 +1257,125 @@ function MovCaixaModal({uid,caixa,tipo,reload,close}){
 }
 
 // ── Modal: Fechar Caixa ──
-function FecharCaixaModal({uid,caixa,esperado,gerarLancamentos,reload,close,setLd}){
-  const[contado,setContado]=React.useState(esperado.toFixed(2));
-  const diff=parseFloat(contado||0)-esperado;
-  const confirmar=async()=>{
-    setLd(true);
+function FecharCaixaModal({uid,caixa,vendasPrincipais,abertura,suprimentos,sangrias,gerarLancamentos,reload,close,setLd}){
+  // Esperado por forma: Dinheiro soma o caixa físico (abertura+suprimentos-sangrias+vendas dinheiro);
+  // as demais formas (PIX, cartões, iFood) são só o valor vendido naquela forma, sem fundo de caixa.
+  const formasOrdem=['Dinheiro','Pix','PIX','iFood Online','Cartão de Crédito','Cartão Crédito','Cartão de Débito','Cartão Débito'];
+  const formasBase=Object.keys(vendasPrincipais||{});
+  const formasOrdenadas=[...formasBase].sort((a,b)=>{
+    const ia=formasOrdem.indexOf(a),ib=formasOrdem.indexOf(b);
+    if(ia===-1&&ib===-1)return a.localeCompare(b);
+    if(ia===-1)return 1;if(ib===-1)return -1;
+    return ia-ib;
+  });
+
+  const esperadoPorForma={};
+  formasOrdenadas.forEach(f=>{
+    const venda=Number(vendasPrincipais[f]||0);
+    esperadoPorForma[f]=f==='Dinheiro'?(abertura+suprimentos-sangrias+venda):venda;
+  });
+
+  const[contadoPorForma,setContadoPorForma]=React.useState(()=>{
+    const init={};formasOrdenadas.forEach(f=>{init[f]='';});return init;
+  });
+  const[mostrarTodas,setMostrarTodas]=React.useState(true);
+  const[retirada,setRetirada]=React.useState('');
+  const[obs,setObs]=React.useState('');
+  const[ld2,setLd2]=React.useState(false);
+
+  const totalEsperado=Object.values(esperadoPorForma).reduce((s,v)=>s+v,0);
+  const totalContado=formasOrdenadas.reduce((s,f)=>s+(parseFloat(contadoPorForma[f])||0),0);
+  const totalDiff=totalContado-totalEsperado;
+  const retiradaN=parseFloat(retirada)||0;
+  const dinheiroContado=parseFloat(contadoPorForma['Dinheiro'])||0;
+  const dinheiroFicaCaixa=Math.max(0,dinheiroContado-retiradaN);
+
+  const formasComMov=formasOrdenadas.filter(f=>esperadoPorForma[f]>0||contadoPorForma[f]);
+  const formasExibidas=mostrarTodas?formasOrdenadas:formasComMov;
+
+  const Lbl=({label,sub})=>React.createElement('div',null,
+    React.createElement('div',{style:{fontWeight:600,fontSize:13,color:'#111'}},label),
+    sub&&React.createElement('div',{style:{fontSize:11,color:'#aaa'}},sub)
+  );
+
+  const confirmar=async(imprimir)=>{
+    setLd2(true);setLd&&setLd(true);
     const n=await gerarLancamentos();
-    await sb.from('caixas').update({status:'fechado',saldo_fechamento:parseFloat(contado)||0,fechado_em:new Date().toISOString()}).eq('id',caixa.id);
-    toast(n+' lançamentos gerados! Caixa fechado.',false,true);reload();close();setLd(false);
+    await sb.from('caixas').update({
+      status:'fechado',
+      saldo_fechamento:totalContado,
+      fechado_em:new Date().toISOString(),
+      obs:obs||null
+    }).eq('id',caixa.id);
+    toast(n+' lançamentos gerados! Caixa fechado.',false,true);
+    reload();close();setLd2(false);setLd&&setLd(false);
+    if(imprimir)window.print();
   };
-  return React.createElement('div',null,
-    React.createElement('div',{style:{background:'#fffbeb',borderRadius:10,padding:'12px 14px',fontSize:12,color:'#92400e',marginBottom:16,lineHeight:1.7}},
-      '🔒 Ao fechar, os lançamentos financeiros do dia serão gerados e o caixa ficará zerado para o próximo dia.'
+
+  return React.createElement('div',{style:{minWidth:480}},
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'2fr 1.3fr 1.3fr',gap:10,padding:'4px 0 10px',fontSize:11,color:'#aaa',fontWeight:700,letterSpacing:'0.5px',textTransform:'uppercase',borderBottom:'2px solid #f0f0f0'}},
+      React.createElement('span',null,''),
+      React.createElement('span',{style:{textAlign:'right'}},'Esperado'),
+      React.createElement('span',{style:{textAlign:'right'}},'Diferença')
     ),
-    React.createElement('div',{style:{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid #f5f5f5',fontSize:13}},
-      React.createElement('span',{style:{color:'#555'}},'Valor esperado em caixa'),
-      React.createElement('span',{style:{fontWeight:700}},F(esperado))
+
+    formasExibidas.map(f=>{
+      const esp=esperadoPorForma[f]||0;
+      const cont=parseFloat(contadoPorForma[f])||0;
+      const diff=cont-esp;
+      const temDiff=contadoPorForma[f]!=='';
+      return React.createElement('div',{key:f,style:{display:'grid',gridTemplateColumns:'2fr 1.3fr 1.3fr',gap:10,padding:'10px 0',borderBottom:'1px solid #f8f8f8',alignItems:'center'}},
+        React.createElement(Lbl,{label:f}),
+        React.createElement('div',{style:{textAlign:'right',fontSize:13,color:'#555'}},F(esp)),
+        React.createElement('div',{style:{display:'flex',gap:6,alignItems:'center',justifyContent:'flex-end'}},
+          React.createElement('input',{
+            type:'number',placeholder:'0,00',value:contadoPorForma[f],
+            onChange:e=>setContadoPorForma(p=>({...p,[f]:e.target.value})),
+            style:{width:80,textAlign:'right',border:'1.5px solid #e2e2e2',borderRadius:8,padding:'6px 8px',fontSize:13,outline:'none'}
+          })
+        )
+      );
+    }),
+
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'2fr 1.3fr 1.3fr',gap:10,padding:'12px 0',borderTop:'2px solid #111',marginTop:4}},
+      React.createElement('span',{style:{fontWeight:800,fontSize:14}},'Total'),
+      React.createElement('span',{style:{textAlign:'right',fontWeight:800,fontSize:14}},F(totalEsperado)),
+      React.createElement('span',{style:{textAlign:'right',fontWeight:800,fontSize:14,color:Math.abs(totalDiff)<0.01?'#16a34a':(totalDiff<0?'#dc2626':'#16a34a')}},
+        (totalDiff>=0?'+':'')+F(totalDiff)
+      )
     ),
-    React.createElement(FloatInput,{label:'Valor contado em caixa (R$)',acent:'#dc2626',type:'number',value:contado,onChange:e=>setContado(e.target.value)}),
-    Math.abs(diff)>0.005&&React.createElement('div',{style:{background:diff>0?'#f0fdf4':'#fff5f5',borderRadius:10,padding:'10px 14px',fontSize:12,color:diff>0?'#16a34a':'#dc2626',marginBottom:8}},
-      (diff>0?'Sobra de ':'Falta de ')+F(Math.abs(diff))+' em relação ao esperado'
+
+    React.createElement('button',{
+      onClick:()=>setMostrarTodas(p=>!p),
+      style:{display:'flex',alignItems:'center',gap:6,background:'none',border:'none',color:'#7c3aed',fontSize:12,fontWeight:600,cursor:'pointer',padding:'12px 0 0'}
+    },(mostrarTodas?'▴ Ocultar':'▾ Mostrar')+' formas de pagamento sem movimento'),
+
+    React.createElement('div',{style:{marginTop:18,paddingTop:14,borderTop:'1px solid #f0f0f0'}},
+      React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}},
+        React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6}},
+          React.createElement('span',{style:{fontSize:13,color:'#555'}},'Dinheiro retirado no fechamento'),
+          React.createElement('span',{style:{fontSize:11,color:'#ccc',cursor:'help'},title:'Valor em dinheiro que será retirado do caixa físico ao fechar (ex: depósito, sangria final)'},'ⓘ')
+        ),
+        React.createElement('input',{
+          type:'number',placeholder:'0,00',value:retirada,onChange:e=>setRetirada(e.target.value),
+          style:{width:110,textAlign:'right',border:'1.5px solid #e2e2e2',borderRadius:8,padding:'7px 10px',fontSize:13,outline:'none'}
+        })
+      ),
+      React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center'}},
+        React.createElement('span',{style:{fontWeight:700,fontSize:13}},'Dinheiro ficando no caixa'),
+        React.createElement('span',{style:{fontWeight:800,fontSize:14,color:'#111'}},F(dinheiroFicaCaixa))
+      )
     ),
-    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',marginTop:8}},
-      React.createElement('button',{style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'},onClick:close},'Cancelar'),
-      React.createElement('button',{style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:confirmar},'🔒 Fechar Caixa')
+
+    React.createElement('textarea',{
+      placeholder:'Observações',value:obs,onChange:e=>setObs(e.target.value),
+      style:{width:'100%',marginTop:16,border:'1.5px solid #e2e2e2',borderRadius:10,padding:'10px 12px',fontSize:13,outline:'none',resize:'vertical',minHeight:60,boxSizing:'border-box',fontFamily:'inherit'}
+    }),
+
+    React.createElement('div',{style:{display:'flex',gap:10,justifyContent:'flex-end',marginTop:18}},
+      React.createElement('button',{onClick:close,style:{background:'#f5f5f5',color:'#555',padding:'10px 18px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'}},'Cancelar'),
+      React.createElement('button',{onClick:()=>confirmar(true),disabled:ld2,style:{background:'#fff',color:'#7c3aed',padding:'10px 18px',borderRadius:10,fontSize:13,fontWeight:700,border:'1.5px solid #7c3aed',cursor:'pointer'}},'Fechar Caixa e Imprimir'),
+      React.createElement('button',{onClick:()=>confirmar(false),disabled:ld2,style:{background:'#7c3aed',color:'#fff',padding:'10px 22px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},ld2?'Fechando...':'Fechar Caixa')
     )
   );
 }
@@ -1594,7 +1689,10 @@ function PedCaixa({uid,db,setDb,reload,setM}){
   const abrirCaixa=()=>setM({title:'🔓 Abrir Caixa',body:React.createElement(AbrirCaixaModal,{uid,reload,close:()=>setM(null)})});
   const fecharCaixa=()=>{
     if(pedAtivos.length>0&&!confirm(pedAtivos.length+' pedido(s) em aberto. Fechar mesmo assim?'))return;
-    setM({title:'🔒 Fechar Caixa',body:React.createElement(FecharCaixaModal,{uid,caixa:caixaHoje,esperado:valorEsperado,gerarLancamentos,reload,close:()=>setM(null),setLd})});
+    setM({title:'Fechar Caixa',wide:true,body:React.createElement(FecharCaixaModal,{
+      uid,caixa:caixaHoje,vendasPrincipais,abertura,suprimentos,sangrias,
+      gerarLancamentos,reload,close:()=>setM(null),setLd
+    })});
   };
   const reabrirCaixa=async()=>{
     await sb.from('caixas').update({status:'aberto',fechado_em:null,saldo_fechamento:null}).eq('id',caixaHoje.id);
