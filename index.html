@@ -3540,6 +3540,7 @@ function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas,refreshEst
     const reloadCombined=async()=>{
       if(refreshLanc)await refreshLanc();else await reload();
       if(refreshEstoque)await refreshEstoque();
+      if(refreshContas)await refreshContas();
     };
     setM({wide:true,title:titles[tipo]||'+ Lançamento',body:React.createElement(LancForm,{uid,tipo,db,reload:reloadCombined,close:()=>setM(null)})});
   };
@@ -3659,6 +3660,7 @@ function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas,refreshEst
     const r=async()=>{
       if(refreshLanc)await refreshLanc();else await reload();
       if(refreshEstoque)await refreshEstoque();
+      if(refreshContas)await refreshContas();
     };
     setM({title:titulo,wide:true,body:React.createElement(LancForm,{uid,tipo:l.tipo,db,reload:r,inicial:l,close:()=>setM(null)})});
   };
@@ -3772,7 +3774,7 @@ function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas,refreshEst
       })}),style:{background:'#fff',color:'#111',padding:'7px 16px',borderRadius:9,fontSize:12,fontWeight:700,border:'none',cursor:'pointer'}},'✏ Editar em massa'),
       React.createElement('button',{onClick:async()=>{
         for(const id of selecionados){const l=list.find(x=>x.id===id);if(l)await confirmarPagoSilencioso(l);}
-        toast(selecionados.length+' marcado(s) como pago!',false,true);setSelecionados([]);if(refreshLanc)refreshLanc();else reload();
+        toast(selecionados.length+' marcado(s) como pago!',false,true);setSelecionados([]);if(refreshLanc)refreshLanc();else reload();if(refreshContas)refreshContas();
       },style:{background:'#16a34a',color:'#fff',padding:'7px 14px',borderRadius:9,fontSize:12,fontWeight:700,border:'none',cursor:'pointer'}},'✓ Marcar pago'),
       React.createElement('button',{
         style:{background:'#fee2e2',color:'#dc2626',padding:'7px 14px',borderRadius:9,fontSize:12,fontWeight:700,border:'none',cursor:'pointer'},
@@ -3784,7 +3786,7 @@ function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas,refreshEst
               setM(null);
               for(const id of selecionados){const l=list.find(x=>x.id===id);if(l)await reverterEstoqueLancamento(l);}
               await sb.from('lancamentos').delete().in('id',selecionados);
-              toast(selecionados.length+' excluído(s)!',false,true);setSelecionados([]);if(refreshLanc)refreshLanc();else reload();if(refreshEstoque)refreshEstoque();
+              toast(selecionados.length+' excluído(s)!',false,true);setSelecionados([]);if(refreshLanc)refreshLanc();else reload();if(refreshEstoque)refreshEstoque();if(refreshContas)refreshContas();
             },style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},'Excluir')
           )
         )})
