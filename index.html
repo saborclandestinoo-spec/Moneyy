@@ -1484,9 +1484,9 @@ function PedCaixa({uid,db,setDb,reload,setM}){
         const k=(pg.payment_method||'').toLowerCase();
         const pmNome=PM_MAP_CW[k]||k;
         const norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
-        const forma=(formas_pag||[]).find(f=>f.status==='ativa'&&norm(f.nome)===norm(pmNome))
-          ||(formas_pag||[]).find(f=>f.status==='ativa'&&norm(f.nome).includes(norm(pmNome)))
-          ||(formas_pag||[]).find(f=>f.status==='ativa'&&norm(pmNome).includes(norm(f.nome)));
+        const forma=(formas_pag||[]).find(f=>norm(f.nome)===norm(pmNome))
+          ||(formas_pag||[]).find(f=>norm(f.nome).includes(norm(pmNome)))
+          ||(formas_pag||[]).find(f=>norm(pmNome).includes(norm(f.nome)));
         const valor=Number(pg.value||pg.total||0);if(!valor)return;
         const taxa=forma&&forma.taxa_pct?valor*(forma.taxa_pct/100):0;
         const dias=forma&&forma.dias||0;
@@ -4426,7 +4426,7 @@ function FinFormas({uid,db,reload,setM}){
     const d=local[nome];
     const existing=formasMap[nome];
     if(existing&&existing.id){
-      await sb.from('formas_pagamento').update({conta_id:d.conta_id||null,taxa_pct:parseFloat(d.taxa_pct)||0,dias:parseInt(d.dias)||0}).eq('id',existing.id);
+      await sb.from('formas_pagamento').update({conta_id:d.conta_id||null,taxa_pct:parseFloat(d.taxa_pct)||0,dias:parseInt(d.dias)||0,status:'ativa'}).eq('id',existing.id);
     }else{
       await sb.from('formas_pagamento').insert({user_id:uid,nome,conta_id:d.conta_id||null,taxa_pct:parseFloat(d.taxa_pct)||0,dias:parseInt(d.dias)||0,status:'ativa'});
     }
