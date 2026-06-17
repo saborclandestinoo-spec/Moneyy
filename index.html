@@ -2338,7 +2338,7 @@ function Estoque({uid,db,reload,setM}){
   const valTotal=estoque.reduce((s,e)=>s+(Number(e.qtd)*Number(e.custo)),0);
 
   const novo=()=>setM({title:'Novo Item',body:React.createElement(NovoEst,{uid,reload,close:()=>setM(null)})});
-  const editar=(e)=>setM({title:'Editar — '+e.nome,body:React.createElement(NovoEst,{uid,reload,item:e,close:()=>setM(null)})});
+  const editar=(e)=>setM({title:e.nome,body:React.createElement(NovoEst,{uid,reload,item:e,close:()=>setM(null)})});
   const mov=(e)=>setM({title:'Movimentar — '+e.nome,body:React.createElement(MovEst,{id:e.id,db,reload,close:()=>setM(null)})});
 
   return React.createElement(PW,{title:'Estoque',sub:'Matérias-primas, embalagens e produtos',
@@ -2397,6 +2397,10 @@ function NovoEst({uid,reload,close,item}){
   const[qtdEst,setQtdEst]=React.useState(String((item&&item.qtd_estoque!=null?String(item.qtd_estoque):'0')));
   const[qtd,setQtd]=React.useState(String(item?.qtd||''));
   const[minimo,setMinimo]=React.useState(String(item?.minimo||''));
+  const[valorEmb,setValorEmb]=React.useState(()=>{
+    const c=parseFloat(item?.custo||0);const e=parseFloat(item?.qtd_embalagem||item?.qtd||1);
+    return c>0&&e>0?(c*e).toFixed(2):'';
+  });
   const[custo,setCusto]=React.useState(String(item?.custo||''));
   const[fornecedor,setFornecedor]=React.useState(item?.fornecedor||'');
   const[validade,setValidade]=React.useState(item?.validade||'');
@@ -2405,6 +2409,13 @@ function NovoEst({uid,reload,close,item}){
 
   const CATS=['Matéria-Prima','Produto Acabado','Embalagem','Descartável','Outros'];
   const UNIDS=['kg','g','L','ml','un','cx','pct','dz','m','cm'];
+
+  // Recalcula custo/unidade automaticamente quando o valor pago ou a qtd por embalagem mudam
+  React.useEffect(()=>{
+    const ve=parseFloat(valorEmb);
+    const qe=parseFloat(qtdEmb);
+    if(ve>0&&qe>0)setCusto((ve/qe).toFixed(4));
+  },[valorEmb,qtdEmb]);
 
   const salvar=async()=>{
     if(!nome){toast('Informe o nome',true);return;}
@@ -2430,8 +2441,11 @@ function NovoEst({uid,reload,close,item}){
     ),
     React.createElement('div',{style:{background:'#eff6ff',borderRadius:9,padding:'9px 12px',marginBottom:10,fontSize:12,color:'#2563eb'}},'Qtd total disponível: '+(parseFloat(qtdEmb||0)*parseFloat(qtdEst||0)).toFixed(0)+' '+unidade),
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}},
-      React.createElement(FloatInput,{label:'Mínimo ('+unidade+')',acent:'#dc2626',type:'number',value:minimo,onChange:e=>setMinimo(e.target.value)}),
-      React.createElement(FloatInput,{label:'Custo/Unidade (R$)',acent:'#dc2626',type:'number',value:custo,onChange:e=>setCusto(e.target.value)})
+      React.createElement(FloatInput,{label:'Valor pago por embalagem (R$)',acent:'#dc2626',type:'number',value:valorEmb,onChange:e=>setValorEmb(e.target.value)}),
+      React.createElement(FloatInput,{label:'Mínimo ('+unidade+')',acent:'#dc2626',type:'number',value:minimo,onChange:e=>setMinimo(e.target.value)})
+    ),
+    React.createElement('div',{style:{background:'#f0fdf4',borderRadius:9,padding:'9px 12px',marginBottom:10,fontSize:12,color:'#16a34a'}},
+      'Custo por '+unidade+': '+(custo?('R$ '+parseFloat(custo).toFixed(4).replace('.',',')):'—')
     ),
     React.createElement(FloatInput,{label:'Fornecedor',acent:'#dc2626',value:fornecedor,onChange:e=>setFornecedor(e.target.value)}),
     React.createElement(MiniDatePicker,{label:'Validade',value:validade,onChange:setValidade,acent:'#dc2626'}),
