@@ -3400,7 +3400,8 @@ function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas,refreshEst
 
   const list=React.useMemo(()=>{
     let r=allPer;
-    if(filTipo)r=r.filter(l=>l.tipo===filTipo);
+    if(filTipo==='producao')r=r.filter(l=>l.obs==='producao_interna');
+    else if(filTipo)r=r.filter(l=>l.tipo===filTipo&&l.obs!=='producao_interna');
     if(filConta)r=r.filter(l=>l.conta_id===filConta);
     if(filCat)r=r.filter(l=>l.categoria===filCat);
     if(busca){const b=busca.toLowerCase();r=r.filter(l=>(l.descricao||'').toLowerCase().includes(b)||(l.categoria||'').toLowerCase().includes(b));}
@@ -3555,12 +3556,13 @@ function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas,refreshEst
       React.createElement(AddDropdown,{key:'add',novo}),
     ]},
 
-    // TABS TODOS / RECEITAS / DESPESAS
+    // TABS TODOS / RECEITAS / DESPESAS / PRODUÇÃO
     React.createElement('div',{style:{display:'flex',gap:10,marginBottom:14}},
       [
         {v:'',l:'Todos',cor:'#111',bg:'#f5f5f5',total:allPer.reduce((s,l)=>s+Number(l.valor||0),0)},
         {v:'receita',l:'Receitas',cor:'#16a34a',bg:'#f0fdf4',total:allPer.filter(l=>l.tipo==='receita').reduce((s,l)=>s+Number(l.valor||0),0)},
-        {v:'despesa',l:'Despesas',cor:'#dc2626',bg:'#fff5f5',total:allPer.filter(l=>l.tipo==='despesa').reduce((s,l)=>s+Number(l.valor||0),0)},
+        {v:'despesa',l:'Despesas',cor:'#dc2626',bg:'#fff5f5',total:allPer.filter(l=>l.tipo==='despesa'&&l.obs!=='producao_interna').reduce((s,l)=>s+Number(l.valor||0),0)},
+        {v:'producao',l:'Produção',cor:'#7c3aed',bg:'#faf5ff',total:allPer.filter(l=>l.obs==='producao_interna').reduce((s,l)=>s+Number(l.valor||0),0)},
       ].map(t=>{
         const ativo=filTipo===t.v;
         return React.createElement('button',{key:t.v,onClick:()=>setFilTipo(t.v),style:{
