@@ -2612,6 +2612,10 @@ function FichaCard({f,db,uid,reload,setM,editar}){
   const custoTotal=ings.reduce((s,i)=>s+Number(i.quantidade)*Number(i.custo_unit||0),0);
   const prodAcabado=(estoque||[]).find(e=>e.nome===f.nome&&e.categoria==='Produto Acabado');
   const qtdEstoque=prodAcabado?Number(prodAcabado.qtd||0):0;
+  const precoVenda=Number(f.preco_venda||0);
+  const lucroUnit=precoVenda-custoTotal;
+  const margem=precoVenda>0?(lucroUnit/precoVenda*100):0;
+  const receitaPot=precoVenda*qtdEstoque;
 
   const CAT_CORES={
     Cookie:'#dc2626', Bolo:'#7c3aed', Brownie:'#92400e',
@@ -2651,6 +2655,25 @@ function FichaCard({f,db,uid,reload,setM,editar}){
           React.createElement('div',{style:{fontSize:14,fontWeight:800,color:'#2563eb'}},F(custoTotal*qtdEstoque))
         )
       ),
+      // Preço de venda / lucro / margem / receita potencial
+      precoVenda>0&&React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6,marginBottom:12,paddingTop:10,borderTop:'1px solid #f5f5f5'}},
+        React.createElement('div',null,
+          React.createElement('div',{style:{fontSize:9,color:'#aaa',fontWeight:700,marginBottom:2}},'VENDA'),
+          React.createElement('div',{style:{fontSize:12,fontWeight:700,color:'#111'}},F(precoVenda))
+        ),
+        React.createElement('div',null,
+          React.createElement('div',{style:{fontSize:9,color:'#16a34a',fontWeight:700,marginBottom:2}},'LUCRO'),
+          React.createElement('div',{style:{fontSize:12,fontWeight:700,color:lucroUnit>=0?'#16a34a':'#dc2626'}},F(lucroUnit))
+        ),
+        React.createElement('div',null,
+          React.createElement('div',{style:{fontSize:9,color:'#2563eb',fontWeight:700,marginBottom:2}},'MARGEM'),
+          React.createElement('div',{style:{fontSize:12,fontWeight:700,color:margem>=0?'#2563eb':'#dc2626'}},margem.toFixed(0)+'%')
+        ),
+        React.createElement('div',null,
+          React.createElement('div',{style:{fontSize:9,color:'#7c3aed',fontWeight:700,marginBottom:2}},'RECEITA POT.'),
+          React.createElement('div',{style:{fontSize:12,fontWeight:700,color:'#7c3aed'}},F(receitaPot))
+        )
+      ),
       // Ingredientes preview
       React.createElement('div',{style:{borderTop:'1px solid #f5f5f5',paddingTop:10}},
         ings.length===0
@@ -2672,6 +2695,7 @@ function FichaForm({uid,db,reload,close,ficha}){
   const[nome,setNome]=React.useState(ficha?.nome||'');
   const[nomeCw,setNomeCw]=React.useState(ficha?.nome_cw||'');
   const[nomeIfood,setNomeIfood]=React.useState(ficha?.nome_ifood||'');
+  const[precoVenda,setPrecoVenda]=React.useState(String(ficha?.preco_venda||''));
   const[cat,setCat]=React.useState(ficha?.categoria||'Cookie');
   const[tempo,setTempo]=React.useState(String(ficha?.tempo_preparo||''));
   const[descricao,setDescricao]=React.useState(ficha?.descricao||'');
@@ -2707,7 +2731,7 @@ function FichaForm({uid,db,reload,close,ficha}){
     if(!nome){toast('Informe o nome',true);return;}
     setLd(true);
     let fichaId=ficha?.id;
-    const payload={user_id:uid,nome,nome_cw:nomeCw||null,nome_ifood:nomeIfood||null,categoria:cat,rendimento:1,unidade_rendimento:'un',tempo_preparo:parseInt(tempo)||0,descricao};
+    const payload={user_id:uid,nome,nome_cw:nomeCw||null,nome_ifood:nomeIfood||null,preco_venda:parseFloat(precoVenda)||0,categoria:cat,rendimento:1,unidade_rendimento:'un',tempo_preparo:parseInt(tempo)||0,descricao};
     if(isEdit){await sb.from('fichas_tecnicas').update(payload).eq('id',fichaId);}
     else{const{data}=await sb.from('fichas_tecnicas').insert(payload).select().single();fichaId=data?.id;}
     if(fichaId){
@@ -2780,6 +2804,31 @@ function FichaForm({uid,db,reload,close,ficha}){
           :'Quantidade já existente em estoque ao cadastrar esta ficha (se houver). Pode deixar 0 e usar Produção depois.'
       )
     ),
+
+    React.createElement(FloatInput,{label:'Preço de Venda (R$)',acent:cor,type:'number',value:precoVenda,onChange:e=>setPrecoVenda(e.target.value)}),
+
+    (()=>{
+      const pv=parseFloat(precoVenda)||0;
+      const lucroUnit=pv-custoTotal;
+      const margem=pv>0?(lucroUnit/pv*100):0;
+      const estAtual=prodAcabadoAtual?Number(prodAcabadoAtual.qtd||0):0;
+      const receitaPot=pv*estAtual;
+      if(pv<=0)return null;
+      return React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:14}},
+        React.createElement('div',{style:{background:'#f0fdf4',borderRadius:9,padding:'10px 12px'}},
+          React.createElement('div',{style:{fontSize:9,color:'#16a34a',fontWeight:700,letterSpacing:'0.5px',marginBottom:3}},'LUCRO UNIT.'),
+          React.createElement('div',{style:{fontSize:15,fontWeight:800,color:lucroUnit>=0?'#16a34a':'#dc2626'}},F(lucroUnit))
+        ),
+        React.createElement('div',{style:{background:'#eff6ff',borderRadius:9,padding:'10px 12px'}},
+          React.createElement('div',{style:{fontSize:9,color:'#2563eb',fontWeight:700,letterSpacing:'0.5px',marginBottom:3}},'MARGEM'),
+          React.createElement('div',{style:{fontSize:15,fontWeight:800,color:margem>=0?'#2563eb':'#dc2626'}},margem.toFixed(1)+'%')
+        ),
+        React.createElement('div',{style:{background:'#faf5ff',borderRadius:9,padding:'10px 12px'}},
+          React.createElement('div',{style:{fontSize:9,color:'#7c3aed',fontWeight:700,letterSpacing:'0.5px',marginBottom:3}},'RECEITA POT.'),
+          React.createElement('div',{style:{fontSize:15,fontWeight:800,color:'#7c3aed'}},F(receitaPot))
+        )
+      );
+    })(),
 
     // Custo preview
     custoTotal>0&&React.createElement('div',{style:{background:cor+'12',border:'1px solid '+cor+'30',borderRadius:10,padding:'10px 14px',marginBottom:14,display:'flex',justifyContent:'space-between',alignItems:'center'}},
