@@ -2678,7 +2678,7 @@ function FichaForm({uid,db,reload,close,ficha}){
   const isEdit=!!ficha?.id;
 
   const prodAcabadoAtual=(estoque||[]).find(e=>e.nome===(ficha?.nome||'')&&e.categoria==='Produto Acabado');
-  const[estoqueInicial,setEstoqueInicial]=React.useState(prodAcabadoAtual?String(prodAcabadoAtual.qtd||0):'0');
+  const[estoqueInicial,setEstoqueInicial]=React.useState(prodAcabadoAtual?String(prodAcabadoAtual.estoque_inicial||0):'0');
 
   React.useEffect(()=>{
     if(ficha?.id){sb.from('ficha_ingredientes').select('*').eq('ficha_id',ficha.id).then(({data})=>setIngs(data||[]));}
@@ -2716,16 +2716,19 @@ function FichaForm({uid,db,reload,close,ficha}){
       }));
       if(rows.length)await sb.from('ficha_ingredientes').insert(rows);
     }
-    // Atualiza/cria o registro de estoque (Produto Acabado) só se o valor de estoque inicial mudou
-    const novoEstoqueVal=parseFloat(estoqueInicial)||0;
-    const valorAnterior=prodAcabadoAtual?Number(prodAcabadoAtual.qtd||0):null;
-    if(novoEstoqueVal!==valorAnterior){
+    // Estoque Inicial: ponto de partida. Se mudar, ajusta o saldo atual pela diferença
+    // (preserva o que já foi produzido/vendido desde então).
+    const novoInicial=parseFloat(estoqueInicial)||0;
+    const inicialAnterior=prodAcabadoAtual?Number(prodAcabadoAtual.estoque_inicial||0):0;
+    const deltaInicial=novoInicial-inicialAnterior;
+    if(deltaInicial!==0||!prodAcabadoAtual){
       if(prodAcabadoAtual){
-        await sb.from('estoque').update({qtd:novoEstoqueVal,qtd_estoque:novoEstoqueVal,custo:custoTotal}).eq('id',prodAcabadoAtual.id);
+        const novaQtd=Math.max(0,Number(prodAcabadoAtual.qtd||0)+deltaInicial);
+        await sb.from('estoque').update({estoque_inicial:novoInicial,qtd:novaQtd,qtd_estoque:novaQtd,custo:custoTotal}).eq('id',prodAcabadoAtual.id);
       }else{
         await sb.from('estoque').insert({
           user_id:uid,nome,categoria:'Produto Acabado',unidade:'un',
-          qtd:novoEstoqueVal,qtd_embalagem:1,qtd_estoque:novoEstoqueVal,minimo:0,custo:custoTotal,fornecedor:''
+          estoque_inicial:novoInicial,qtd:novoInicial,qtd_embalagem:1,qtd_estoque:novoInicial,minimo:0,custo:custoTotal,fornecedor:''
         });
       }
     }
@@ -2758,10 +2761,18 @@ function FichaForm({uid,db,reload,close,ficha}){
     ),
 
     React.createElement('div',{style:{background:'#faf5ff',borderRadius:10,padding:'12px 14px',marginBottom:14}},
-      React.createElement(FloatInput,{label:'Estoque atual (un)',acent:'#7c3aed',type:'number',value:estoqueInicial,onChange:e=>setEstoqueInicial(e.target.value)}),
-      React.createElement('div',{style:{fontSize:11,color:'#7c3aed',marginTop:-8}},
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}},
+        React.createElement(FloatInput,{label:'Estoque Inicial (un)',acent:'#7c3aed',type:'number',value:estoqueInicial,onChange:e=>setEstoqueInicial(e.target.value)}),
+        React.createElement('div',null,
+          React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700,letterSpacing:'1.5px',textTransform:'uppercase',marginBottom:5}},'Estoque Atual'),
+          React.createElement('div',{style:{background:'#fff',border:'1.5px solid #ede9fe',borderRadius:10,padding:'10px 13px',fontSize:18,fontWeight:800,color:'#7c3aed'}},
+            (prodAcabadoAtual?Number(prodAcabadoAtual.qtd||0):0)+' un'
+          )
+        )
+      ),
+      React.createElement('div',{style:{fontSize:11,color:'#7c3aed',marginTop:8}},
         isEdit
-          ?'Ajuste manual da quantidade física em estoque deste produto. Produção e vendas atualizam automaticamente a partir daqui.'
+          ?'Estoque Inicial é o ponto de partida. Alterá-lo ajusta o saldo atual pela diferença, sem afetar produções/vendas já registradas. O Estoque Atual muda automaticamente com Produção (+) e pedidos entregues (−).'
           :'Quantidade já existente em estoque ao cadastrar esta ficha (se houver). Pode deixar 0 e usar Produção depois.'
       )
     ),
