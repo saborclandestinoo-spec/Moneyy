@@ -273,9 +273,11 @@ function Sidebar({page,setPage,user,logout,col,setCol}){
         onClick:()=>setPage('fin_dre'),title:col?'Desempenho':'',
         style:{display:'flex',alignItems:'center',gap:col?0:8,padding:col?'11px':'9px 10px',borderRadius:10,justifyContent:col?'center':'flex-start',color:isDesempenhoPage?accentR:'#666',background:isDesempenhoPage?'#fff5f5':'transparent',transition:'all 0.12s',width:'100%',border:'none',fontWeight:700,fontSize:13}
       },
-        col?React.createElement('span',{style:{fontSize:16}},'📊'):
+        !col&&React.createElement('span',{style:{fontSize:13,lineHeight:1,flexShrink:0,opacity:0.7}}),'',
+        col?React.createElement('span',{style:{fontSize:16}},'📈'):
         React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%'}},
           React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8}},
+            React.createElement('span',{style:{fontSize:13,color:isDesempenhoPage?accentR:'#999',lineHeight:1}}),'',
             React.createElement('span',{style:{fontWeight:700,color:isDesempenhoPage?accentR:'#555',fontSize:13,whiteSpace:'nowrap'}},'Desempenho')
           )
         )
