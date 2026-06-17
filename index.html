@@ -4265,19 +4265,29 @@ function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas,refreshEst
 // ── CUSTOM SELECT (dropdown proprio sem select nativo) ──
 function CustomSelect({label,value,onChange,options,placeholder,acent}){
   const[open,setOpen]=React.useState(false);
+  const[busca,setBusca]=React.useState('');
   const ref=React.useRef(null);
+  const inputRef=React.useRef(null);
   const cor=acent||'#dc2626';
 
   React.useEffect(()=>{
-    if(!open)return;
+    if(!open){setBusca('');return;}
     const h=(e)=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
     document.addEventListener('mousedown',h);
     return()=>document.removeEventListener('mousedown',h);
   },[open]);
 
+  React.useEffect(()=>{
+    if(open&&inputRef.current)inputRef.current.focus();
+  },[open]);
+
   const selected=options.find(o=>(o.v!==undefined?o.v:o)===value);
   const displayLabel=selected?(selected.l!==undefined?selected.l:selected):(placeholder||'—');
   const isEmpty=!value&&value!=='0';
+
+  const optionsFiltradas=busca
+    ? options.filter(o=>{const l=String(o.l!==undefined?o.l:o);return l.toLowerCase().includes(busca.toLowerCase());})
+    : options;
 
   const lbFloat={position:'absolute',top:7,left:14,fontSize:9,color:cor,fontWeight:700,
     letterSpacing:'1.2px',textTransform:'uppercase',pointerEvents:'none',zIndex:1};
@@ -4298,28 +4308,39 @@ function CustomSelect({label,value,onChange,options,placeholder,acent}){
     open&&React.createElement('div',{style:{
       position:'absolute',top:'calc(100% + 4px)',left:0,right:0,zIndex:999,
       background:'#fff',borderRadius:12,boxShadow:'0 8px 32px rgba(0,0,0,0.14)',
-      border:'1px solid #f0f0f0',maxHeight:240,overflowY:'auto',
-      animation:'fadeUp 0.12s ease'
+      border:'1px solid #f0f0f0',maxHeight:280,overflow:'hidden',
+      animation:'fadeUp 0.12s ease',display:'flex',flexDirection:'column'
     }},
-      placeholder&&React.createElement('div',{
-        onClick:()=>{onChange('');setOpen(false);},
-        style:{padding:'10px 14px',fontSize:13,color:'#bbb',cursor:'pointer',
-          borderBottom:'1px solid #f8f8f8',background:'#fafafa',fontStyle:'italic'}
-      },placeholder),
-      options.map((o,i)=>{
-        const v=o.v!==undefined?o.v:o;
-        const l=o.l!==undefined?o.l:o;
-        const active=v===value;
-        return React.createElement('div',{
-          key:v||i,
-          onClick:()=>{onChange(v);setOpen(false);},
-          style:{padding:'10px 14px',fontSize:13,cursor:'pointer',
-            color:active?cor:'#111',fontWeight:active?700:400,
-            background:active?cor+'10':'#fff',
-            borderBottom:i<options.length-1?'1px solid #fafafa':'none',
-            transition:'background 0.1s'}
-        },l);
-      })
+      options.length>6&&React.createElement('div',{style:{padding:'8px',borderBottom:'1px solid #f0f0f0'}},
+        React.createElement('input',{
+          ref:inputRef,value:busca,onChange:e=>setBusca(e.target.value),
+          placeholder:'Buscar...',onClick:e=>e.stopPropagation(),
+          style:{width:'100%',border:'1px solid #e2e2e2',borderRadius:8,padding:'7px 10px',fontSize:12,outline:'none',boxSizing:'border-box'}
+        })
+      ),
+      React.createElement('div',{style:{overflowY:'auto',maxHeight:230}},
+        placeholder&&!busca&&React.createElement('div',{
+          onClick:()=>{onChange('');setOpen(false);},
+          style:{padding:'10px 14px',fontSize:13,color:'#bbb',cursor:'pointer',
+            borderBottom:'1px solid #f8f8f8',background:'#fafafa',fontStyle:'italic'}
+        },placeholder),
+        optionsFiltradas.length===0
+          ?React.createElement('div',{style:{padding:'14px',fontSize:12,color:'#ccc',textAlign:'center'}},'Nenhum resultado')
+          :optionsFiltradas.map((o,i)=>{
+              const v=o.v!==undefined?o.v:o;
+              const l=o.l!==undefined?o.l:o;
+              const active=v===value;
+              return React.createElement('div',{
+                key:v||i,
+                onClick:()=>{onChange(v);setOpen(false);},
+                style:{padding:'10px 14px',fontSize:13,cursor:'pointer',
+                  color:active?cor:'#111',fontWeight:active?700:400,
+                  background:active?cor+'10':'#fff',
+                  borderBottom:i<optionsFiltradas.length-1?'1px solid #fafafa':'none',
+                  transition:'background 0.1s'}
+              },l);
+            })
+      )
     )
   );
 }
@@ -4987,8 +5008,8 @@ function LancForm({uid,tipo,db,reload,close,inicial}){
   const jv=parseFloat(juros||0);const mv=parseFloat(multa||0);const dv=parseFloat(desconto||0);
   const totalFinal=v+jv+mv-dv;
 
-  const catsPadrao=PLANO_CONTAS.filter(c=>c.nivel>=2&&(isRec?c.tipo==='receita':c.tipo==='despesa')).map(c=>c.cod+' '+c.nome);
-  const catsCustom=(categorias_fin||[]).filter(c=>isRec?c.tipo==='receita':c.tipo==='despesa').map(c=>c.nome);
+  const catsPadrao=PLANO_CONTAS.filter(c=>c.nivel>=2&&(isRec?c.tipo==='receita':c.tipo==='despesa')).map(c=>({v:c.cod+' '+c.nome,l:c.cod+' '+c.nome}));
+  const catsCustom=(categorias_fin||[]).filter(c=>isRec?c.tipo==='receita':c.tipo==='despesa').map(c=>({v:c.nome,l:c.nome}));
   const cats=[...catsPadrao,...catsCustom];
 
   const FREQS=[{v:'semanal',l:'Semanal'},{v:'quinzenal',l:'Quinzenal'},{v:'mensal',l:'Mensal'},{v:'bimestral',l:'Bimestral'},{v:'trimestral',l:'Trimestral'},{v:'semestral',l:'Semestral'},{v:'anual',l:'Anual'}];
