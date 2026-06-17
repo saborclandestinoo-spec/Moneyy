@@ -151,7 +151,7 @@ const PED_SUBS=[
 const PED_PAGES=new Set(PED_SUBS.map(s=>s.id));
 const MODS=[
   {id:'pedidos',l:'Gestão de Pedidos',i:'#',subs:PED_SUBS},
-  {id:'estoque',l:'Estoque',i:'[]',subs:[{id:'estoque',l:'Estoque'},{id:'fichas',l:'Fichas Técnicas'},{id:'producao_hist',l:'Produção'}]},
+  {id:'estoque',l:'Estoque',i:'[]',subs:[{id:'estoque',l:'Estoque'},{id:'fichas',l:'Fichas Técnicas'},{id:'producao_hist',l:'Produção'},{id:'producao_plan',l:'Planejamento'}]},
 ];
 const FIN_SUBS=[
   {id:'fin_visao',l:'Visão Geral'},
@@ -2735,11 +2735,11 @@ function HistoricoMovimentos({uid,produtoNome,close}){
   },[uid,produtoNome]);
 
   const TIPO_INFO={
-    entrada_producao:{l:'Produção',cor:'#16a34a',icone:'+',bg:'#f0fdf4'},
-    saida_venda:{l:'Venda',cor:'#dc2626',icone:'−',bg:'#fff5f5'},
-    saida_cancelamento:{l:'Devolução (cancelado)',cor:'#16a34a',icone:'+',bg:'#f0fdf4'},
-    ajuste_manual:{l:'Ajuste Manual',cor:'#7c3aed',icone:'±',bg:'#faf5ff'},
-    entrada_estoque_inicial:{l:'Estoque Inicial',cor:'#2563eb',icone:'+',bg:'#eff6ff'},
+    entrada_producao:{l:'Produção',cor:'#16a34a',icone:'+',bg:'#f0fdf4',entrada:true},
+    saida_venda:{l:'Venda',cor:'#dc2626',icone:'−',bg:'#fff5f5',entrada:false},
+    saida_cancelamento:{l:'Devolução (cancelado)',cor:'#16a34a',icone:'+',bg:'#f0fdf4',entrada:true},
+    ajuste_manual:{l:'Ajuste Manual',cor:'#7c3aed',icone:'±',bg:'#faf5ff',entrada:null},
+    entrada_estoque_inicial:{l:'Estoque Inicial',cor:'#2563eb',icone:'+',bg:'#eff6ff',entrada:true},
   };
 
   if(movs===null)return React.createElement('div',{style:{padding:'30px',textAlign:'center',color:'#aaa'}},'Carregando histórico...');
@@ -2748,14 +2748,16 @@ function HistoricoMovimentos({uid,produtoNome,close}){
     movs.length===0
       ?React.createElement('div',{style:{textAlign:'center',padding:'30px',color:'#ccc'}},'Nenhuma movimentação registrada ainda')
       :movs.map(m=>{
-          const info=TIPO_INFO[m.tipo]||{l:m.tipo,cor:'#555',icone:'•',bg:'#f5f5f5'};
-          const isEntrada=Number(m.quantidade)>0;
+          const info=TIPO_INFO[m.tipo]||{l:m.tipo,cor:'#555',icone:'•',bg:'#f5f5f5',entrada:Number(m.quantidade)>=0};
+          // ajuste_manual usa o sinal real da quantidade (pode ser + ou -); os demais usam o tipo fixo
+          const isEntrada=info.entrada===null?Number(m.quantidade)>=0:info.entrada;
+          const qtdAbs=Math.abs(Number(m.quantidade));
           return React.createElement('div',{key:m.id,style:{display:'flex',gap:12,padding:'10px 0',borderBottom:'1px solid #f5f5f5',alignItems:'flex-start'}},
             React.createElement('div',{style:{width:30,height:30,borderRadius:'50%',background:info.bg,color:info.cor,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:14,flexShrink:0}},info.icone),
             React.createElement('div',{style:{flex:1}},
               React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:2}},
                 React.createElement('span',{style:{fontWeight:700,fontSize:13,color:'#111'}},info.l),
-                React.createElement('span',{style:{fontWeight:800,fontSize:13,color:isEntrada?'#16a34a':'#dc2626'}},(isEntrada?'+':'')+m.quantidade+' un')
+                React.createElement('span',{style:{fontWeight:800,fontSize:13,color:isEntrada?'#16a34a':'#dc2626'}},(isEntrada?'+':'-')+qtdAbs+' un')
               ),
               React.createElement('div',{style:{fontSize:12,color:'#888'}},m.descricao),
               React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginTop:3}},
@@ -4518,6 +4520,155 @@ function ProducaoDetalhe({producao,db,close}){
   );
 }
 
+function PlanejamentoProducao({uid,db,reload,setM}){
+  const{fichas,estoque}=db;
+  const[plano,setPlano]=React.useState([]); // [{ficha_id, qtd}]
+  const[ingredientesPorFicha,setIngredientesPorFicha]=React.useState({});
+  const[loadingIngs,setLoadingIngs]=React.useState(true);
+
+  React.useEffect(()=>{
+    if(!fichas||!fichas.length){setLoadingIngs(false);return;}
+    sb.from('ficha_ingredientes').select('*').in('ficha_id',fichas.map(f=>f.id)).then(({data})=>{
+      const map={};
+      (data||[]).forEach(i=>{if(!map[i.ficha_id])map[i.ficha_id]=[];map[i.ficha_id].push(i);});
+      setIngredientesPorFicha(map);
+      setLoadingIngs(false);
+    });
+  },[fichas]);
+
+  // Sugestão automática: produtos com estoque atual <= mínimo configurado
+  const sugerirAutomatico=()=>{
+    const sugeridos=(fichas||[]).map(f=>{
+      const prod=(estoque||[]).find(e=>e.nome===f.nome&&e.categoria==='Produto Acabado');
+      const qtdAtual=prod?Number(prod.qtd||0):0;
+      const minimo=prod?Number(prod.minimo||0):0;
+      if(qtdAtual<=minimo){
+        // Sugere produzir até o dobro do mínimo (ou 10 se não tiver mínimo definido)
+        const sugestao=minimo>0?Math.max(minimo*2-qtdAtual,1):10;
+        return{ficha_id:f.id,qtd:String(Math.ceil(sugestao))};
+      }
+      return null;
+    }).filter(Boolean);
+    if(sugeridos.length===0){toast('Nenhum produto com estoque baixo encontrado',false,true);return;}
+    setPlano(sugeridos);
+    toast(sugeridos.length+' produto(s) sugerido(s)!',false,true);
+  };
+
+  const addItem=()=>setPlano(p=>[...p,{ficha_id:'',qtd:'1'}]);
+  const updItem=(idx,campo,val)=>setPlano(p=>p.map((it,i)=>i===idx?{...it,[campo]:val}:it));
+  const delItem=(idx)=>setPlano(p=>p.filter((_,i)=>i!==idx));
+
+  // Calcula a necessidade total de cada insumo somando todos os itens do plano
+  const necessidades=React.useMemo(()=>{
+    const map={}; // estoque_id -> {nome, necessario, unidade, disponivel, item}
+    plano.forEach(p=>{
+      const qtdN=parseFloat(p.qtd)||0;
+      if(!p.ficha_id||qtdN<=0)return;
+      const ings=ingredientesPorFicha[p.ficha_id]||[];
+      ings.forEach(ing=>{
+        if(!ing.estoque_id)return;
+        const necessarioItem=Number(ing.quantidade||0)*qtdN;
+        if(!map[ing.estoque_id]){
+          const item=(estoque||[]).find(e=>e.id===ing.estoque_id);
+          map[ing.estoque_id]={nome:ing.nome,unidade:ing.unidade,necessario:0,disponivel:item?Number(item.qtd||0):0,item};
+        }
+        map[ing.estoque_id].necessario+=necessarioItem;
+      });
+    });
+    return Object.values(map);
+  },[plano,ingredientesPorFicha,estoque]);
+
+  const faltando=necessidades.filter(n=>n.necessario>n.disponivel);
+  const custoTotalPlano=plano.reduce((s,p)=>{
+    const qtdN=parseFloat(p.qtd)||0;
+    const ings=ingredientesPorFicha[p.ficha_id]||[];
+    const custoUn=ings.reduce((si,i)=>si+Number(i.quantidade||0)*Number(i.custo_unit||0),0);
+    return s+custoUn*qtdN;
+  },0);
+  const totalUnidadesPlano=plano.reduce((s,p)=>s+(parseFloat(p.qtd)||0),0);
+
+  const irProduzir=(fichaId)=>{
+    setM({wide:true,title:'Registrar Produção',body:React.createElement(ProducaoForm,{uid,db,reload,close:()=>setM(null),fichaIdInicial:fichaId})});
+  };
+
+  return React.createElement(PW,{title:'Planejamento de Produção',sub:'Defina o que produzir e veja se o estoque de insumos é suficiente',
+    actions:[
+      React.createElement('button',{key:'sug',style:{background:'#f5f5f5',color:'#7c3aed',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:sugerirAutomatico},'✨ Sugerir automaticamente'),
+      React.createElement('button',{key:'add',style:{background:'#7c3aed',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:addItem},'+ Adicionar Produto')
+    ]},
+
+    plano.length===0
+      ?React.createElement('div',{style:{textAlign:'center',padding:'60px',color:'#ccc',background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+          React.createElement('div',{style:{fontSize:36,marginBottom:10}},'📋'),
+          React.createElement('div',{style:{fontSize:14,marginBottom:16}},'Nenhum item no plano ainda'),
+          React.createElement('div',{style:{display:'flex',gap:10,justifyContent:'center'}},
+            React.createElement('button',{style:{background:'#faf5ff',color:'#7c3aed',padding:'10px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:sugerirAutomatico},'✨ Sugerir automaticamente'),
+            React.createElement('button',{style:{background:'#7c3aed',color:'#fff',padding:'10px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:addItem},'+ Adicionar manualmente')
+          )
+        )
+      :React.createElement('div',null,
+          // KPIs do plano
+          React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}},
+            React.createElement(SC,{label:'Produtos no plano',val:plano.filter(p=>p.ficha_id).length,color:'#7c3aed'}),
+            React.createElement(SC,{label:'Unidades a produzir',val:totalUnidadesPlano,color:'#111'}),
+            React.createElement(SC,{label:'Custo estimado',val:F(custoTotalPlano),color:'#dc2626'}),
+            React.createElement(SC,{label:'Insumos em falta',val:faltando.length,color:faltando.length>0?'#dc2626':'#16a34a'})
+          ),
+
+          // Lista de itens do plano
+          React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'18px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)',marginBottom:16}},
+            React.createElement('div',{style:{fontWeight:700,fontSize:14,marginBottom:14}},'O que produzir'),
+            plano.map((p,idx)=>{
+              const ficha=(fichas||[]).find(f=>f.id===p.ficha_id);
+              const prod=ficha?(estoque||[]).find(e=>e.nome===ficha.nome&&e.categoria==='Produto Acabado'):null;
+              const qtdAtual=prod?Number(prod.qtd||0):0;
+              return React.createElement('div',{key:idx,style:{display:'grid',gridTemplateColumns:'2fr 1fr 1fr auto',gap:10,marginBottom:10,alignItems:'center'}},
+                React.createElement(CustomSelect,{label:'',value:p.ficha_id,onChange:v=>updItem(idx,'ficha_id',v),
+                  options:(fichas||[]).map(f=>({v:f.id,l:f.nome})),placeholder:'— Selecione o produto —',acent:'#7c3aed'
+                }),
+                React.createElement('div',{style:{fontSize:12,color:'#888',textAlign:'center'}},'Atual: '+qtdAtual+' un'),
+                React.createElement(FloatInput,{label:'Qtd a produzir',acent:'#7c3aed',type:'number',value:p.qtd,onChange:e=>updItem(idx,'qtd',e.target.value)}),
+                React.createElement('button',{onClick:()=>delItem(idx),style:{background:'#fee2e2',color:'#dc2626',border:'none',borderRadius:8,padding:'8px 10px',cursor:'pointer',fontWeight:700}},'×')
+              );
+            }),
+            React.createElement('button',{onClick:addItem,style:{background:'#f5f5f5',color:'#7c3aed',padding:'8px 16px',borderRadius:9,fontSize:12,fontWeight:600,border:'none',cursor:'pointer',marginTop:6}},'+ Adicionar outro produto')
+          ),
+
+          // Necessidade de insumos
+          !loadingIngs&&necessidades.length>0&&React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'18px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+            React.createElement('div',{style:{fontWeight:700,fontSize:14,marginBottom:14}},'Insumos necessários'),
+            necessidades.sort((a,b)=>(b.necessario>b.disponivel?1:0)-(a.necessario>a.disponivel?1:0)).map((n,i)=>{
+              const suficiente=n.necessario<=n.disponivel;
+              const pct=n.disponivel>0?Math.min(100,(n.necessario/n.disponivel*100)):100;
+              return React.createElement('div',{key:i,style:{marginBottom:12,paddingBottom:12,borderBottom:i<necessidades.length-1?'1px solid #f5f5f5':'none'}},
+                React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:5}},
+                  React.createElement('span',{style:{fontSize:13,fontWeight:600,color:'#111'}},n.nome),
+                  React.createElement('span',{style:{fontSize:12,fontWeight:700,color:suficiente?'#16a34a':'#dc2626'}},
+                    n.necessario.toFixed(1)+n.unidade+' / '+n.disponivel.toFixed(1)+n.unidade+(suficiente?' ✓':' ⚠ Falta '+(n.necessario-n.disponivel).toFixed(1)+n.unidade)
+                  )
+                ),
+                React.createElement('div',{style:{height:6,background:'#f5f5f5',borderRadius:4,overflow:'hidden'}},
+                  React.createElement('div',{style:{height:'100%',width:Math.min(100,pct)+'%',background:suficiente?'#16a34a':'#dc2626',borderRadius:4}})
+                )
+              );
+            })
+          ),
+
+          faltando.length===0&&!loadingIngs&&necessidades.length>0&&React.createElement('div',{style:{background:'#f0fdf4',borderRadius:12,padding:'14px 18px',marginTop:14,fontSize:13,color:'#16a34a',fontWeight:600,textAlign:'center'}},
+            '✓ Estoque suficiente para produzir todo o plano!'
+          ),
+
+          plano.some(p=>p.ficha_id)&&React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',marginTop:16}},
+            React.createElement('button',{onClick:()=>setPlano([]),style:{background:'#f5f5f5',color:'#555',padding:'10px 18px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'}},'Limpar plano'),
+            plano.filter(p=>p.ficha_id).map(p=>React.createElement('button',{key:p.ficha_id,onClick:()=>irProduzir(p.ficha_id),style:{background:'#7c3aed',color:'#fff',padding:'10px 18px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},
+              'Produzir '+((fichas||[]).find(f=>f.id===p.ficha_id)?.nome||'')
+            ))
+          )
+        )
+  );
+}
+
+
 function ProducaoHistorico({uid,db,reload,setM}){
   const{fichas}=db;
   const[producoes,setProducoes]=React.useState([]);
@@ -4635,9 +4786,9 @@ function ProducaoHistorico({uid,db,reload,setM}){
   );
 }
 
-function ProducaoForm({uid,db,reload,close}){
+function ProducaoForm({uid,db,reload,close,fichaIdInicial}){
   const{fichas,estoque}=db;
-  const[fichaId,setFichaId]=React.useState('');
+  const[fichaId,setFichaId]=React.useState(fichaIdInicial||'');
   const[qtd,setQtd]=React.useState('1');
   const[data,setData]=React.useState(TODAY());
   const[hora,setHora]=React.useState(()=>new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'}));
@@ -5985,6 +6136,7 @@ function App(){
       await refreshEstoque(uid);
     },setM:setModal}),
     producao_hist:()=>React.createElement(ProducaoHistorico,{uid,db,reload,setM:setModal}),
+    producao_plan:()=>React.createElement(PlanejamentoProducao,{uid,db,reload,setM:setModal}),
     fin_visao:()=>React.createElement(FinVisao,{uid,db,reload,setM:setModal}),
     fin_dre:()=>React.createElement(FinDRE,{uid,db,reload,setM:setModal}),
     fin_balanco:()=>React.createElement(FinBalanco,{uid,db,reload,setM:setModal}),
