@@ -5724,14 +5724,17 @@ function App(){
     if(!sourceId)return;
 
     // Verifica se já foi processado
-    const{data:jaProcessado}=await sb.from('estoque_baixas').select('id').eq('user_id',user.id).eq('pedido_source_id',sourceId).maybeSingle();
+    const{data:jaProcessado,error:errCheck}=await sb.from('estoque_baixas').select('id').eq('user_id',user.id).eq('pedido_source_id',sourceId).maybeSingle();
+    if(errCheck){toast('Erro estoque_baixas: '+errCheck.message,true);return;}
     if(jaProcessado)return;
 
     const itens=(pedido.raw&&pedido.raw.items)||pedido.itens||[];
     if(!itens.length)return;
 
-    const{data:fichas}=await sb.from('fichas_tecnicas').select('*').eq('user_id',user.id);
-    const{data:estoqueAtual}=await sb.from('estoque').select('*').eq('user_id',user.id).eq('categoria','Produto Acabado');
+    const{data:fichas,error:errFichas}=await sb.from('fichas_tecnicas').select('*').eq('user_id',user.id);
+    if(errFichas){toast('Erro fichas: '+errFichas.message,true);return;}
+    const{data:estoqueAtual,error:errEst}=await sb.from('estoque').select('*').eq('user_id',user.id).eq('categoria','Produto Acabado');
+    if(errEst){toast('Erro estoque: '+errEst.message,true);return;}
 
     const semVinculo=[];
     const isIfood=pedido.canal==='ifood';
@@ -5748,13 +5751,15 @@ function App(){
       const qtdVendida=Number(it.quantity||it.qty||1);
       if(prod){
         const novaQtd=Math.max(0,Number(prod.qtd||0)-qtdVendida);
-        await sb.from('estoque').update({qtd:novaQtd,qtd_estoque:novaQtd}).eq('id',prod.id);
+        const{error:errUpd}=await sb.from('estoque').update({qtd:novaQtd,qtd_estoque:novaQtd}).eq('id',prod.id);
+        if(errUpd)toast('Erro ao baixar '+ficha.nome+': '+errUpd.message,true);
       }
       // Se não existe produto acabado cadastrado ainda, não cria — só alerta quando vender sem produção prévia
     }
 
     // Marca como processado (mesmo com itens sem vínculo, para não tentar de novo)
-    await sb.from('estoque_baixas').insert({user_id:user.id,pedido_source_id:sourceId});
+    const{error:errMark}=await sb.from('estoque_baixas').insert({user_id:user.id,pedido_source_id:sourceId});
+    if(errMark){toast('Erro ao marcar baixa: '+errMark.message,true);return;}
 
     if(semVinculo.length>0){
       toast('⚠ Pedido #'+(pedido.pedido_id||'')+': sem vínculo de estoque para '+semVinculo.join(', '),true);
