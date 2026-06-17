@@ -3379,7 +3379,7 @@ function LancDetalhe({l,conta,uid,contas,db,reload,close}){
 }
 
 
-function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas}){
+function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas,refreshEstoque}){
   const{lancamentos,contas}=db;
   const hoje=TODAY();
 
@@ -3423,7 +3423,11 @@ function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas}){
       return;
     }
     const titles={receita:'+ Nova Receita',despesa:'+ Nova Despesa',transferencia:'+ Transferência'};
-    setM({wide:true,title:titles[tipo]||'+ Lançamento',body:React.createElement(LancForm,{uid,tipo,db,reload,close:()=>setM(null)})});
+    const reloadCombined=async()=>{
+      if(refreshLanc)await refreshLanc();else await reload();
+      if(refreshEstoque)await refreshEstoque();
+    };
+    setM({wide:true,title:titles[tipo]||'+ Lançamento',body:React.createElement(LancForm,{uid,tipo,db,reload:reloadCombined,close:()=>setM(null)})});
   };
 
   const confirmar=(l)=>setM({title:'Confirmar',body:
@@ -3524,7 +3528,10 @@ function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas}){
 
   const abrirLanc=(l)=>{
     const titulo=l.tipo==='receita'?'Editar Receita':l.tipo==='despesa'?'Editar Despesa':'Editar Lançamento';
-    const r=refreshLanc||reload;
+    const r=async()=>{
+      if(refreshLanc)await refreshLanc();else await reload();
+      if(refreshEstoque)await refreshEstoque();
+    };
     setM({title:titulo,wide:true,body:React.createElement(LancForm,{uid,tipo:l.tipo,db,reload:r,inicial:l,close:()=>setM(null)})});
   };
 
@@ -4123,20 +4130,17 @@ function LancForm({uid,tipo,db,reload,close,inicial}){
       if(conta){const delta=isRec?totalFinal:-totalFinal;await sb.from('contas_bancarias').update({saldo:Number(conta.saldo)+delta}).eq('id',contaId);}
     }
     // Dá entrada no estoque (quantidade só na criação, para evitar duplicar)
-    if(vincularEstoque&&estoqueId&&estQtdTotal>0&&!(inicial&&inicial.id)){
+    if(vincularEstoque&&estoqueId&&estQtdTotal>0){
       const it=(estoque||[]).find(e=>e.id===estoqueId);
       if(it){
-        const novaQtdEstoque=Number(it.qtd_estoque||0)+(parseFloat(estoqueQtdEmb)||0);
-        const novaQtdTotal=Number(it.qtd||0)+estQtdTotal;
+        const isNovo=!(inicial&&inicial.id);
+        const novaQtdEstoque=isNovo?Number(it.qtd_estoque||0)+(parseFloat(estoqueQtdEmb)||0):Number(it.qtd_estoque||0);
+        const novaQtdTotal=isNovo?Number(it.qtd||0)+estQtdTotal:Number(it.qtd||0);
         // Recalcula o custo/unidade pela compra: valor pago ÷ quantidade total (em unidade do estoque)
-        const novoCusto=estQtdTotal>0?(totalFinal/estQtdTotal):Number(it.custo||0);
-        await sb.from('estoque').update({qtd_estoque:novaQtdEstoque,qtd:novaQtdTotal,custo:novoCusto}).eq('id',estoqueId);
+        const novoCusto=totalFinal/estQtdTotal;
+        const{error:errEst}=await sb.from('estoque').update({qtd_estoque:novaQtdEstoque,qtd:novaQtdTotal,custo:novoCusto}).eq('id',estoqueId);
+        if(errEst)toast('Erro ao atualizar estoque: '+errEst.message,true);
       }
-    }
-    // Edição de lançamento já vinculado: não duplica quantidade, mas recalcula o custo/unidade
-    else if(vincularEstoque&&estoqueId&&estQtdTotal>0&&inicial&&inicial.id){
-      const novoCusto=totalFinal/estQtdTotal;
-      await sb.from('estoque').update({custo:novoCusto}).eq('id',estoqueId);
     }
     const msg=inicial&&inicial.id?'Lançamento atualizado!':tipoLanc==='Unico'?'Lancamento criado!':tipoLanc==='Parcelado'?numParc+' parcelas!':numRep+' recorrencias!';
     toast(msg+(vincularEstoque?' Estoque atualizado!':''),false,true);reload();close();setLd(false);
@@ -4979,6 +4983,10 @@ function App(){
     const{data}=await sb.from('lancamentos').select('*').eq('user_id',uid2||user?.id).order('data',{ascending:false}).limit(500);
     if(data)setDb(p=>({...p,lancamentos:data}));
   };
+  const refreshEstoque=async(uid2)=>{
+    const{data}=await sb.from('estoque').select('*').eq('user_id',uid2||user?.id).order('nome');
+    if(data)setDb(p=>({...p,estoque:data}));
+  };
   const refreshPedidos=async(uid2)=>{
     const hoje=TODAY();
     const{data}=await sb.from('pedidos_cw').select('*').eq('user_id',uid2||user?.id).gte('data_pedido',hoje).order('data_pedido',{ascending:false});
@@ -5053,7 +5061,7 @@ function App(){
     estoque:()=>React.createElement(Estoque,{uid,db,reload:async()=>{const{data}=await sb.from('estoque').select('*').eq('user_id',uid).order('nome');if(data)setDb(p=>({...p,estoque:data}));},setM:setModal}),
     fichas:()=>React.createElement(FichasTecnicas,{uid,db,reload:async()=>{const{data}=await sb.from('fichas_tecnicas').select('*').eq('user_id',uid).order('nome');if(data)setDb(p=>({...p,fichas:data}));},setM:setModal}),
     fin_visao:()=>React.createElement(FinVisao,{uid,db,reload,setM:setModal}),
-    fin_lancamentos:()=>React.createElement(FinLancamentos,{uid,db,reload,setM:setModal,refreshLanc:()=>refreshLanc(uid),refreshContas:()=>refreshContas(uid)}),
+    fin_lancamentos:()=>React.createElement(FinLancamentos,{uid,db,reload,setM:setModal,refreshLanc:()=>refreshLanc(uid),refreshContas:()=>refreshContas(uid),refreshEstoque:()=>refreshEstoque(uid)}),
     fin_receber:()=>React.createElement(FinReceber,{uid,db,reload,setM:setModal}),
     fin_pagar:()=>React.createElement(FinPagar,{uid,db,reload,setM:setModal}),
     fin_movs:()=>React.createElement(FinMovs,{uid,db,reload,setM:setModal}),
