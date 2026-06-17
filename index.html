@@ -3555,17 +3555,27 @@ function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas,refreshEst
       React.createElement(AddDropdown,{key:'add',novo}),
     ]},
 
+    // TABS TODOS / RECEITAS / DESPESAS
+    React.createElement('div',{style:{display:'flex',gap:10,marginBottom:14}},
+      [
+        {v:'',l:'Todos',cor:'#111',bg:'#f5f5f5',total:allPer.reduce((s,l)=>s+Number(l.valor||0),0)},
+        {v:'receita',l:'Receitas',cor:'#16a34a',bg:'#f0fdf4',total:allPer.filter(l=>l.tipo==='receita').reduce((s,l)=>s+Number(l.valor||0),0)},
+        {v:'despesa',l:'Despesas',cor:'#dc2626',bg:'#fff5f5',total:allPer.filter(l=>l.tipo==='despesa').reduce((s,l)=>s+Number(l.valor||0),0)},
+      ].map(t=>{
+        const ativo=filTipo===t.v;
+        return React.createElement('button',{key:t.v,onClick:()=>setFilTipo(t.v),style:{
+          flex:1,textAlign:'left',padding:'14px 18px',borderRadius:14,border:'none',cursor:'pointer',
+          background:ativo?t.cor:'#fff',boxShadow:ativo?'0 4px 14px '+t.cor+'40':'0 1px 6px rgba(0,0,0,0.06)',
+          transition:'all 0.15s'
+        }},
+          React.createElement('div',{style:{fontSize:12,fontWeight:700,color:ativo?'rgba(255,255,255,0.85)':'#aaa',marginBottom:6,letterSpacing:'0.3px'}},t.l),
+          React.createElement('div',{style:{fontSize:20,fontWeight:800,color:ativo?'#fff':t.cor}},F(t.total))
+        );
+      })
+    ),
+
     // BARRA DE FILTROS
     React.createElement('div',{style:{background:'#fff',borderRadius:13,boxShadow:'0 1px 6px rgba(0,0,0,0.07)',marginBottom:12,display:'flex',alignItems:'center',flexWrap:'wrap',overflow:'visible',position:'relative'}},
-      // Tipo
-      React.createElement('div',{style:{padding:'11px 14px',display:'flex',alignItems:'center',gap:6}},
-        React.createElement('select',{value:filTipo,onChange:e=>setFilTipo(e.target.value),style:{...barSel,fontWeight:600,color:'#111',minWidth:70}},
-          React.createElement('option',{value:''},'Caixa'),
-          React.createElement('option',{value:'receita'},'Receitas'),
-          React.createElement('option',{value:'despesa'},'Despesas')
-        )
-      ),
-      sep,
       // DATE PICKER trigger
       React.createElement('div',{style:{position:'relative'}},
         React.createElement('div',{style:{display:'flex',alignItems:'center',gap:4,padding:'11px 12px',cursor:'pointer'},onClick:()=>setShowPicker(p=>!p)},
