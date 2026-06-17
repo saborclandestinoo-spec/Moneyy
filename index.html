@@ -2585,10 +2585,22 @@ function FichasTecnicas({uid,db,reload,setM}){
   const nova=()=>setM({title:'Nova Ficha Técnica',wide:true,body:React.createElement(FichaForm,{uid,db,reload,close:()=>setM(null)})});
   const editar=(f)=>setM({title:f.nome,wide:true,body:React.createElement(FichaForm,{uid,db,reload,ficha:f,close:()=>setM(null)})});
 
-  return React.createElement(PW,{title:'Fichas Técnicas',sub:'Custo por unidade de cada produto',
+  const[ingredientesPorFicha,setIngredientesPorFicha]=React.useState({});
+  React.useEffect(()=>{
+    if(!list.length)return;
+    sb.from('ficha_ingredientes').select('*').in('ficha_id',list.map(f=>f.id)).then(({data})=>{
+      const map={};
+      (data||[]).forEach(i=>{if(!map[i.ficha_id])map[i.ficha_id]=[];map[i.ficha_id].push(i);});
+      setIngredientesPorFicha(map);
+    });
+  },[fichas]);
+
+  return React.createElement(PW,{title:'Fichas Técnicas',sub:'Custo, estoque e margem de cada produto',
     actions:[React.createElement('button',{key:'n',style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:nova},'+ Nova Ficha')]},
 
-    React.createElement('input',{placeholder:'🔍 Buscar produto...',value:busca,onChange:e=>setBusca(e.target.value),style:{background:'#fff',border:'1.5px solid #e2e2e2',borderRadius:10,padding:'10px 14px',fontSize:13,color:'#111',outline:'none',width:'100%',marginBottom:20,boxSizing:'border-box'}}),
+    React.createElement('input',{placeholder:'🔍 Buscar produto...',value:busca,onChange:e=>setBusca(e.target.value),style:{background:'#fff',border:'1.5px solid #e2e2e2',borderRadius:10,padding:'10px 14px',fontSize:13,color:'#111',outline:'none',width:'100%',marginBottom:16,boxSizing:'border-box'}}),
+
+    React.createElement('div',{style:{fontSize:11,color:'#aaa',marginBottom:10}},'Clique em uma linha para editar o produto'),
 
     list.length===0
       ?React.createElement('div',{style:{textAlign:'center',padding:'60px',color:'#ccc',background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
@@ -2596,8 +2608,38 @@ function FichasTecnicas({uid,db,reload,setM}){
           React.createElement('div',{style:{fontSize:14,marginBottom:16}},'Nenhuma ficha cadastrada'),
           React.createElement('button',{style:{background:'#dc2626',color:'#fff',padding:'10px 20px',borderRadius:10,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:nova},'Criar primeira ficha')
         )
-      :React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:16}},
-          list.map(f=>React.createElement(FichaCard,{key:f.id,f,db,uid,reload,setM,editar}))
+      :React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+          React.createElement(Tbl,{cols:['Produto','Categoria','Estoque','Custo Unit','Custo Total','Preço Venda','Lucro Unit','Margem','Receita Pot.','Status'],
+            rows:list.map(f=>{
+              const ings=ingredientesPorFicha[f.id]||[];
+              const custoUnit=ings.reduce((s,i)=>s+Number(i.quantidade||0)*Number(i.custo_unit||0),0);
+              const prodAcabado=(estoque||[]).find(e=>e.nome===f.nome&&e.categoria==='Produto Acabado');
+              const qtdEstoque=prodAcabado?Number(prodAcabado.qtd||0):0;
+              const custoTotalEst=custoUnit*qtdEstoque;
+              const precoVenda=Number(f.preco_venda||0);
+              const lucroUnit=precoVenda-custoUnit;
+              const margem=precoVenda>0?(lucroUnit/precoVenda*100):0;
+              const receitaPot=precoVenda*qtdEstoque;
+              const semVinculo=!f.nome_cw&&!f.nome_ifood;
+
+              return React.createElement(TR,{key:f.id,onClick:()=>editar(f),cells:[
+                React.createElement('div',null,
+                  React.createElement('div',{style:{fontWeight:700,fontSize:13,color:'#111'}},f.nome_cw||f.nome),
+                  f.nome_cw&&React.createElement('div',{style:{fontSize:10,color:'#aaa'}},f.nome)
+                ),
+                React.createElement('span',{style:{fontSize:11,background:'#f5f5f5',color:'#666',padding:'3px 9px',borderRadius:20}},(f.categoria||'—').toUpperCase()),
+                React.createElement('span',{style:{fontWeight:800,fontSize:13,color:qtdEstoque<0?'#dc2626':qtdEstoque===0?'#aaa':'#111'}},qtdEstoque),
+                React.createElement('span',{style:{fontSize:12}},F(custoUnit)),
+                React.createElement('span',{style:{fontSize:12,fontWeight:700,color:custoTotalEst<0?'#dc2626':'#555'}},F(custoTotalEst)),
+                React.createElement('span',{style:{fontSize:12,fontWeight:700}},precoVenda>0?F(precoVenda):'—'),
+                React.createElement('span',{style:{fontSize:12,fontWeight:700,color:lucroUnit>=0?'#16a34a':'#dc2626'}},precoVenda>0?F(lucroUnit):'—'),
+                React.createElement('span',{style:{fontSize:12,fontWeight:700,color:margem>=0?'#2563eb':'#dc2626'}},precoVenda>0?margem.toFixed(1)+'%':'—'),
+                React.createElement('span',{style:{fontSize:12,fontWeight:700,color:receitaPot<0?'#dc2626':'#7c3aed'}},precoVenda>0?F(receitaPot):'—'),
+                React.createElement(Badge,{t:semVinculo?'Sem vínculo':'Ativo',c:semVinculo?'amber':'green'})
+              ]});
+            }),
+            empty:'Nenhum produto encontrado.'
+          })
         )
   );
 }
