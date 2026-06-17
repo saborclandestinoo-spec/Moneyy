@@ -2582,8 +2582,8 @@ function FichasTecnicas({uid,db,reload,setM}){
   const{fichas,estoque}=db;
   const[busca,setBusca]=React.useState('');
   const list=(fichas||[]).filter(f=>!busca||(f.nome||'').toLowerCase().includes(busca.toLowerCase()));
-  const nova=()=>setM({title:'Nova Ficha Técnica',wide:true,body:React.createElement(FichaForm,{uid,db,reload,close:()=>setM(null)})});
-  const editar=(f)=>setM({title:f.nome,wide:true,body:React.createElement(FichaForm,{uid,db,reload,ficha:f,close:()=>setM(null)})});
+  const nova=()=>setM({title:'Nova Ficha Técnica',wide:true,body:React.createElement(FichaForm,{uid,db,reload,setM,close:()=>setM(null)})});
+  const editar=(f)=>setM({title:f.nome,wide:true,body:React.createElement(FichaForm,{uid,db,reload,ficha:f,setM,close:()=>setM(null)})});
 
   const[ingredientesPorFicha,setIngredientesPorFicha]=React.useState({});
   React.useEffect(()=>{
@@ -2726,7 +2726,53 @@ function FichaCard({f,db,uid,reload,setM,editar}){
   );
 }
 
-function FichaForm({uid,db,reload,close,ficha}){
+function HistoricoMovimentos({uid,produtoNome,close}){
+  const[movs,setMovs]=React.useState(null);
+
+  React.useEffect(()=>{
+    sb.from('estoque_movimentos').select('*').eq('user_id',uid).eq('produto_nome',produtoNome).order('criado_em',{ascending:false}).limit(200)
+      .then(({data})=>setMovs(data||[]));
+  },[uid,produtoNome]);
+
+  const TIPO_INFO={
+    entrada_producao:{l:'Produção',cor:'#16a34a',icone:'+',bg:'#f0fdf4'},
+    saida_venda:{l:'Venda',cor:'#dc2626',icone:'−',bg:'#fff5f5'},
+    saida_cancelamento:{l:'Devolução (cancelado)',cor:'#16a34a',icone:'+',bg:'#f0fdf4'},
+    ajuste_manual:{l:'Ajuste Manual',cor:'#7c3aed',icone:'±',bg:'#faf5ff'},
+    entrada_estoque_inicial:{l:'Estoque Inicial',cor:'#2563eb',icone:'+',bg:'#eff6ff'},
+  };
+
+  if(movs===null)return React.createElement('div',{style:{padding:'30px',textAlign:'center',color:'#aaa'}},'Carregando histórico...');
+
+  return React.createElement('div',{style:{minWidth:420,maxHeight:480,overflowY:'auto'}},
+    movs.length===0
+      ?React.createElement('div',{style:{textAlign:'center',padding:'30px',color:'#ccc'}},'Nenhuma movimentação registrada ainda')
+      :movs.map(m=>{
+          const info=TIPO_INFO[m.tipo]||{l:m.tipo,cor:'#555',icone:'•',bg:'#f5f5f5'};
+          const isEntrada=Number(m.quantidade)>0;
+          return React.createElement('div',{key:m.id,style:{display:'flex',gap:12,padding:'10px 0',borderBottom:'1px solid #f5f5f5',alignItems:'flex-start'}},
+            React.createElement('div',{style:{width:30,height:30,borderRadius:'50%',background:info.bg,color:info.cor,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:14,flexShrink:0}},info.icone),
+            React.createElement('div',{style:{flex:1}},
+              React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:2}},
+                React.createElement('span',{style:{fontWeight:700,fontSize:13,color:'#111'}},info.l),
+                React.createElement('span',{style:{fontWeight:800,fontSize:13,color:isEntrada?'#16a34a':'#dc2626'}},(isEntrada?'+':'')+m.quantidade+' un')
+              ),
+              React.createElement('div',{style:{fontSize:12,color:'#888'}},m.descricao),
+              React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginTop:3}},
+                React.createElement('span',{style:{fontSize:11,color:'#bbb'}},new Date(m.criado_em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'})),
+                m.saldo_apos!=null&&React.createElement('span',{style:{fontSize:11,color:'#aaa'}},'Saldo: '+m.saldo_apos+' un')
+              )
+            )
+          );
+        }),
+    React.createElement('div',{style:{display:'flex',justifyContent:'flex-end',marginTop:16,paddingTop:12,borderTop:'1px solid #f0f0f0'}},
+      React.createElement('button',{onClick:close,style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'}},'Fechar')
+    )
+  );
+}
+
+function FichaForm({uid,db,reload,close,ficha,setM}){
+  const[verHistorico,setVerHistorico]=React.useState(false);
   const{estoque}=db;
   const[nome,setNome]=React.useState(ficha?.nome||'');
   const[nomeCw,setNomeCw]=React.useState(ficha?.nome_cw||'');
@@ -2784,16 +2830,28 @@ function FichaForm({uid,db,reload,close,ficha}){
     const inicialAnterior=prodAcabadoAtual?Number(prodAcabadoAtual.estoque_inicial||0):0;
     const deltaInicial=novoInicial-inicialAnterior;
     if(deltaInicial!==0||!prodAcabadoAtual){
+      let prodId=prodAcabadoAtual?.id;
+      let novaQtd;
       if(prodAcabadoAtual){
-        const novaQtd=Math.max(0,Number(prodAcabadoAtual.qtd||0)+deltaInicial);
+        novaQtd=Math.max(0,Number(prodAcabadoAtual.qtd||0)+deltaInicial);
         const{error:errEst}=await sb.from('estoque').update({estoque_inicial:novoInicial,qtd:novaQtd,qtd_estoque:novaQtd,custo:custoTotal}).eq('id',prodAcabadoAtual.id);
         if(errEst){toast('Erro ao salvar estoque: '+errEst.message,true);setLd(false);return;}
       }else{
-        const{error:errEst}=await sb.from('estoque').insert({
+        novaQtd=novoInicial;
+        const{data:novoItem,error:errEst}=await sb.from('estoque').insert({
           user_id:uid,nome,categoria:'Produto Acabado',unidade:'un',
           estoque_inicial:novoInicial,qtd:novoInicial,qtd_embalagem:1,qtd_estoque:novoInicial,minimo:0,custo:custoTotal,fornecedor:''
-        });
+        }).select().single();
         if(errEst){toast('Erro ao criar item de estoque: '+errEst.message,true);setLd(false);return;}
+        prodId=novoItem?.id;
+      }
+      if(prodId&&deltaInicial!==0){
+        await sb.from('estoque_movimentos').insert({
+          user_id:uid,estoque_id:prodId,produto_nome:nome,
+          tipo:'ajuste_manual',quantidade:deltaInicial,saldo_apos:novaQtd,
+          referencia:'estoque_inicial',
+          descricao:'Ajuste de Estoque Inicial ('+(deltaInicial>0?'+':'')+deltaInicial+' un)'
+        });
       }
     }
     toast(isEdit?'Ficha atualizada!':'Ficha criada!',false,true);reload();close();setLd(false);
@@ -2807,6 +2865,16 @@ function FichaForm({uid,db,reload,close,ficha}){
 
   const CAT_CORES={Cookie:'#dc2626',Bolo:'#7c3aed',Brownie:'#92400e',Trufa:'#db2777',Brigadeiro:'#ea580c',Torta:'#0891b2',Outro:'#6b7280'};
   const cor=CAT_CORES[cat]||'#dc2626';
+
+  if(verHistorico){
+    return React.createElement('div',null,
+      React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}},
+        React.createElement('div',{style:{fontWeight:700,fontSize:14}},'Histórico de Movimentação — '+nome),
+        React.createElement('button',{onClick:()=>setVerHistorico(false),style:{background:'#f5f5f5',color:'#555',padding:'7px 14px',borderRadius:9,fontSize:12,fontWeight:600,border:'none',cursor:'pointer'}},'← Voltar')
+      ),
+      React.createElement(HistoricoMovimentos,{uid,produtoNome:nome,close:()=>setVerHistorico(false)})
+    );
+  }
 
   return React.createElement('div',null,
     // Header
@@ -2838,7 +2906,8 @@ function FichaForm({uid,db,reload,close,ficha}){
         isEdit
           ?'Estoque Inicial é o ponto de partida. Alterá-lo ajusta o saldo atual pela diferença, sem afetar produções/vendas já registradas. O Estoque Atual muda automaticamente com Produção (+) e pedidos entregues (−).'
           :'Quantidade já existente em estoque ao cadastrar esta ficha (se houver). Pode deixar 0 e usar Produção depois.'
-      )
+      ),
+      isEdit&&React.createElement('button',{onClick:()=>setVerHistorico(true),style:{marginTop:10,background:'#fff',color:'#7c3aed',border:'1.5px solid #ede9fe',padding:'7px 14px',borderRadius:9,fontSize:12,fontWeight:700,cursor:'pointer'}},'📋 Ver Histórico de Movimentação')
     ),
 
     React.createElement(FloatInput,{label:'Preço de Venda (R$)',acent:cor,type:'number',value:precoVenda,onChange:e=>setPrecoVenda(e.target.value)}),
@@ -4617,16 +4686,29 @@ function ProducaoForm({uid,db,reload,close}){
 
     // 2. Dá entrada no produto acabado (busca ou cria item "Produto Acabado" com nome da ficha)
     const{data:prodExistente}=await sb.from('estoque').select('*').eq('user_id',uid).eq('nome',ficha.nome).eq('categoria','Produto Acabado').maybeSingle();
+    let prodAcabadoId=prodExistente?.id;
+    let saldoApos;
     if(prodExistente){
+      saldoApos=Number(prodExistente.qtd||0)+qtdN;
       await sb.from('estoque').update({
-        qtd:Number(prodExistente.qtd||0)+qtdN,
+        qtd:saldoApos,
         qtd_estoque:Number(prodExistente.qtd_estoque||0)+qtdN,
         custo:custoUnitario
       }).eq('id',prodExistente.id);
     }else{
-      await sb.from('estoque').insert({
+      saldoApos=qtdN;
+      const{data:novoItem}=await sb.from('estoque').insert({
         user_id:uid,nome:ficha.nome,categoria:'Produto Acabado',unidade:'un',
         qtd:qtdN,qtd_embalagem:1,qtd_estoque:qtdN,minimo:0,custo:custoUnitario,fornecedor:''
+      }).select().single();
+      prodAcabadoId=novoItem?.id;
+    }
+    if(prodAcabadoId){
+      await sb.from('estoque_movimentos').insert({
+        user_id:uid,estoque_id:prodAcabadoId,produto_nome:ficha.nome,
+        tipo:'entrada_producao',quantidade:qtdN,saldo_apos:saldoApos,
+        referencia:'producao_'+data,
+        descricao:'Produção de '+qtdN+' unidade(s) em '+FD(data)
       });
     }
 
@@ -5748,6 +5830,12 @@ function App(){
         if(prod){
           const novaQtd=Number(prod.qtd||0)+qtdVendida;
           await sb.from('estoque').update({qtd:novaQtd,qtd_estoque:novaQtd}).eq('id',prod.id);
+          await sb.from('estoque_movimentos').insert({
+            user_id:user.id,estoque_id:prod.id,produto_nome:ficha.nome,
+            tipo:'saida_cancelamento',quantidade:qtdVendida,saldo_apos:novaQtd,
+            referencia:'#'+(pedido.pedido_id||sourceId),
+            descricao:'Devolução — pedido #'+(pedido.pedido_id||sourceId)+' cancelado'
+          });
         }
       }
       await sb.from('estoque_baixas').delete().eq('user_id',user.id).eq('pedido_source_id',sourceId);
@@ -5785,7 +5873,15 @@ function App(){
       if(prod){
         const novaQtd=Number(prod.qtd||0)-qtdVendida;
         const{error:errUpd}=await sb.from('estoque').update({qtd:novaQtd,qtd_estoque:novaQtd}).eq('id',prod.id);
-        if(errUpd)toast('Erro ao baixar '+ficha.nome+': '+errUpd.message,true);
+        if(errUpd){toast('Erro ao baixar '+ficha.nome+': '+errUpd.message,true);}
+        else{
+          await sb.from('estoque_movimentos').insert({
+            user_id:user.id,estoque_id:prod.id,produto_nome:ficha.nome,
+            tipo:'saida_venda',quantidade:qtdVendida,saldo_apos:novaQtd,
+            referencia:'#'+(pedido.pedido_id||sourceId),
+            descricao:'Venda — pedido #'+(pedido.pedido_id||sourceId)+(pedido.cliente?' · '+pedido.cliente:'')
+          });
+        }
       }
       // Se não existe produto acabado cadastrado ainda, não cria — só alerta quando vender sem produção prévia
     }
