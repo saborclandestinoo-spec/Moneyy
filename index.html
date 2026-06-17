@@ -2555,7 +2555,7 @@ function MovEst({id,db,reload,close}){
     if(!qtd){toast('Informe a quantidade',true);return;}
     setLd(true);
     const delta=tipo==='entrada'?parseFloat(qtd):-parseFloat(qtd);
-    const novaQtd=Math.max(0,Number(item.qtd)+delta);
+    const novaQtd=Number(item.qtd)+delta;
     await sb.from('estoque').update({qtd:novaQtd}).eq('id',id);
     await sb.from('movimentacoes').insert({user_id:item.user_id,tipo,categoria:item.categoria,descricao:(tipo==='entrada'?'Entrada':'Saída')+': '+item.nome+(obs?' — '+obs:''),valor:parseFloat(qtd)*Number(item.custo),origem:'estoque',data_movimentacao:TODAY()});
     toast('Movimentado!',false,true);reload();close();setLd(false);
@@ -4607,7 +4607,7 @@ function ProducaoForm({uid,db,reload,close}){
     // 1. Baixa os ingredientes do estoque
     for(const c of checagem){
       if(c.item){
-        const novaQtd=Math.max(0,Number(c.item.qtd||0)-c.necessario);
+        const novaQtd=Number(c.item.qtd||0)-c.necessario;
         // Mantém qtd_embalagem e recalcula qtd_estoque proporcionalmente
         const emb=Number(c.item.qtd_embalagem||1);
         const novaQtdEstoque=emb>0?novaQtd/emb:0;
@@ -5783,7 +5783,7 @@ function App(){
       const prod=(estoqueAtual||[]).find(e=>e.nome===ficha.nome);
       const qtdVendida=Number(it.quantity||it.qty||1);
       if(prod){
-        const novaQtd=Math.max(0,Number(prod.qtd||0)-qtdVendida);
+        const novaQtd=Number(prod.qtd||0)-qtdVendida;
         const{error:errUpd}=await sb.from('estoque').update({qtd:novaQtd,qtd_estoque:novaQtd}).eq('id',prod.id);
         if(errUpd)toast('Erro ao baixar '+ficha.nome+': '+errUpd.message,true);
       }
