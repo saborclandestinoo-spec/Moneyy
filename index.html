@@ -3427,6 +3427,70 @@ function LancDetalhe({l,conta,uid,contas,db,reload,close}){
 }
 
 
+function EdicaoMassaModal({uid,db,lancamentosSelecionados,onConcluido,close}){
+  const{contas,categorias_fin,centros_custo}=db;
+  const[campo,setCampo]=React.useState('categoria');
+  const[valor,setValor]=React.useState('');
+  const[ld,setLd]=React.useState(false);
+
+  const tiposPresentes=[...new Set(lancamentosSelecionados.map(l=>l.tipo))];
+  const totalSel=lancamentosSelecionados.reduce((s,l)=>s+Number(l.valor||0),0);
+
+  const CAMPOS=[
+    {v:'categoria',l:'Categoria'},
+    {v:'conta_id',l:'Conta'},
+    {v:'centro_custo',l:'Centro de Custo'},
+    {v:'venc',l:'Data de Vencimento'},
+  ];
+
+  const aplicar=async()=>{
+    if(!valor){toast('Selecione um valor',true);return;}
+    setLd(true);
+    const ids=lancamentosSelecionados.map(l=>l.id);
+    const payload={[campo]:valor};
+    const{error}=await sb.from('lancamentos').update(payload).in('id',ids);
+    if(error){toast('Erro: '+error.message,true);setLd(false);return;}
+    toast(ids.length+' lançamento(s) atualizado(s)!',false,true);
+    onConcluido();
+    setLd(false);
+  };
+
+  return React.createElement('div',{style:{minWidth:420}},
+    React.createElement('div',{style:{background:'#f9f9fb',borderRadius:11,padding:'14px',marginBottom:18}},
+      React.createElement('div',{style:{fontWeight:700,fontSize:14,marginBottom:4}},lancamentosSelecionados.length+' lançamento(s) selecionado(s)'),
+      React.createElement('div',{style:{fontSize:12,color:'#888'}},'Total: '+F(totalSel)+(tiposPresentes.length>1?' (tipos mistos)':''))
+    ),
+
+    React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700,letterSpacing:'1.5px',textTransform:'uppercase',marginBottom:8}},'O que deseja alterar?'),
+    React.createElement('div',{style:{display:'flex',gap:6,flexWrap:'wrap',marginBottom:16}},
+      CAMPOS.map(c=>React.createElement('button',{key:c.v,onClick:()=>{setCampo(c.v);setValor('');},style:{
+        padding:'7px 14px',borderRadius:20,fontSize:12,fontWeight:600,border:'none',cursor:'pointer',
+        background:campo===c.v?'#111':'#f5f5f5',color:campo===c.v?'#fff':'#666'
+      }},c.l))
+    ),
+
+    campo==='categoria'&&React.createElement(CustomSelect,{label:'Nova categoria',value:valor,onChange:setValor,
+      options:(categorias_fin||[]).map(c=>({v:c.nome,l:c.nome})),placeholder:'— Selecione —',acent:'#111'
+    }),
+    campo==='conta_id'&&React.createElement(CustomSelect,{label:'Nova conta',value:valor,onChange:setValor,
+      options:(contas||[]).map(c=>({v:c.id,l:c.nome})),placeholder:'— Selecione —',acent:'#111'
+    }),
+    campo==='centro_custo'&&React.createElement(CustomSelect,{label:'Novo centro de custo',value:valor,onChange:setValor,
+      options:(centros_custo||[]).map(c=>({v:c.nome,l:c.nome})),placeholder:'— Selecione —',acent:'#111'
+    }),
+    campo==='venc'&&React.createElement(MiniDatePicker,{label:'Nova data de vencimento',value:valor,onChange:setValor,acent:'#111'}),
+
+    React.createElement('div',{style:{background:'#fffbeb',borderRadius:10,padding:'10px 14px',marginTop:16,marginBottom:8,fontSize:12,color:'#92400e'}},
+      '⚠ Esta alteração será aplicada a todos os '+lancamentosSelecionados.length+' lançamentos selecionados.'
+    ),
+
+    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',marginTop:12}},
+      React.createElement('button',{onClick:close,style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'}},'Cancelar'),
+      React.createElement('button',{onClick:aplicar,disabled:ld||!valor,style:{background:'#111',color:'#fff',padding:'9px 22px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer',opacity:!valor?0.5:1}},ld?'Aplicando...':'Aplicar a todos')
+    )
+  );
+}
+
 function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas,refreshEstoque}){
   const{lancamentos,contas}=db;
   const hoje=TODAY();
@@ -3441,6 +3505,7 @@ function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas,refreshEst
   const[filCat,setFilCat]=React.useState('');
   const[filStatus,setFilStatus]=React.useState('');
   const[filTipo,setFilTipo]=React.useState('');
+  const[selecionados,setSelecionados]=React.useState([]);
 
   const periodoLabel=FD(dtIni)+' — '+FD(dtFim);
 
@@ -3497,6 +3562,13 @@ function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas,refreshEst
       )
     )
   });
+
+  const confirmarPagoSilencioso=async(l)=>{
+    if(l.pago)return;
+    const cid=l.conta_id||(contas[0]&&contas[0].id);
+    await sb.from('lancamentos').update({pago:true,data_pag:TODAY()}).eq('id',l.id);
+    if(cid){const c=contas.find(x=>x.id===cid);if(c)await sb.from('contas_bancarias').update({saldo:l.tipo==='receita'?Number(c.saldo)+Number(l.valor):Number(c.saldo)-Number(l.valor)}).eq('id',cid);}
+  };
 
   const reverterEstoqueLancamento=async(lanc)=>{
     if(lanc.estoque_id&&lanc.estoque_qtd){
@@ -3686,15 +3758,61 @@ function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas,refreshEst
       )
     ),
 
+    // BARRA DE AÇÃO EM MASSA
+    selecionados.length>0&&React.createElement('div',{style:{
+      position:'sticky',top:8,zIndex:30,background:'#111',borderRadius:13,padding:'10px 16px',marginBottom:12,
+      display:'flex',alignItems:'center',gap:12,boxShadow:'0 4px 16px rgba(0,0,0,0.2)'
+    }},
+      React.createElement('span',{style:{color:'#fff',fontSize:13,fontWeight:700}},selecionados.length+' selecionado(s)'),
+      React.createElement('div',{style:{flex:1}}),
+      React.createElement('button',{onClick:()=>setM({title:'Editar em massa',body:React.createElement(EdicaoMassaModal,{
+        uid,db,lancamentosSelecionados:list.filter(l=>selecionados.includes(l.id)),
+        onConcluido:()=>{setSelecionados([]);setM(null);if(refreshLanc)refreshLanc();else reload();if(refreshEstoque)refreshEstoque();},
+        close:()=>setM(null)
+      })}),style:{background:'#fff',color:'#111',padding:'7px 16px',borderRadius:9,fontSize:12,fontWeight:700,border:'none',cursor:'pointer'}},'✏ Editar em massa'),
+      React.createElement('button',{onClick:async()=>{
+        for(const id of selecionados){const l=list.find(x=>x.id===id);if(l)await confirmarPagoSilencioso(l);}
+        toast(selecionados.length+' marcado(s) como pago!',false,true);setSelecionados([]);if(refreshLanc)refreshLanc();else reload();
+      },style:{background:'#16a34a',color:'#fff',padding:'7px 14px',borderRadius:9,fontSize:12,fontWeight:700,border:'none',cursor:'pointer'}},'✓ Marcar pago'),
+      React.createElement('button',{
+        style:{background:'#fee2e2',color:'#dc2626',padding:'7px 14px',borderRadius:9,fontSize:12,fontWeight:700,border:'none',cursor:'pointer'},
+        onClick:()=>setM({title:'Excluir lançamentos',body:React.createElement('div',null,
+          React.createElement('div',{style:{fontSize:13,color:'#666',marginBottom:18,lineHeight:1.6}},'Excluir '+selecionados.length+' lançamento(s) selecionado(s)? Esta ação não pode ser desfeita.'),
+          React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
+            React.createElement('button',{onClick:()=>setM(null),style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'}},'Cancelar'),
+            React.createElement('button',{onClick:async()=>{
+              setM(null);
+              for(const id of selecionados){const l=list.find(x=>x.id===id);if(l)await reverterEstoqueLancamento(l);}
+              await sb.from('lancamentos').delete().in('id',selecionados);
+              toast(selecionados.length+' excluído(s)!',false,true);setSelecionados([]);if(refreshLanc)refreshLanc();else reload();if(refreshEstoque)refreshEstoque();
+            },style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},'Excluir')
+          )
+        )})
+      },'🗑 Excluir'),
+      React.createElement('button',{onClick:()=>setSelecionados([]),style:{background:'none',color:'rgba(255,255,255,0.6)',padding:'7px 10px',borderRadius:9,fontSize:12,border:'none',cursor:'pointer'}},'Cancelar')
+    ),
+
     // TABELA
     React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
-      React.createElement(Tbl,{cols:['Data','Descricao','Categoria','Conta','Pagamento','Valor','Status',''],
+      React.createElement(Tbl,{cols:[
+        React.createElement('input',{key:'chkall',type:'checkbox',
+          checked:list.length>0&&selecionados.length===list.length,
+          onChange:e=>setSelecionados(e.target.checked?list.map(l=>l.id):[]),
+          style:{width:16,height:16,cursor:'pointer'}
+        }),
+        'Data','Descricao','Categoria','Conta','Pagamento','Valor','Status',''],
         rows:list.map(l=>{
           const isV=!l.pago&&l.venc&&l.venc<hoje;
           const isH=!l.pago&&l.venc===hoje;
           const conta=(contas||[]).find(c=>c.id===l.conta_id);
           const parcLabel=l.parcela?((l.recorrente?'Rec ':'')+l.parcela):null;
+          const sel=selecionados.includes(l.id);
           return React.createElement(TR,{key:l.id,onClick:()=>abrirLanc(l),cells:[
+            React.createElement('input',{type:'checkbox',checked:sel,
+              onClick:e=>e.stopPropagation(),
+              onChange:e=>setSelecionados(p=>e.target.checked?[...p,l.id]:p.filter(id=>id!==l.id)),
+              style:{width:16,height:16,cursor:'pointer'}
+            }),
             React.createElement('div',null,
               React.createElement('span',{style:{fontSize:13,color:'#555'}},FD(l.data)),
               parcLabel&&React.createElement('div',{style:{fontSize:10,color:'#7c3aed',fontWeight:600,marginTop:2}},parcLabel)
