@@ -2641,37 +2641,31 @@ function FichaCard({f,db,uid,reload,setM,editar}){
     // Corpo
     React.createElement('div',{style:{padding:'14px 16px'}},
       // Métricas compactas: Custo/un, Em estoque, Custo total
-      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:12}},
-        React.createElement('div',{style:{background:'#f8f9fc',borderRadius:9,padding:'8px 10px'}},
-          React.createElement('div',{style:{fontSize:9,color:'#aaa',fontWeight:700,letterSpacing:'0.5px',marginBottom:3}},'CUSTO/UN'),
-          React.createElement('div',{style:{fontSize:14,fontWeight:800,color:cor}},custoTotal>0?F(custoTotal):'—')
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6,marginBottom:12}},
+        React.createElement('div',{style:{background:'#f8f9fc',borderRadius:9,padding:'8px 6px',textAlign:'center'}},
+          React.createElement('div',{style:{fontSize:9,color:'#aaa',fontWeight:700,letterSpacing:'0.3px',marginBottom:3,whiteSpace:'nowrap'}},'CUSTO/UN'),
+          React.createElement('div',{style:{fontSize:13,fontWeight:800,color:cor,whiteSpace:'nowrap'}},custoTotal>0?F(custoTotal):'—')
         ),
-        React.createElement('div',{style:{background:'#f8f9fc',borderRadius:9,padding:'8px 10px'}},
-          React.createElement('div',{style:{fontSize:9,color:'#aaa',fontWeight:700,letterSpacing:'0.5px',marginBottom:3}},'ESTOQUE'),
-          React.createElement('div',{style:{fontSize:14,fontWeight:800,color:qtdEstoque>0?'#16a34a':'#dc2626'}},qtdEstoque+' un')
+        React.createElement('div',{style:{background:'#f8f9fc',borderRadius:9,padding:'8px 6px',textAlign:'center'}},
+          React.createElement('div',{style:{fontSize:9,color:'#aaa',fontWeight:700,letterSpacing:'0.3px',marginBottom:3,whiteSpace:'nowrap'}},'ESTOQUE'),
+          React.createElement('div',{style:{fontSize:13,fontWeight:800,color:qtdEstoque>0?'#16a34a':'#dc2626',whiteSpace:'nowrap'}},qtdEstoque+' un')
         ),
-        React.createElement('div',{style:{background:'#f8f9fc',borderRadius:9,padding:'8px 10px'}},
-          React.createElement('div',{style:{fontSize:9,color:'#aaa',fontWeight:700,letterSpacing:'0.5px',marginBottom:3}},'TOTAL EM $'),
-          React.createElement('div',{style:{fontSize:14,fontWeight:800,color:'#2563eb'}},F(custoTotal*qtdEstoque))
+        React.createElement('div',{style:{background:'#f8f9fc',borderRadius:9,padding:'8px 6px',textAlign:'center'}},
+          React.createElement('div',{style:{fontSize:9,color:'#aaa',fontWeight:700,letterSpacing:'0.3px',marginBottom:3,whiteSpace:'nowrap'}},'TOTAL'),
+          React.createElement('div',{style:{fontSize:13,fontWeight:800,color:'#2563eb',whiteSpace:'nowrap'}},F(custoTotal*qtdEstoque))
         )
       ),
       // Preço de venda / lucro / margem / receita potencial
-      precoVenda>0&&React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6,marginBottom:12,paddingTop:10,borderTop:'1px solid #f5f5f5'}},
-        React.createElement('div',null,
-          React.createElement('div',{style:{fontSize:9,color:'#aaa',fontWeight:700,marginBottom:2}},'VENDA'),
-          React.createElement('div',{style:{fontSize:12,fontWeight:700,color:'#111'}},F(precoVenda))
-        ),
-        React.createElement('div',null,
-          React.createElement('div',{style:{fontSize:9,color:'#16a34a',fontWeight:700,marginBottom:2}},'LUCRO'),
-          React.createElement('div',{style:{fontSize:12,fontWeight:700,color:lucroUnit>=0?'#16a34a':'#dc2626'}},F(lucroUnit))
-        ),
-        React.createElement('div',null,
-          React.createElement('div',{style:{fontSize:9,color:'#2563eb',fontWeight:700,marginBottom:2}},'MARGEM'),
-          React.createElement('div',{style:{fontSize:12,fontWeight:700,color:margem>=0?'#2563eb':'#dc2626'}},margem.toFixed(0)+'%')
-        ),
-        React.createElement('div',null,
-          React.createElement('div',{style:{fontSize:9,color:'#7c3aed',fontWeight:700,marginBottom:2}},'RECEITA POT.'),
-          React.createElement('div',{style:{fontSize:12,fontWeight:700,color:'#7c3aed'}},F(receitaPot))
+      precoVenda>0&&React.createElement('div',{style:{paddingTop:10,marginBottom:12,borderTop:'1px solid #f5f5f5'}},
+        React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'6px 16px'}},
+          [['Venda',F(precoVenda),'#111'],
+           ['Lucro',F(lucroUnit),lucroUnit>=0?'#16a34a':'#dc2626'],
+           ['Margem',margem.toFixed(0)+'%',margem>=0?'#2563eb':'#dc2626'],
+           ['Receita pot.',F(receitaPot),'#7c3aed']
+          ].map(([l,v,c])=>React.createElement('div',{key:l,style:{display:'flex',justifyContent:'space-between',alignItems:'baseline'}},
+            React.createElement('span',{style:{fontSize:11,color:'#999',whiteSpace:'nowrap'}},l),
+            React.createElement('span',{style:{fontSize:12,fontWeight:700,color:c,whiteSpace:'nowrap'}},v)
+          ))
         )
       ),
       // Ingredientes preview
