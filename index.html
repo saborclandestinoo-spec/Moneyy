@@ -2677,6 +2677,9 @@ function FichaForm({uid,db,reload,close,ficha}){
   const[ld,setLd]=React.useState(false);
   const isEdit=!!ficha?.id;
 
+  const prodAcabadoAtual=(estoque||[]).find(e=>e.nome===(ficha?.nome||'')&&e.categoria==='Produto Acabado');
+  const[estoqueInicial,setEstoqueInicial]=React.useState(prodAcabadoAtual?String(prodAcabadoAtual.qtd||0):'0');
+
   React.useEffect(()=>{
     if(ficha?.id){sb.from('ficha_ingredientes').select('*').eq('ficha_id',ficha.id).then(({data})=>setIngs(data||[]));}
   },[ficha?.id]);
@@ -2713,6 +2716,19 @@ function FichaForm({uid,db,reload,close,ficha}){
       }));
       if(rows.length)await sb.from('ficha_ingredientes').insert(rows);
     }
+    // Atualiza/cria o registro de estoque (Produto Acabado) só se o valor de estoque inicial mudou
+    const novoEstoqueVal=parseFloat(estoqueInicial)||0;
+    const valorAnterior=prodAcabadoAtual?Number(prodAcabadoAtual.qtd||0):null;
+    if(novoEstoqueVal!==valorAnterior){
+      if(prodAcabadoAtual){
+        await sb.from('estoque').update({qtd:novoEstoqueVal,qtd_estoque:novoEstoqueVal,custo:custoTotal}).eq('id',prodAcabadoAtual.id);
+      }else{
+        await sb.from('estoque').insert({
+          user_id:uid,nome,categoria:'Produto Acabado',unidade:'un',
+          qtd:novoEstoqueVal,qtd_embalagem:1,qtd_estoque:novoEstoqueVal,minimo:0,custo:custoTotal,fornecedor:''
+        });
+      }
+    }
     toast(isEdit?'Ficha atualizada!':'Ficha criada!',false,true);reload();close();setLd(false);
   };
 
@@ -2739,6 +2755,15 @@ function FichaForm({uid,db,reload,close,ficha}){
     ),
     React.createElement('div',{style:{fontSize:11,color:'#aaa',marginBottom:14,marginTop:-8}},
       'Usados para identificar este produto automaticamente nos pedidos e dar baixa no estoque ao entregar.'
+    ),
+
+    React.createElement('div',{style:{background:'#faf5ff',borderRadius:10,padding:'12px 14px',marginBottom:14}},
+      React.createElement(FloatInput,{label:'Estoque atual (un)',acent:'#7c3aed',type:'number',value:estoqueInicial,onChange:e=>setEstoqueInicial(e.target.value)}),
+      React.createElement('div',{style:{fontSize:11,color:'#7c3aed',marginTop:-8}},
+        isEdit
+          ?'Ajuste manual da quantidade física em estoque deste produto. Produção e vendas atualizam automaticamente a partir daqui.'
+          :'Quantidade já existente em estoque ao cadastrar esta ficha (se houver). Pode deixar 0 e usar Produção depois.'
+      )
     ),
 
     // Custo preview
