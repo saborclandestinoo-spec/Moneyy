@@ -3431,11 +3431,81 @@ function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas}){
     )
   });
 
-  const excluir=async(l)=>{
-    if(!confirm('Excluir "'+l.descricao+'"?'))return;
-    if(l.grupo_id){const todos=confirm('Grupo encontrado.\nOK = todos  Cancelar = so este');if(todos)await sb.from('lancamentos').delete().eq('grupo_id',l.grupo_id).eq('user_id',uid);else await sb.from('lancamentos').delete().eq('id',l.id);}
+  const reverterEstoqueLancamento=async(lanc)=>{
+    if(lanc.estoque_id&&lanc.estoque_qtd){
+      const{data:item}=await sb.from('estoque').select('*').eq('id',lanc.estoque_id).maybeSingle();
+      if(item){
+        const emb=Number(item.qtd_embalagem||1);
+        const qtdEmbRevertida=emb>0?Number(lanc.estoque_qtd)/emb:0;
+        const novaQtd=Math.max(0,Number(item.qtd||0)-Number(lanc.estoque_qtd));
+        const novaQtdEstoque=Math.max(0,Number(item.qtd_estoque||0)-qtdEmbRevertida);
+        await sb.from('estoque').update({qtd:novaQtd,qtd_estoque:novaQtdEstoque}).eq('id',lanc.estoque_id);
+      }
+    }
+    const{data:producao}=await sb.from('producoes').select('*').eq('lancamento_id',lanc.id).maybeSingle();
+    if(producao){
+      const{data:ings}=await sb.from('ficha_ingredientes').select('*').eq('ficha_id',producao.ficha_id);
+      for(const ing of(ings||[])){
+        if(ing.estoque_id){
+          const{data:item}=await sb.from('estoque').select('*').eq('id',ing.estoque_id).maybeSingle();
+          if(item){
+            const necessario=Number(ing.quantidade||0)*Number(producao.quantidade||0);
+            const novaQtd=Number(item.qtd||0)+necessario;
+            const emb=Number(item.qtd_embalagem||1);
+            const novaQtdEstoque=emb>0?novaQtd/emb:0;
+            await sb.from('estoque').update({qtd:novaQtd,qtd_estoque:novaQtdEstoque}).eq('id',ing.estoque_id);
+          }
+        }
+      }
+      const{data:prod}=await sb.from('estoque').select('*').eq('user_id',uid).eq('nome',producao.ficha_nome).eq('categoria','Produto Acabado').maybeSingle();
+      if(prod){
+        const novaQtd=Math.max(0,Number(prod.qtd||0)-Number(producao.quantidade||0));
+        await sb.from('estoque').update({qtd:novaQtd,qtd_estoque:novaQtd}).eq('id',prod.id);
+      }
+      await sb.from('producoes').delete().eq('id',producao.id);
+    }
+  };
+
+  const executarExclusao=async(l,todosDoGrupo)=>{
+    await reverterEstoqueLancamento(l);
+    if(l.grupo_id&&todosDoGrupo)await sb.from('lancamentos').delete().eq('grupo_id',l.grupo_id).eq('user_id',uid);
     else await sb.from('lancamentos').delete().eq('id',l.id);
-    toast('Excluido!',false,true);reload();
+    toast('Excluído!',false,true);reload();
+  };
+
+  const excluir=(l)=>{
+    if(l.grupo_id){
+      setM({title:'Excluir lançamento',body:React.createElement('div',null,
+        React.createElement('div',{style:{fontSize:14,color:'#333',marginBottom:18,lineHeight:1.6}},
+          'Este lançamento faz parte de um grupo (parcelado/recorrente). Deseja excluir:'
+        ),
+        React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:8}},
+          React.createElement('button',{onClick:async()=>{setM(null);await executarExclusao(l,false);},
+            style:{background:'#f5f5f5',color:'#111',padding:'12px 16px',borderRadius:10,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',textAlign:'left'}
+          },'Apenas este lançamento'),
+          React.createElement('button',{onClick:async()=>{setM(null);await executarExclusao(l,true);},
+            style:{background:'#fee2e2',color:'#dc2626',padding:'12px 16px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer',textAlign:'left'}
+          },'Todos os lançamentos do grupo')
+        ),
+        React.createElement('div',{style:{display:'flex',justifyContent:'flex-end',marginTop:16}},
+          React.createElement('button',{onClick:()=>setM(null),style:{background:'none',color:'#888',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'}},'Cancelar')
+        )
+      )});
+      return;
+    }
+    setM({title:'Excluir lançamento',body:React.createElement('div',null,
+      React.createElement('div',{style:{background:'#f9f9fb',borderRadius:11,padding:'13px',marginBottom:18}},
+        React.createElement('div',{style:{fontWeight:700,marginBottom:4}},l.descricao),
+        React.createElement('div',{style:{fontSize:18,fontWeight:800,color:l.tipo==='receita'?'#16a34a':'#dc2626'}},F(l.valor))
+      ),
+      React.createElement('div',{style:{fontSize:13,color:'#666',marginBottom:18}},'Tem certeza que deseja excluir este lançamento? Esta ação não pode ser desfeita.'),
+      React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
+        React.createElement('button',{onClick:()=>setM(null),style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'}},'Cancelar'),
+        React.createElement('button',{onClick:async()=>{setM(null);await executarExclusao(l,false);},
+          style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}
+        },'Excluir')
+      )
+    )});
   };
 
   const abrirLanc=(l)=>{
