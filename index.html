@@ -3156,7 +3156,7 @@ function AddDropdown({novo}){
     {label:'Despesa', cor:'#dc2626', bg:'#fff5f5', icon:'—', tipo:'despesa'},
     {label:'Receita', cor:'#16a34a', bg:'#f0fdf4', icon:'+', tipo:'receita'},
     {label:'Transferência', cor:'#2563eb', bg:'#eff6ff', icon:'⇄', tipo:'transferencia'},
-    {label:'Produção', cor:'#7c3aed', bg:'#faf5ff', icon:'🍪', tipo:'producao'},
+    {label:'Produção', cor:'#7c3aed', bg:'#faf5ff', icon:'P', tipo:'producao'},
   ];
 
   return React.createElement('div',{ref,style:{position:'relative'}},
@@ -3405,7 +3405,7 @@ function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas}){
 
   const novo=(tipo)=>{
     if(tipo==='producao'){
-      setM({wide:true,title:'🍪 Registrar Produção',body:React.createElement(ProducaoForm,{uid,db,reload,close:()=>setM(null)})});
+      setM({wide:true,title:'Registrar Produção',body:React.createElement(ProducaoForm,{uid,db,reload,close:()=>setM(null)})});
       return;
     }
     const titles={receita:'+ Nova Receita',despesa:'+ Nova Despesa',transferencia:'+ Transferência'};
@@ -3862,7 +3862,7 @@ function ProducaoForm({uid,db,reload,close}){
 
   return React.createElement('div',{style:{minWidth:480}},
     React.createElement('div',{style:{background:'#faf5ff',borderRadius:10,padding:'12px 14px',marginBottom:16,fontSize:12,color:'#7c3aed',lineHeight:1.7}},
-      '🍪 Selecione a ficha técnica e quantos foram produzidos. O sistema dá baixa nos ingredientes do estoque e entrada no produto acabado automaticamente.'
+      'Selecione a ficha técnica e quantos foram produzidos. O sistema dá baixa nos ingredientes do estoque e entrada no produto acabado automaticamente.'
     ),
 
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'2fr 1fr 1fr',gap:10,marginBottom:14}},
@@ -3912,7 +3912,7 @@ function ProducaoForm({uid,db,reload,close}){
     React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:8}},
       React.createElement('button',{style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'},onClick:close},'Cancelar'),
       React.createElement('button',{style:{background:'#7c3aed',color:'#fff',padding:'9px 24px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:produzir,disabled:!fichaId||ld},
-        ld?'Processando...':'🍪 Registrar Produção'
+        ld?'Processando...':'Registrar Produção'
       )
     )
   );
@@ -4083,7 +4083,7 @@ function LancForm({uid,tipo,db,reload,close,inicial}){
           React.createElement('span',{style:{position:'absolute',inset:0,borderRadius:21,background:vincularEstoque?'#7c3aed':'#e0e0e0',transition:'background 0.2s'}}),
           React.createElement('span',{style:{position:'absolute',left:vincularEstoque?19:2,top:2,width:17,height:17,borderRadius:'50%',background:'#fff',transition:'left 0.2s',boxShadow:'0 1px 4px rgba(0,0,0,0.15)'}})
         ),
-        React.createElement('span',{style:{fontSize:13,fontWeight:600,color:'#111'}},'📦 Dar entrada no estoque')
+        React.createElement('span',{style:{fontSize:13,fontWeight:600,color:'#111'}},'Vincular Produtos')
       ),
       vincularEstoque&&React.createElement('div',{style:{background:'#faf5ff',borderRadius:10,padding:'12px 14px',border:'1px solid #ede9fe'}},
         React.createElement('div',{style:{display:'grid',gridTemplateColumns:'2fr 1fr',gap:10}},
