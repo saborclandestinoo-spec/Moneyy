@@ -155,6 +155,8 @@ const MODS=[
 ];
 const FIN_SUBS=[
   {id:'fin_visao',l:'Visão Geral'},
+  {id:'fin_dre',l:'DRE'},
+  {id:'fin_balanco',l:'Balanço Patrimonial'},
   {id:'fin_lancamentos',l:'Lançamentos'},
   {id:'fin_receber',l:'A Receber'},
   {id:'fin_pagar',l:'A Pagar'},
@@ -2718,6 +2720,162 @@ function FichaForm({uid,db,reload,close,ficha}){
   );
 }
 
+// ── DRE (Demonstração do Resultado do Exercício) ──
+function FinDRE({uid,db,reload,setM}){
+  const{lancamentos}=db;
+  const[dtIni,setDtIni]=React.useState(()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),1).toISOString().split('T')[0];});
+  const[dtFim,setDtFim]=React.useState(()=>new Date(new Date().getFullYear(),new Date().getMonth()+1,0).toISOString().split('T')[0]);
+
+  // Lançamentos do período, excluindo compras de estoque (são Ativo, não entram no DRE)
+  const periodo=React.useMemo(()=>(lancamentos||[]).filter(l=>
+    l.data&&l.data>=dtIni&&l.data<=dtFim&&l.pago&&l.obs!=='compra_estoque'
+  ),[lancamentos,dtIni,dtFim]);
+
+  const somaCat=(prefixo)=>periodo.filter(l=>(l.categoria||'').startsWith(prefixo)).reduce((s,l)=>s+Number(l.valor||0),0);
+  const somaCatExata=(c)=>periodo.filter(l=>l.categoria===c).reduce((s,l)=>s+Number(l.valor||0),0);
+
+  // 3 — Receita Bruta
+  const receitaBruta=periodo.filter(l=>l.tipo==='receita'&&(l.categoria||'').startsWith('3.1')).reduce((s,l)=>s+Number(l.valor||0),0);
+  const deducoes=somaCat('3.2');
+  const receitaLiquida=receitaBruta-deducoes;
+
+  // 4.1 — CMV
+  const cmv=somaCat('4.1');
+  const lucroBruto=receitaLiquida-cmv;
+
+  // 4.2 — Despesas com vendas
+  const despVendas=somaCat('4.2');
+  // 4.3 — Despesas administrativas
+  const despAdm=somaCat('4.3');
+  const lucroOperacional=lucroBruto-despVendas-despAdm;
+
+  // 4.4 — Despesas financeiras
+  const despFin=somaCat('4.4');
+  const lucroLiquido=lucroOperacional-despFin;
+
+  const margemLiquida=receitaBruta>0?(lucroLiquido/receitaBruta*100):0;
+
+  const Linha=({label,valor,bold,cor,indent,pct})=>React.createElement('div',{style:{
+    display:'flex',justifyContent:'space-between',alignItems:'center',
+    padding:bold?'12px 0':'8px 0',borderBottom:bold?'2px solid #111':'1px solid #f5f5f5',
+    paddingLeft:indent?indent*16:0
+  }},
+    React.createElement('span',{style:{fontSize:bold?14:13,fontWeight:bold?800:400,color:cor||'#333'}},label),
+    React.createElement('div',{style:{display:'flex',gap:10,alignItems:'center'}},
+      pct!=null&&React.createElement('span',{style:{fontSize:11,color:'#aaa'}},pct.toFixed(1)+'%'),
+      React.createElement('span',{style:{fontSize:bold?15:13,fontWeight:bold?800:600,color:cor||'#111'}},F(valor))
+    )
+  );
+
+  return React.createElement(PW,{title:'DRE',sub:'Demonstração do Resultado do Exercício'},
+    React.createElement('div',{style:{display:'flex',gap:10,marginBottom:20,flexWrap:'wrap'}},
+      React.createElement(MiniDatePicker,{label:'De',value:dtIni,onChange:setDtIni,acent:'#dc2626'}),
+      React.createElement(MiniDatePicker,{label:'Até',value:dtFim,onChange:setDtFim,acent:'#dc2626'})
+    ),
+
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}},
+      React.createElement(SC,{label:'Receita Líquida',val:F(receitaLiquida),color:'#16a34a'}),
+      React.createElement(SC,{label:'Lucro Bruto',val:F(lucroBruto),color:'#2563eb'}),
+      React.createElement(SC,{label:'Lucro Líquido',val:F(lucroLiquido),color:lucroLiquido>=0?'#16a34a':'#dc2626'}),
+      React.createElement(SC,{label:'Margem Líquida',val:margemLiquida.toFixed(1)+'%',color:margemLiquida>=0?'#16a34a':'#dc2626'})
+    ),
+
+    React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'24px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)',maxWidth:680}},
+      React.createElement(Linha,{label:'Receita Bruta de Vendas',valor:receitaBruta,pct:100}),
+      React.createElement(Linha,{label:'(-) Deduções de Vendas',valor:-deducoes,cor:'#dc2626',indent:1,pct:receitaBruta>0?deducoes/receitaBruta*100:0}),
+      React.createElement(Linha,{label:'= Receita Líquida',valor:receitaLiquida,bold:true,pct:receitaBruta>0?receitaLiquida/receitaBruta*100:0}),
+
+      React.createElement(Linha,{label:'(-) CMV (Custo da Mercadoria Vendida)',valor:-cmv,cor:'#dc2626',indent:1,pct:receitaBruta>0?cmv/receitaBruta*100:0}),
+      React.createElement(Linha,{label:'= Lucro Bruto',valor:lucroBruto,bold:true,cor:lucroBruto>=0?'#111':'#dc2626',pct:receitaBruta>0?lucroBruto/receitaBruta*100:0}),
+
+      React.createElement(Linha,{label:'(-) Despesas com Vendas',valor:-despVendas,cor:'#dc2626',indent:1,pct:receitaBruta>0?despVendas/receitaBruta*100:0}),
+      React.createElement(Linha,{label:'(-) Despesas Administrativas',valor:-despAdm,cor:'#dc2626',indent:1,pct:receitaBruta>0?despAdm/receitaBruta*100:0}),
+      React.createElement(Linha,{label:'= Lucro Operacional (EBIT)',valor:lucroOperacional,bold:true,cor:lucroOperacional>=0?'#111':'#dc2626',pct:receitaBruta>0?lucroOperacional/receitaBruta*100:0}),
+
+      React.createElement(Linha,{label:'(-) Despesas Financeiras',valor:-despFin,cor:'#dc2626',indent:1,pct:receitaBruta>0?despFin/receitaBruta*100:0}),
+      React.createElement('div',{style:{marginTop:8,paddingTop:8}},
+        React.createElement(Linha,{label:'= LUCRO LÍQUIDO DO PERÍODO',valor:lucroLiquido,bold:true,cor:lucroLiquido>=0?'#16a34a':'#dc2626',pct:receitaBruta>0?margemLiquida:0})
+      )
+    ),
+
+    React.createElement('div',{style:{fontSize:11,color:'#aaa',marginTop:12,maxWidth:680}},
+      'Compras de estoque (matéria-prima/embalagens) não entram neste relatório — elas só se tornam custo (CMV) quando consumidas em uma Produção.'
+    )
+  );
+}
+
+// ── Balanço Patrimonial ──
+function FinBalanco({uid,db,reload,setM}){
+  const{contas,lancamentos,estoque}=db;
+  const[dataRef,setDataRef]=React.useState(TODAY());
+
+  // Ativo Circulante
+  const caixaEBancos=(contas||[]).reduce((s,c)=>s+Number(c.saldo||0),0);
+  const aReceber=(lancamentos||[]).filter(l=>l.tipo==='receita'&&!l.pago&&(l.venc||l.data)<=dataRef).reduce((s,l)=>s+Number(l.valor||0),0);
+  const estoqueIngred=(estoque||[]).filter(e=>e.categoria==='Matéria-Prima').reduce((s,e)=>s+Number(e.qtd||0)*Number(e.custo||0),0);
+  const estoqueEmbal=(estoque||[]).filter(e=>e.categoria==='Embalagem'||e.categoria==='Descartável').reduce((s,e)=>s+Number(e.qtd||0)*Number(e.custo||0),0);
+  const estoqueProdAcabado=(estoque||[]).filter(e=>e.categoria==='Produto Acabado').reduce((s,e)=>s+Number(e.qtd||0)*Number(e.custo||0),0);
+  const ativoCirculante=caixaEBancos+aReceber+estoqueIngred+estoqueEmbal+estoqueProdAcabado;
+
+  // Passivo Circulante
+  const aPagar=(lancamentos||[]).filter(l=>l.tipo==='despesa'&&!l.pago&&(l.venc||l.data)<=dataRef).reduce((s,l)=>s+Number(l.valor||0),0);
+  const passivoCirculante=aPagar;
+
+  // Patrimônio Líquido = Ativo Total - Passivo Total (residual, pelo princípio contábil A = P + PL)
+  const ativoTotal=ativoCirculante;
+  const passivoTotal=passivoCirculante;
+  const patrimonioLiquido=ativoTotal-passivoTotal;
+
+  const Linha=({label,valor,bold,cor,indent})=>React.createElement('div',{style:{
+    display:'flex',justifyContent:'space-between',padding:bold?'10px 0':'7px 0',
+    borderBottom:bold?'2px solid #111':'1px solid #f5f5f5',paddingLeft:indent?indent*16:0
+  }},
+    React.createElement('span',{style:{fontSize:bold?14:13,fontWeight:bold?800:400,color:cor||'#333'}},label),
+    React.createElement('span',{style:{fontSize:bold?15:13,fontWeight:bold?800:600,color:cor||'#111'}},F(valor))
+  );
+
+  return React.createElement(PW,{title:'Balanço Patrimonial',sub:'Posição financeira em uma data específica'},
+    React.createElement('div',{style:{marginBottom:20}},
+      React.createElement(MiniDatePicker,{label:'Data de referência',value:dataRef,onChange:setDataRef,acent:'#2563eb'})
+    ),
+
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:20}},
+      React.createElement(SC,{label:'Ativo Total',val:F(ativoTotal),color:'#2563eb'}),
+      React.createElement(SC,{label:'Passivo Total',val:F(passivoTotal),color:'#dc2626'}),
+      React.createElement(SC,{label:'Patrimônio Líquido',val:F(patrimonioLiquido),color:patrimonioLiquido>=0?'#16a34a':'#dc2626'})
+    ),
+
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}},
+      // ATIVO
+      React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'22px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+        React.createElement('div',{style:{fontWeight:800,fontSize:15,color:'#2563eb',marginBottom:14}},'ATIVO'),
+        React.createElement('div',{style:{fontWeight:700,fontSize:12,color:'#888',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:6}},'Ativo Circulante'),
+        React.createElement(Linha,{label:'Caixa e Bancos',valor:caixaEBancos,indent:1}),
+        React.createElement(Linha,{label:'Clientes (a Receber)',valor:aReceber,indent:1}),
+        React.createElement(Linha,{label:'Estoque de Ingredientes',valor:estoqueIngred,indent:1}),
+        React.createElement(Linha,{label:'Estoque de Embalagens',valor:estoqueEmbal,indent:1}),
+        React.createElement(Linha,{label:'Estoque de Produto Acabado',valor:estoqueProdAcabado,indent:1}),
+        React.createElement(Linha,{label:'Total do Ativo',valor:ativoTotal,bold:true,cor:'#2563eb'})
+      ),
+      // PASSIVO + PL
+      React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'22px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+        React.createElement('div',{style:{fontWeight:800,fontSize:15,color:'#dc2626',marginBottom:14}},'PASSIVO + PATRIMÔNIO LÍQUIDO'),
+        React.createElement('div',{style:{fontWeight:700,fontSize:12,color:'#888',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:6}},'Passivo Circulante'),
+        React.createElement(Linha,{label:'Fornecedores (a Pagar)',valor:aPagar,indent:1}),
+        React.createElement(Linha,{label:'Total do Passivo',valor:passivoTotal,bold:true,cor:'#dc2626'}),
+        React.createElement('div',{style:{marginTop:14}}),
+        React.createElement('div',{style:{fontWeight:700,fontSize:12,color:'#888',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:6}},'Patrimônio Líquido'),
+        React.createElement(Linha,{label:'Lucros Acumulados (residual)',valor:patrimonioLiquido,indent:1}),
+        React.createElement(Linha,{label:'Total Passivo + PL',valor:passivoTotal+patrimonioLiquido,bold:true,cor:patrimonioLiquido>=0?'#16a34a':'#dc2626'})
+      )
+    ),
+
+    React.createElement('div',{style:{fontSize:11,color:'#aaa',marginTop:14}},
+      'O Patrimônio Líquido é calculado pela diferença entre Ativo e Passivo (Ativo = Passivo + PL), refletindo o lucro acumulado da empresa até a data de referência.'
+    )
+  );
+}
+
 function FinVisao({uid,db,reload,setM}){
   const{lancamentos,contas}=db;
   const hoje=TODAY();
@@ -4289,7 +4447,7 @@ function ProducaoForm({uid,db,reload,close}){
     const{data:lancData}=await sb.from('lancamentos').insert({
       user_id:uid,tipo:'despesa',descricao:'Produção: '+qtdN+'x '+ficha.nome,
       valor:parseFloat(custoTotal.toFixed(2)),data,venc:data,data_pag:data,pago:true,
-      categoria:'4.1.1 Custo de Produção',forma_pag:'',obs:'producao_interna'
+      categoria:'4.1.1.1 Ingredientes Consumidos',forma_pag:'',obs:'producao_interna'
     }).select().single();
 
     // 4. Registra a produção
@@ -4427,9 +4585,17 @@ function LancForm({uid,tipo,db,reload,close,inicial}){
     if(!desc||!valor){toast('Preencha descricao e valor',true);return;}
     setLd(true);
     const estQtdTotal=vincularEstoque&&estoqueId?(()=>{const it=(estoque||[]).find(e=>e.id===estoqueId);return(parseFloat(estoqueQtdEmb)||0)*((it&&it.qtd_embalagem)||1);})():null;
-    const base={user_id:uid,tipo:isTransf?'despesa':tipo,descricao:desc,valor:totalFinal,categoria:cat,conta_id:contaId||null,
+    // Compra de insumo vinculada ao estoque é Ativo (entra no estoque), não é despesa do DRE ainda.
+    // O custo só se torna despesa (CMV) quando a Produção consome o ingrediente.
+    const catFinal=(()=>{
+      if(!vincularEstoque||!estoqueId)return cat;
+      const it=(estoque||[]).find(e=>e.id===estoqueId);
+      const ehEmbalagem=it&&(it.categoria==='Embalagem'||it.categoria==='Descartável');
+      return ehEmbalagem?'1.1.5 Estoque de Embalagens':'1.1.4 Estoque de Ingredientes';
+    })();
+    const base={user_id:uid,tipo:isTransf?'despesa':tipo,descricao:desc,valor:totalFinal,categoria:catFinal,conta_id:contaId||null,
       forma_pag:formaPag,data:venc,venc,competencia:compEfetivo||null,fornecedor:fornecedor||null,
-      centro_custo:centroCusto||null,pago,obs:'',juros:jv||null,multa:mv||null,desconto:dv||null,
+      centro_custo:centroCusto||null,pago,obs:vincularEstoque?'compra_estoque':'',juros:jv||null,multa:mv||null,desconto:dv||null,
       estoque_id:vincularEstoque?estoqueId||null:null,estoque_qtd:vincularEstoque?estQtdTotal:null};
     let rows=[];
     if(tipoLanc==='Parcelado'){
@@ -5416,6 +5582,8 @@ function App(){
     fichas:()=>React.createElement(FichasTecnicas,{uid,db,reload:async()=>{const{data}=await sb.from('fichas_tecnicas').select('*').eq('user_id',uid).order('nome');if(data)setDb(p=>({...p,fichas:data}));},setM:setModal}),
     producao_hist:()=>React.createElement(ProducaoHistorico,{uid,db,reload,setM:setModal}),
     fin_visao:()=>React.createElement(FinVisao,{uid,db,reload,setM:setModal}),
+    fin_dre:()=>React.createElement(FinDRE,{uid,db,reload,setM:setModal}),
+    fin_balanco:()=>React.createElement(FinBalanco,{uid,db,reload,setM:setModal}),
     fin_lancamentos:()=>React.createElement(FinLancamentos,{uid,db,reload,setM:setModal,refreshLanc:()=>refreshLanc(uid),refreshContas:()=>refreshContas(uid),refreshEstoque:()=>refreshEstoque(uid)}),
     fin_receber:()=>React.createElement(FinReceber,{uid,db,reload,setM:setModal}),
     fin_pagar:()=>React.createElement(FinPagar,{uid,db,reload,setM:setModal}),
