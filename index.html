@@ -1958,7 +1958,7 @@ function PedidosCW({uid,db,setDb,reload,setM,cfg,setCfg}){
         // Processa baixa de estoque para pedidos entregues/finalizados encontrados na sincronização
         if(data&&window._processarBaixaEstoque){
           for(const p of data){
-            if(['delivered','closed'].includes(p.status))await window._processarBaixaEstoque(p);
+            if(['confirmed','ready','released','delivered','closed','canceled'].includes(p.status))await window._processarBaixaEstoque(p);
           }
         }
         // Auto-abre o caixa se chegou pedido hoje e ainda não foi aberto
@@ -5720,13 +5720,45 @@ function App(){
   // Dá baixa no estoque de Produto Acabado quando um pedido é entregue/finalizado.
   // Usa estoque_baixas para garantir que cada pedido só baixa estoque uma vez (idempotência).
   const processarBaixaEstoque=async(pedido)=>{
-    if(!pedido||!['delivered','closed'].includes(pedido.status))return;
+    if(!pedido)return;
     const sourceId=String(pedido.source_id||pedido.id||'');
     if(!sourceId)return;
 
-    // Verifica se já foi processado
     const{data:jaProcessado,error:errCheck}=await sb.from('estoque_baixas').select('id').eq('user_id',user.id).eq('pedido_source_id',sourceId).maybeSingle();
     if(errCheck){toast('Erro estoque_baixas: '+errCheck.message,true);return;}
+
+    // Pedido cancelado: se já tinha baixa registrada, devolve o estoque
+    if(pedido.status==='canceled'){
+      if(!jaProcessado)return;
+      const itens=(pedido.raw&&pedido.raw.items)||pedido.itens||[];
+      const{data:fichas}=await sb.from('fichas_tecnicas').select('*').eq('user_id',user.id);
+      const{data:estoqueAtual}=await sb.from('estoque').select('*').eq('user_id',user.id).eq('categoria','Produto Acabado');
+      const isIfood=pedido.canal==='ifood';
+      for(const it of itens){
+        const nomeItem=(it.name||it.nome||'').trim();
+        if(!nomeItem)continue;
+        const ficha=(fichas||[]).find(f=>{
+          const campo=isIfood?f.nome_ifood:f.nome_cw;
+          return campo&&campo.toLowerCase()===nomeItem.toLowerCase();
+        })||(fichas||[]).find(f=>f.nome_cw&&f.nome_cw.toLowerCase()===nomeItem.toLowerCase())
+          ||(fichas||[]).find(f=>f.nome_ifood&&f.nome_ifood.toLowerCase()===nomeItem.toLowerCase());
+        if(!ficha)continue;
+        const prod=(estoqueAtual||[]).find(e=>e.nome===ficha.nome);
+        const qtdVendida=Number(it.quantity||it.qty||1);
+        if(prod){
+          const novaQtd=Number(prod.qtd||0)+qtdVendida;
+          await sb.from('estoque').update({qtd:novaQtd,qtd_estoque:novaQtd}).eq('id',prod.id);
+        }
+      }
+      await sb.from('estoque_baixas').delete().eq('user_id',user.id).eq('pedido_source_id',sourceId);
+      toast('↩ Pedido #'+(pedido.pedido_id||'')+' cancelado — estoque devolvido',false,true);
+      const{data:novoEstoque}=await sb.from('estoque').select('*').eq('user_id',user.id).order('nome');
+      if(novoEstoque)setDb(p=>({...p,estoque:novoEstoque}));
+      return;
+    }
+
+    // Baixa a partir do momento que o pedido é aceito (confirmed) até finalizado
+    if(!['confirmed','ready','released','delivered','closed'].includes(pedido.status))return;
     if(jaProcessado)return;
 
     const itens=(pedido.raw&&pedido.raw.items)||pedido.itens||[];
@@ -5784,7 +5816,7 @@ function App(){
       const hoje=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});
       const ontem=new Date();ontem.setDate(ontem.getDate()-1);
       const ontemStr=ontem.toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});
-      const{data:pedidosRecentes}=await sb.from('pedidos_cw').select('*').eq('user_id',user.id).gte('data_pedido',ontemStr).in('status',['delivered','closed']);
+      const{data:pedidosRecentes}=await sb.from('pedidos_cw').select('*').eq('user_id',user.id).gte('data_pedido',ontemStr).in('status',['confirmed','ready','released','delivered','closed','canceled']);
       if(!pedidosRecentes||!pedidosRecentes.length)return;
       for(const p of pedidosRecentes){
         await processarBaixaEstoque(p);
@@ -5820,7 +5852,7 @@ function App(){
       })
       .on('postgres_changes',{event:'UPDATE',schema:'public',table:'pedidos_cw'},async(payload)=>{
         if(payload.new&&payload.new.user_id!==user.id)return;
-        if(payload.new&&['delivered','closed'].includes(payload.new.status)){
+        if(payload.new&&['confirmed','ready','released','delivered','closed','canceled'].includes(payload.new.status)){
           processarBaixaEstoque(payload.new);
         }
         clearTimeout(debounce);
