@@ -3156,6 +3156,7 @@ function AddDropdown({novo}){
     {label:'Despesa', cor:'#dc2626', bg:'#fff5f5', icon:'—', tipo:'despesa'},
     {label:'Receita', cor:'#16a34a', bg:'#f0fdf4', icon:'+', tipo:'receita'},
     {label:'Transferência', cor:'#2563eb', bg:'#eff6ff', icon:'⇄', tipo:'transferencia'},
+    {label:'Produção', cor:'#7c3aed', bg:'#faf5ff', icon:'🍪', tipo:'producao'},
   ];
 
   return React.createElement('div',{ref,style:{position:'relative'}},
@@ -3174,7 +3175,7 @@ function AddDropdown({novo}){
     }},
       items.map(it=>React.createElement('button',{
         key:it.tipo,
-        onClick:()=>{setOpen(false);if(it.tipo==='transferencia'){novo('transferencia');}else{novo(it.tipo);}},
+        onClick:()=>{setOpen(false);novo(it.tipo);},
         style:{display:'flex',alignItems:'center',gap:12,width:'100%',padding:'12px 16px',
           background:'#fff',border:'none',cursor:'pointer',textAlign:'left',
           borderBottom:'1px solid #fafafa',transition:'background 0.1s'}
@@ -3403,6 +3404,10 @@ function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas}){
   const totalPer=allPer.reduce((s,l)=>s+Number(l.valor),0);
 
   const novo=(tipo)=>{
+    if(tipo==='producao'){
+      setM({wide:true,title:'🍪 Registrar Produção',body:React.createElement(ProducaoForm,{uid,db,reload,close:()=>setM(null)})});
+      return;
+    }
     const titles={receita:'+ Nova Receita',despesa:'+ Nova Despesa',transferencia:'+ Transferência'};
     setM({wide:true,title:titles[tipo]||'+ Lançamento',body:React.createElement(LancForm,{uid,tipo,db,reload,close:()=>setM(null)})});
   };
@@ -3775,8 +3780,147 @@ function FloatInput({label,acent,value,onChange,type,placeholder,readOnly,style:
 }
 
 
+function ProducaoForm({uid,db,reload,close}){
+  const{fichas,estoque}=db;
+  const[fichaId,setFichaId]=React.useState('');
+  const[qtd,setQtd]=React.useState('1');
+  const[data,setData]=React.useState(TODAY());
+  const[ings,setIngs]=React.useState([]);
+  const[ld,setLd]=React.useState(false);
+
+  const ficha=(fichas||[]).find(f=>f.id===fichaId);
+  const qtdN=parseFloat(qtd)||0;
+
+  React.useEffect(()=>{
+    if(!fichaId){setIngs([]);return;}
+    sb.from('ficha_ingredientes').select('*').eq('ficha_id',fichaId).then(({data})=>setIngs(data||[]));
+  },[fichaId]);
+
+  const custoUnitario=ings.reduce((s,i)=>s+Number(i.quantidade||0)*Number(i.custo_unit||0),0);
+  const custoTotal=custoUnitario*qtdN;
+
+  // Verifica disponibilidade de cada ingrediente no estoque
+  const checagem=ings.map(i=>{
+    const item=i.estoque_id?(estoque||[]).find(e=>e.id===i.estoque_id):null;
+    const necessario=Number(i.quantidade||0)*qtdN;
+    const disponivel=item?Number(item.qtd||0):null;
+    const suficiente=item?disponivel>=necessario:true; // se não vinculado ao estoque, não valida
+    return{...i,item,necessario,disponivel,suficiente};
+  });
+  const faltando=checagem.filter(c=>c.item&&!c.suficiente);
+
+  const produzir=async()=>{
+    if(!fichaId){toast('Selecione a ficha técnica',true);return;}
+    if(qtdN<=0){toast('Informe a quantidade produzida',true);return;}
+    if(faltando.length>0&&!confirm('Estoque insuficiente para: '+faltando.map(f=>f.nome).join(', ')+'. Produzir mesmo assim?'))return;
+
+    setLd(true);
+
+    // 1. Baixa os ingredientes do estoque
+    for(const c of checagem){
+      if(c.item){
+        const novaQtd=Math.max(0,Number(c.item.qtd||0)-c.necessario);
+        // Mantém qtd_embalagem e recalcula qtd_estoque proporcionalmente
+        const emb=Number(c.item.qtd_embalagem||1);
+        const novaQtdEstoque=emb>0?novaQtd/emb:0;
+        await sb.from('estoque').update({qtd:novaQtd,qtd_estoque:novaQtdEstoque}).eq('id',c.item.id);
+      }
+    }
+
+    // 2. Dá entrada no produto acabado (busca ou cria item "Produto Acabado" com nome da ficha)
+    const{data:prodExistente}=await sb.from('estoque').select('*').eq('user_id',uid).eq('nome',ficha.nome).eq('categoria','Produto Acabado').maybeSingle();
+    if(prodExistente){
+      await sb.from('estoque').update({
+        qtd:Number(prodExistente.qtd||0)+qtdN,
+        qtd_estoque:Number(prodExistente.qtd_estoque||0)+qtdN,
+        custo:custoUnitario
+      }).eq('id',prodExistente.id);
+    }else{
+      await sb.from('estoque').insert({
+        user_id:uid,nome:ficha.nome,categoria:'Produto Acabado',unidade:'un',
+        qtd:qtdN,qtd_embalagem:1,qtd_estoque:qtdN,minimo:0,custo:custoUnitario,fornecedor:''
+      });
+    }
+
+    // 3. Cria lançamento de despesa (custo de produção) — opcional, ajuda no financeiro
+    const{data:lancData}=await sb.from('lancamentos').insert({
+      user_id:uid,tipo:'despesa',descricao:'Produção: '+qtdN+'x '+ficha.nome,
+      valor:parseFloat(custoTotal.toFixed(2)),data,venc:data,data_pag:data,pago:true,
+      categoria:'4.1.1 Custo de Produção',forma_pag:'',obs:'producao_interna'
+    }).select().single();
+
+    // 4. Registra a produção
+    await sb.from('producoes').insert({
+      user_id:uid,ficha_id:fichaId,ficha_nome:ficha.nome,quantidade:qtdN,
+      custo_total:parseFloat(custoTotal.toFixed(2)),data,
+      lancamento_id:lancData&&lancData.id||null
+    });
+
+    toast('Produção registrada! '+qtdN+'x '+ficha.nome+' no estoque.',false,true);
+    reload();close();setLd(false);
+  };
+
+  return React.createElement('div',{style:{minWidth:480}},
+    React.createElement('div',{style:{background:'#faf5ff',borderRadius:10,padding:'12px 14px',marginBottom:16,fontSize:12,color:'#7c3aed',lineHeight:1.7}},
+      '🍪 Selecione a ficha técnica e quantos foram produzidos. O sistema dá baixa nos ingredientes do estoque e entrada no produto acabado automaticamente.'
+    ),
+
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'2fr 1fr 1fr',gap:10,marginBottom:14}},
+      React.createElement(CustomSelect,{label:'Ficha Técnica *',value:fichaId,onChange:setFichaId,
+        options:(fichas||[]).map(f=>({v:f.id,l:f.nome})),placeholder:'— Selecione —',acent:'#7c3aed'
+      }),
+      React.createElement(FloatInput,{label:'Quantidade produzida',acent:'#7c3aed',type:'number',value:qtd,onChange:e=>setQtd(e.target.value)}),
+      React.createElement(MiniDatePicker,{label:'Data',value:data,onChange:setData,acent:'#7c3aed'})
+    ),
+
+    fichaId&&React.createElement('div',null,
+      // Custo preview
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}},
+        React.createElement('div',{style:{background:'#f8f9fc',borderRadius:9,padding:'10px 12px'}},
+          React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:3}},'Custo/Unidade'),
+          React.createElement('div',{style:{fontWeight:700,fontSize:15}},F(custoUnitario))
+        ),
+        React.createElement('div',{style:{background:'#faf5ff',borderRadius:9,padding:'10px 12px'}},
+          React.createElement('div',{style:{fontSize:10,color:'#7c3aed',fontWeight:700,textTransform:'uppercase',marginBottom:3}},'Custo Total da Produção'),
+          React.createElement('div',{style:{fontWeight:800,fontSize:16,color:'#7c3aed'}},F(custoTotal))
+        )
+      ),
+
+      // Ingredientes necessários
+      React.createElement('div',{style:{marginBottom:14}},
+        React.createElement('div',{style:{fontWeight:700,fontSize:13,marginBottom:8}},'Ingredientes necessários ('+ings.length+')'),
+        checagem.length===0
+          ?React.createElement('div',{style:{color:'#ccc',fontSize:12,textAlign:'center',padding:'12px'}},'Esta ficha não tem ingredientes cadastrados')
+          :checagem.map((c,i)=>React.createElement('div',{key:i,style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid #f5f5f5'}},
+              React.createElement('div',null,
+                React.createElement('div',{style:{fontSize:13,fontWeight:500}},c.nome),
+                React.createElement('div',{style:{fontSize:11,color:'#aaa'}},'Necessário: '+c.necessario.toFixed(2)+c.unidade)
+              ),
+              c.item
+                ?React.createElement('span',{style:{fontSize:11,fontWeight:700,color:c.suficiente?'#16a34a':'#dc2626',background:c.suficiente?'#f0fdf4':'#fee2e2',padding:'3px 10px',borderRadius:20}},
+                    c.suficiente?'✓ Disponível: '+c.disponivel.toFixed(0)+c.unidade:'⚠ Só tem '+c.disponivel.toFixed(0)+c.unidade
+                  )
+                :React.createElement('span',{style:{fontSize:11,color:'#aaa'}},'Não vinculado ao estoque')
+            ))
+      ),
+
+      faltando.length>0&&React.createElement('div',{style:{background:'#fff5f5',borderRadius:10,padding:'10px 14px',marginBottom:14,fontSize:12,color:'#dc2626'}},
+        '⚠ Estoque insuficiente para '+faltando.length+' ingrediente(s). Você pode produzir mesmo assim, mas o estoque ficará negativo.'
+      )
+    ),
+
+    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:8}},
+      React.createElement('button',{style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'},onClick:close},'Cancelar'),
+      React.createElement('button',{style:{background:'#7c3aed',color:'#fff',padding:'9px 24px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:produzir,disabled:!fichaId||ld},
+        ld?'Processando...':'🍪 Registrar Produção'
+      )
+    )
+  );
+}
+
+
 function LancForm({uid,tipo,db,reload,close,inicial}){
-  const{contas,categorias_fin,centros_custo}=db;
+  const{contas,categorias_fin,centros_custo,estoque}=db;
   const isRec=tipo==='receita';
   const isTransf=tipo==='transferencia';
   const acent=isRec?'#16a34a':isTransf?'#2563eb':'#dc2626';
@@ -3804,6 +3948,9 @@ function LancForm({uid,tipo,db,reload,close,inicial}){
   const[numRep,setNumRep]=React.useState(12);
   const[freqRec,setFreqRec]=React.useState('mensal');
   const[ld,setLd]=React.useState(false);
+  const[vincularEstoque,setVincularEstoque]=React.useState(!!(inicial&&inicial.estoque_id));
+  const[estoqueId,setEstoqueId]=React.useState(inicial&&inicial.estoque_id||'');
+  const[estoqueQtdEmb,setEstoqueQtdEmb]=React.useState(inicial&&inicial.estoque_qtd?String(inicial.estoque_qtd):'1');
 
   const v=parseFloat(String(valor||'0').replace(',','.'));
   const jv=parseFloat(juros||0);const mv=parseFloat(multa||0);const dv=parseFloat(desconto||0);
@@ -3829,9 +3976,11 @@ function LancForm({uid,tipo,db,reload,close,inicial}){
   const salvar=async()=>{
     if(!desc||!valor){toast('Preencha descricao e valor',true);return;}
     setLd(true);
+    const estQtdTotal=vincularEstoque&&estoqueId?(()=>{const it=(estoque||[]).find(e=>e.id===estoqueId);return(parseFloat(estoqueQtdEmb)||0)*((it&&it.qtd_embalagem)||1);})():null;
     const base={user_id:uid,tipo:isTransf?'despesa':tipo,descricao:desc,valor:totalFinal,categoria:cat,conta_id:contaId||null,
       forma_pag:formaPag,data:venc,venc,competencia:compEfetivo||null,fornecedor:fornecedor||null,
-      centro_custo:centroCusto||null,pago,obs:'',juros:jv||null,multa:mv||null,desconto:dv||null};
+      centro_custo:centroCusto||null,pago,obs:'',juros:jv||null,multa:mv||null,desconto:dv||null,
+      estoque_id:vincularEstoque?estoqueId||null:null,estoque_qtd:vincularEstoque?estQtdTotal:null};
     let rows=[];
     if(tipoLanc==='Parcelado'){
       const gid=uid_gen();
@@ -3884,8 +4033,17 @@ function LancForm({uid,tipo,db,reload,close,inicial}){
       const conta=(contas||[]).find(c=>c.id===contaId);
       if(conta){const delta=isRec?totalFinal:-totalFinal;await sb.from('contas_bancarias').update({saldo:Number(conta.saldo)+delta}).eq('id',contaId);}
     }
+    // Dá entrada no estoque (só em criação, não em edição, para evitar duplicar)
+    if(vincularEstoque&&estoqueId&&estQtdTotal>0&&!(inicial&&inicial.id)){
+      const it=(estoque||[]).find(e=>e.id===estoqueId);
+      if(it){
+        const novaQtdEstoque=Number(it.qtd_estoque||0)+(parseFloat(estoqueQtdEmb)||0);
+        const novaQtdTotal=Number(it.qtd||0)+estQtdTotal;
+        await sb.from('estoque').update({qtd_estoque:novaQtdEstoque,qtd:novaQtdTotal}).eq('id',estoqueId);
+      }
+    }
     const msg=inicial&&inicial.id?'Lançamento atualizado!':tipoLanc==='Unico'?'Lancamento criado!':tipoLanc==='Parcelado'?numParc+' parcelas!':numRep+' recorrencias!';
-    toast(msg,false,true);reload();close();setLd(false);
+    toast(msg+(vincularEstoque?' Estoque atualizado!':''),false,true);reload();close();setLd(false);
   };
 
   const acentBg=isRec?'#f0fdf4':isTransf?'#eff6ff':'#fff5f5';
@@ -3917,6 +4075,33 @@ function LancForm({uid,tipo,db,reload,close,inicial}){
       React.createElement(CustomSelect,{label:'Centro de custo',value:centroCusto,onChange:setCentroCusto,
         options:[...(centros_custo||[]).map(c=>({v:c.id,l:c.nome})),...(centros_custo||[]).length===0?['Producao','Vendas','Administrativo','Marketing','Logistica','Geral'].map(n=>({v:n,l:n})):[]], placeholder:'—',acent})
     ),
+    // ── VINCULAR AO ESTOQUE (só despesa) ──
+    !isTransf&&!isRec&&React.createElement('div',{style:{marginBottom:14}},
+      React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10,marginBottom:vincularEstoque?10:0}},
+        React.createElement('label',{style:{position:'relative',display:'inline-block',width:38,height:21,cursor:'pointer'}},
+          React.createElement('input',{type:'checkbox',checked:vincularEstoque,onChange:e=>setVincularEstoque(e.target.checked),style:{opacity:0,width:0,height:0}}),
+          React.createElement('span',{style:{position:'absolute',inset:0,borderRadius:21,background:vincularEstoque?'#7c3aed':'#e0e0e0',transition:'background 0.2s'}}),
+          React.createElement('span',{style:{position:'absolute',left:vincularEstoque?19:2,top:2,width:17,height:17,borderRadius:'50%',background:'#fff',transition:'left 0.2s',boxShadow:'0 1px 4px rgba(0,0,0,0.15)'}})
+        ),
+        React.createElement('span',{style:{fontSize:13,fontWeight:600,color:'#111'}},'📦 Dar entrada no estoque')
+      ),
+      vincularEstoque&&React.createElement('div',{style:{background:'#faf5ff',borderRadius:10,padding:'12px 14px',border:'1px solid #ede9fe'}},
+        React.createElement('div',{style:{display:'grid',gridTemplateColumns:'2fr 1fr',gap:10}},
+          React.createElement(CustomSelect,{label:'Item do estoque',value:estoqueId,onChange:setEstoqueId,
+            options:(estoque||[]).map(e=>({v:e.id,l:e.nome+' ('+(e.qtd_embalagem||1)+e.unidade+'/embalagem)'})),
+            placeholder:'— Selecione —',acent:'#7c3aed'
+          }),
+          React.createElement(FloatInput,{label:'Qtd de embalagens',acent:'#7c3aed',type:'number',value:estoqueQtdEmb,onChange:e=>setEstoqueQtdEmb(e.target.value)})
+        ),
+        estoqueId&&React.createElement('div',{style:{fontSize:11,color:'#7c3aed',marginTop:8}},
+          (()=>{const it=(estoque||[]).find(e=>e.id===estoqueId);if(!it)return'';
+            const totalUn=(parseFloat(estoqueQtdEmb)||0)*(it.qtd_embalagem||1);
+            return'Entrada de '+totalUn.toFixed(0)+' '+it.unidade+' ('+estoqueQtdEmb+' embalagem(s) de '+it.qtd_embalagem+it.unidade+')';
+          })()
+        )
+      )
+    ),
+
     // + Adicionar categoria link
     !isTransf&&React.createElement('div',{style:{marginBottom:14}},
       React.createElement('button',{style:{background:'none',border:'none',color:acent,fontSize:12,fontWeight:700,cursor:'pointer',letterSpacing:'0.5px'}},
