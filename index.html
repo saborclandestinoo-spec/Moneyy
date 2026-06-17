@@ -4123,7 +4123,9 @@ function LancForm({uid,tipo,db,reload,close,inicial}){
       if(it){
         const novaQtdEstoque=Number(it.qtd_estoque||0)+(parseFloat(estoqueQtdEmb)||0);
         const novaQtdTotal=Number(it.qtd||0)+estQtdTotal;
-        await sb.from('estoque').update({qtd_estoque:novaQtdEstoque,qtd:novaQtdTotal}).eq('id',estoqueId);
+        // Recalcula o custo/unidade pela última compra: valor pago ÷ quantidade total (em unidade do estoque)
+        const novoCusto=estQtdTotal>0?(totalFinal/estQtdTotal):Number(it.custo||0);
+        await sb.from('estoque').update({qtd_estoque:novaQtdEstoque,qtd:novaQtdTotal,custo:novoCusto}).eq('id',estoqueId);
       }
     }
     const msg=inicial&&inicial.id?'Lançamento atualizado!':tipoLanc==='Unico'?'Lancamento criado!':tipoLanc==='Parcelado'?numParc+' parcelas!':numRep+' recorrencias!';
@@ -4177,10 +4179,15 @@ function LancForm({uid,tipo,db,reload,close,inicial}){
           }),
           React.createElement(FloatInput,{label:'Qtd de embalagens',acent:'#7c3aed',type:'number',value:estoqueQtdEmb,onChange:e=>setEstoqueQtdEmb(e.target.value)})
         ),
-        estoqueId&&React.createElement('div',{style:{fontSize:11,color:'#7c3aed',marginTop:8}},
-          (()=>{const it=(estoque||[]).find(e=>e.id===estoqueId);if(!it)return'';
+        estoqueId&&React.createElement('div',{style:{fontSize:11,color:'#7c3aed',marginTop:8,lineHeight:1.6}},
+          (()=>{
+            const it=(estoque||[]).find(e=>e.id===estoqueId);if(!it)return'';
             const totalUn=(parseFloat(estoqueQtdEmb)||0)*(it.qtd_embalagem||1);
-            return'Entrada de '+totalUn.toFixed(0)+' '+it.unidade+' ('+estoqueQtdEmb+' embalagem(s) de '+it.qtd_embalagem+it.unidade+')';
+            const novoCusto=totalUn>0?(v/totalUn):0;
+            return React.createElement('div',null,
+              React.createElement('div',null,'Entrada de '+totalUn.toFixed(0)+' '+it.unidade+' ('+estoqueQtdEmb+' embalagem(s) de '+it.qtd_embalagem+it.unidade+')'),
+              novoCusto>0&&React.createElement('div',{style:{fontWeight:700,marginTop:2}},'Novo custo/'+it.unidade+': R$ '+novoCusto.toFixed(4).replace('.',',')+' (substituirá o custo atual de R$ '+Number(it.custo||0).toFixed(4).replace('.',',')+')')
+            );
           })()
         )
       )
