@@ -2624,29 +2624,31 @@ function FichaCard({f,db,uid,reload,setM,editar}){
     style:{background:'#fff',borderRadius:16,boxShadow:'0 2px 12px rgba(0,0,0,0.08)',overflow:'hidden',cursor:'pointer',transition:'transform 0.15s,box-shadow 0.15s'}
   },
     // Topo colorido
-    React.createElement('div',{style:{background:cor,padding:'20px 16px 16px',position:'relative'}},
-      React.createElement('div',{style:{fontSize:11,color:'rgba(255,255,255,0.7)',fontWeight:600,letterSpacing:'1px',textTransform:'uppercase',marginBottom:6}},f.categoria||'Cookie'),
-      React.createElement('div',{style:{fontWeight:800,fontSize:17,color:'#fff',lineHeight:1.2}},f.nome),
-      f.tempo_preparo>0&&React.createElement('div',{style:{fontSize:11,color:'rgba(255,255,255,0.7)',marginTop:6}},'⏱ '+f.tempo_preparo+' min'),
-      React.createElement('div',{style:{display:'flex',gap:5,marginTop:6,flexWrap:'wrap'}},
-        f.nome_cw&&React.createElement('span',{style:{fontSize:10,color:'rgba(255,255,255,0.85)',background:'rgba(255,255,255,0.2)',padding:'2px 8px',borderRadius:20}},'🔗 '+f.nome_cw),
-        f.nome_ifood&&React.createElement('span',{style:{fontSize:10,color:'rgba(255,255,255,0.85)',background:'rgba(255,255,255,0.2)',padding:'2px 8px',borderRadius:20}},'🍔 '+f.nome_ifood),
-        !f.nome_cw&&!f.nome_ifood&&React.createElement('span',{style:{fontSize:10,color:'#fef08a',background:'rgba(0,0,0,0.2)',padding:'2px 8px',borderRadius:20}},'⚠ Sem vínculo')
+    React.createElement('div',{style:{background:cor,padding:'16px 16px 14px',position:'relative'}},
+      React.createElement('div',{style:{fontSize:10,color:'rgba(255,255,255,0.7)',fontWeight:600,letterSpacing:'1px',textTransform:'uppercase',marginBottom:5}},f.categoria||'Cookie'),
+      React.createElement('div',{style:{fontWeight:800,fontSize:16,color:'#fff',lineHeight:1.2}},f.nome),
+      f.tempo_preparo>0&&React.createElement('div',{style:{fontSize:10,color:'rgba(255,255,255,0.7)',marginTop:4}},'⏱ '+f.tempo_preparo+' min'),
+      React.createElement('div',{style:{display:'flex',gap:4,marginTop:5,flexWrap:'wrap'}},
+        f.nome_cw&&React.createElement('span',{style:{fontSize:9,color:'rgba(255,255,255,0.85)',background:'rgba(255,255,255,0.2)',padding:'1px 7px',borderRadius:20}},'🔗 '+f.nome_cw),
+        f.nome_ifood&&React.createElement('span',{style:{fontSize:9,color:'rgba(255,255,255,0.85)',background:'rgba(255,255,255,0.2)',padding:'1px 7px',borderRadius:20}},'🍔 '+f.nome_ifood),
+        !f.nome_cw&&!f.nome_ifood&&React.createElement('span',{style:{fontSize:9,color:'#fef08a',background:'rgba(0,0,0,0.2)',padding:'1px 7px',borderRadius:20}},'⚠ Sem vínculo')
       )
     ),
     // Corpo
     React.createElement('div',{style:{padding:'14px 16px'}},
-      // Custo destaque
-      React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:12}},
-        React.createElement('div',{style:{display:'flex',alignItems:'baseline',gap:4}},
-          React.createElement('span',{style:{fontSize:11,color:'#aaa',fontWeight:600}},'CUSTO/UN'),
-          React.createElement('span',{style:{fontSize:24,fontWeight:800,color:cor,marginLeft:8}},
-            custoTotal>0?'R$ '+custoTotal.toFixed(4).replace('.',','):'—'
-          )
+      // Métricas compactas: Custo/un, Em estoque, Custo total
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:12}},
+        React.createElement('div',{style:{background:'#f8f9fc',borderRadius:9,padding:'8px 10px'}},
+          React.createElement('div',{style:{fontSize:9,color:'#aaa',fontWeight:700,letterSpacing:'0.5px',marginBottom:3}},'CUSTO/UN'),
+          React.createElement('div',{style:{fontSize:14,fontWeight:800,color:cor}},custoTotal>0?F(custoTotal):'—')
         ),
-        React.createElement('div',{style:{textAlign:'right'}},
-          React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:600}},'EM ESTOQUE'),
-          React.createElement('div',{style:{fontSize:16,fontWeight:800,color:qtdEstoque>0?'#16a34a':'#dc2626'}},qtdEstoque+' un')
+        React.createElement('div',{style:{background:'#f8f9fc',borderRadius:9,padding:'8px 10px'}},
+          React.createElement('div',{style:{fontSize:9,color:'#aaa',fontWeight:700,letterSpacing:'0.5px',marginBottom:3}},'ESTOQUE'),
+          React.createElement('div',{style:{fontSize:14,fontWeight:800,color:qtdEstoque>0?'#16a34a':'#dc2626'}},qtdEstoque+' un')
+        ),
+        React.createElement('div',{style:{background:'#f8f9fc',borderRadius:9,padding:'8px 10px'}},
+          React.createElement('div',{style:{fontSize:9,color:'#aaa',fontWeight:700,letterSpacing:'0.5px',marginBottom:3}},'TOTAL EM $'),
+          React.createElement('div',{style:{fontSize:14,fontWeight:800,color:'#2563eb'}},F(custoTotal*qtdEstoque))
         )
       ),
       // Ingredientes preview
