@@ -4034,7 +4034,12 @@ function LancForm({uid,tipo,db,reload,close,inicial}){
   const[ld,setLd]=React.useState(false);
   const[vincularEstoque,setVincularEstoque]=React.useState(!!(inicial&&inicial.estoque_id));
   const[estoqueId,setEstoqueId]=React.useState(inicial&&inicial.estoque_id||'');
-  const[estoqueQtdEmb,setEstoqueQtdEmb]=React.useState(inicial&&inicial.estoque_qtd?String(inicial.estoque_qtd):'1');
+  const[estoqueQtdEmb,setEstoqueQtdEmb]=React.useState(()=>{
+    if(!inicial||!inicial.estoque_qtd)return'1';
+    const it=(db.estoque||[]).find(e=>e.id===inicial.estoque_id);
+    const emb=it&&it.qtd_embalagem||1;
+    return emb>0?String(Number(inicial.estoque_qtd)/emb):'1';
+  });
 
   const v=parseFloat(String(valor||'0').replace(',','.'));
   const jv=parseFloat(juros||0);const mv=parseFloat(multa||0);const dv=parseFloat(desconto||0);
@@ -4117,16 +4122,21 @@ function LancForm({uid,tipo,db,reload,close,inicial}){
       const conta=(contas||[]).find(c=>c.id===contaId);
       if(conta){const delta=isRec?totalFinal:-totalFinal;await sb.from('contas_bancarias').update({saldo:Number(conta.saldo)+delta}).eq('id',contaId);}
     }
-    // Dá entrada no estoque (só em criação, não em edição, para evitar duplicar)
+    // Dá entrada no estoque (quantidade só na criação, para evitar duplicar)
     if(vincularEstoque&&estoqueId&&estQtdTotal>0&&!(inicial&&inicial.id)){
       const it=(estoque||[]).find(e=>e.id===estoqueId);
       if(it){
         const novaQtdEstoque=Number(it.qtd_estoque||0)+(parseFloat(estoqueQtdEmb)||0);
         const novaQtdTotal=Number(it.qtd||0)+estQtdTotal;
-        // Recalcula o custo/unidade pela última compra: valor pago ÷ quantidade total (em unidade do estoque)
+        // Recalcula o custo/unidade pela compra: valor pago ÷ quantidade total (em unidade do estoque)
         const novoCusto=estQtdTotal>0?(totalFinal/estQtdTotal):Number(it.custo||0);
         await sb.from('estoque').update({qtd_estoque:novaQtdEstoque,qtd:novaQtdTotal,custo:novoCusto}).eq('id',estoqueId);
       }
+    }
+    // Edição de lançamento já vinculado: não duplica quantidade, mas recalcula o custo/unidade
+    else if(vincularEstoque&&estoqueId&&estQtdTotal>0&&inicial&&inicial.id){
+      const novoCusto=totalFinal/estQtdTotal;
+      await sb.from('estoque').update({custo:novoCusto}).eq('id',estoqueId);
     }
     const msg=inicial&&inicial.id?'Lançamento atualizado!':tipoLanc==='Unico'?'Lancamento criado!':tipoLanc==='Parcelado'?numParc+' parcelas!':numRep+' recorrencias!';
     toast(msg+(vincularEstoque?' Estoque atualizado!':''),false,true);reload();close();setLd(false);
