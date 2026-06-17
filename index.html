@@ -5621,6 +5621,7 @@ function ContaForm({uid,reload,close,conta}){
 // ── APP ──
 function App(){
   const[user,setUser]=useState(null);const[page,setPage]=useState('pedidos');
+  const[initializing,setInitializing]=useState(true);
   const[db,setDb]=useState({pedidos:[],pedidos_cw:[],estoque:[],contas:[],receber:[],pagar:[],movs:[],lancamentos:[],categorias_fin:[],centros_custo:[],formas_pag:[],caixas:[],fichas:[]});
   const[modal,setModal]=useState(null);const[col,setCol]=useState(false);const[loading,setLoading]=useState(false);
   const[cfg,setCfg]=useState({cw_token:'',uid:null});
@@ -5836,6 +5837,9 @@ function App(){
   const logout=async()=>{await sb.auth.signOut();setUser(null);};
 
   if(!user)return React.createElement(React.Fragment,null,React.createElement(Auth,{onLogin:setUser}),React.createElement(Toasts));
+  if(initializing)return React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:'#f4f4f5'}},
+    React.createElement('div',{style:{width:32,height:32,border:'3px solid #f0f0f0',borderTopColor:'#dc2626',borderRadius:'50%',animation:'spin 0.7s linear infinite'}})
+  );
   if(loading)return React.createElement('div',{style:{height:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#f8f8f8',flexDirection:'column',gap:10}},React.createElement(Spin),React.createElement('div',{style:{color:'#bbb',fontSize:13,marginTop:6}},'Carregando...'));
 
   const uid=user.id;
