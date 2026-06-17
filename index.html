@@ -5770,6 +5770,25 @@ function App(){
     return()=>{window._processarBaixaEstoque=null;};
   },[user]);
 
+  // Verifica periodicamente (independente da tela aberta) se há pedidos entregues/finalizados
+  // sem baixa de estoque processada — cobre o caso do webhook do CW não disparar em troca de status.
+  React.useEffect(()=>{
+    if(!user)return;
+    const verificarPendentes=async()=>{
+      const hoje=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});
+      const ontem=new Date();ontem.setDate(ontem.getDate()-1);
+      const ontemStr=ontem.toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});
+      const{data:pedidosRecentes}=await sb.from('pedidos_cw').select('*').eq('user_id',user.id).gte('data_pedido',ontemStr).in('status',['delivered','closed']);
+      if(!pedidosRecentes||!pedidosRecentes.length)return;
+      for(const p of pedidosRecentes){
+        await processarBaixaEstoque(p);
+      }
+    };
+    verificarPendentes();
+    const interval=setInterval(verificarPendentes,60000);
+    return()=>clearInterval(interval);
+  },[user]);
+
   // Realtime — atualiza pedidos automaticamente quando chega novo pedido
   useEffect(()=>{
     if(!user)return;
