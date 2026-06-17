@@ -2724,12 +2724,14 @@ function FichaForm({uid,db,reload,close,ficha}){
     if(deltaInicial!==0||!prodAcabadoAtual){
       if(prodAcabadoAtual){
         const novaQtd=Math.max(0,Number(prodAcabadoAtual.qtd||0)+deltaInicial);
-        await sb.from('estoque').update({estoque_inicial:novoInicial,qtd:novaQtd,qtd_estoque:novaQtd,custo:custoTotal}).eq('id',prodAcabadoAtual.id);
+        const{error:errEst}=await sb.from('estoque').update({estoque_inicial:novoInicial,qtd:novaQtd,qtd_estoque:novaQtd,custo:custoTotal}).eq('id',prodAcabadoAtual.id);
+        if(errEst){toast('Erro ao salvar estoque: '+errEst.message,true);setLd(false);return;}
       }else{
-        await sb.from('estoque').insert({
+        const{error:errEst}=await sb.from('estoque').insert({
           user_id:uid,nome,categoria:'Produto Acabado',unidade:'un',
           estoque_inicial:novoInicial,qtd:novoInicial,qtd_embalagem:1,qtd_estoque:novoInicial,minimo:0,custo:custoTotal,fornecedor:''
         });
+        if(errEst){toast('Erro ao criar item de estoque: '+errEst.message,true);setLd(false);return;}
       }
     }
     toast(isEdit?'Ficha atualizada!':'Ficha criada!',false,true);reload();close();setLd(false);
@@ -5734,7 +5736,11 @@ function App(){
     ped_caixa:()=>React.createElement(PedCaixa,{uid,db,setDb,reload:async()=>{await refreshCaixas(uid);await refreshLanc(uid);},setM:setModal}),
     ped_entregas:()=>React.createElement(PedEntregas,{uid,db,reload,setM:setModal}),
     estoque:()=>React.createElement(Estoque,{uid,db,reload:async()=>{const{data}=await sb.from('estoque').select('*').eq('user_id',uid).order('nome');if(data)setDb(p=>({...p,estoque:data}));},setM:setModal}),
-    fichas:()=>React.createElement(FichasTecnicas,{uid,db,reload:async()=>{const{data}=await sb.from('fichas_tecnicas').select('*').eq('user_id',uid).order('nome');if(data)setDb(p=>({...p,fichas:data}));},setM:setModal}),
+    fichas:()=>React.createElement(FichasTecnicas,{uid,db,reload:async()=>{
+      const{data}=await sb.from('fichas_tecnicas').select('*').eq('user_id',uid).order('nome');
+      if(data)setDb(p=>({...p,fichas:data}));
+      await refreshEstoque(uid);
+    },setM:setModal}),
     producao_hist:()=>React.createElement(ProducaoHistorico,{uid,db,reload,setM:setModal}),
     fin_visao:()=>React.createElement(FinVisao,{uid,db,reload,setM:setModal}),
     fin_dre:()=>React.createElement(FinDRE,{uid,db,reload,setM:setModal}),
