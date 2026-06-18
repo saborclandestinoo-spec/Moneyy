@@ -209,21 +209,21 @@ function gerarLabelHTML(pedido){
   </body></html>`;
 }
 
-function imprimirEtiqueta(pedido){
-  const html=gerarLabelHTML(pedido);
+function _printHtml(html){
   const old=document.getElementById('_print_frame');
   if(old)old.remove();
   const iframe=document.createElement('iframe');
   iframe.id='_print_frame';
-  iframe.style.cssText='position:fixed;top:-9999px;left:-9999px;width:90mm;height:200mm;border:none;visibility:hidden;';
+  iframe.style.cssText='position:fixed;top:0;left:0;width:1px;height:1px;border:none;opacity:0;pointer-events:none;';
   document.body.appendChild(iframe);
   const doc=iframe.contentDocument||iframe.contentWindow.document;
   doc.open();doc.write(html);doc.close();
-  iframe.onload=()=>{
+  setTimeout(()=>{
     try{iframe.contentWindow.focus();iframe.contentWindow.print();}catch(e){toast('Erro ao imprimir: '+e.message,true);}
-    setTimeout(()=>{try{iframe.remove();}catch(e){}},3000);
-  };
+    setTimeout(()=>{try{if(iframe.parentNode)iframe.parentNode.removeChild(iframe);}catch(e){}},4000);
+  },600);
 }
+function imprimirEtiqueta(pedido){_printHtml(gerarLabelHTML(pedido));}
 
 function Toggle({on,onChange}){
   return React.createElement('div',{
@@ -4813,18 +4813,7 @@ function imprimirEtiquetas(p){
     '<div class="grid">'+etiquetasHtml+'</div>'+
     '</body></html>';
 
-  const old=document.getElementById('_print_frame');
-  if(old)old.remove();
-  const iframe=document.createElement('iframe');
-  iframe.id='_print_frame';
-  iframe.style.cssText='position:fixed;top:-9999px;left:-9999px;width:210mm;height:297mm;border:none;visibility:hidden;';
-  document.body.appendChild(iframe);
-  const doc=iframe.contentDocument||iframe.contentWindow.document;
-  doc.open();doc.write(html);doc.close();
-  iframe.onload=()=>{
-    try{iframe.contentWindow.focus();iframe.contentWindow.print();}catch(e){}
-    setTimeout(()=>{try{iframe.remove();}catch(e){}},3000);
-  };
+  _printHtml(html);
 }
 
 function ProducaoDetalhe({producao,db,close}){
