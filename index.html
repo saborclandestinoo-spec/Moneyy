@@ -270,9 +270,9 @@ function ImpressaoConfig(){
             React.createElement('input',{style:C.inp,value:cfg.nome||'',onChange:e=>save('nome',e.target.value),placeholder:'Ex: ELGIN I9 (USB)'})
           ),
           React.createElement('div',null,
-            React.createElement(Lbl,{c:'Largura do papel'}),
-            React.createElement('select',{style:C.sel,value:cfg.colunas||'48',onChange:e=>save('colunas',e.target.value)},
-              ['32','40','48','58','80'].map(v=>React.createElement('option',{key:v,value:v},v+' colunas'))
+            React.createElement(Lbl,{c:'Largura do papel (mm)'}),
+            React.createElement('select',{style:C.sel,value:cfg.papel_mm||'80',onChange:e=>save('papel_mm',e.target.value)},
+              [['58','58mm (papel 5cm)'],['72','72mm'],['80','80mm (papel 8cm)'],['104','104mm']].map(([v,l])=>React.createElement('option',{key:v,value:v},l))
             )
           )
         ),
@@ -4800,10 +4800,11 @@ function imprimirEtiquetas(p){
       '</div>';
   }
 
+  const pw=parseInt(pc.papel_mm||80);
   const html='<html><head><meta charset="UTF-8"><style>'+
-    '@page{margin:2mm;size:auto;}'+
+    '@page{margin:0;size:'+pw+'mm auto;}'+
     '*{box-sizing:border-box;margin:0;padding:0;}'+
-    'body{font-family:Arial,Helvetica,sans-serif;background:#fff;padding:2mm;}'+
+    'body{font-family:Arial,Helvetica,sans-serif;background:#fff;padding:2mm;width:'+pw+'mm;max-width:'+pw+'mm;}'+
     '.grid{display:grid;grid-template-columns:repeat('+cols+',1fr);gap:4mm;}'+
     '.etiqueta{text-align:center;border:2px solid #000;border-radius:6px;overflow:hidden;page-break-inside:avoid;break-inside:avoid;padding-bottom:12px;-webkit-print-color-adjust:exact;print-color-adjust:exact;}'+
     '.etq-nome{font-size:'+fs+'px;font-weight:900;color:#000;padding:12px 8px 10px;line-height:1;word-break:break-word;letter-spacing:-0.5px;}'+
