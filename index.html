@@ -139,6 +139,142 @@ function Auth({onLogin}){
   );
 }
 
+// ── IMPRESSÃO ──
+const PRINT_KEY='moneyy_print_cfg';
+function getPrintCfg(){try{return JSON.parse(localStorage.getItem(PRINT_KEY)||'{}')}catch{return{}}}
+function savePrintCfg(c){localStorage.setItem(PRINT_KEY,JSON.stringify(c));}
+
+function gerarLabelHTML(pedido){
+  const raw=pedido.raw||{};
+  const itens=(raw.items||[]).map(it=>`
+    <div style="display:flex;justify-content:space-between;margin:3px 0;font-size:11px">
+      <span><b>${it.quantity||1}x</b> ${it.name||it.product_name||''}</span>
+      <span>R$${Number(it.price||0).toFixed(2)}</span>
+    </div>
+    ${(it.options||[]).map(o=>`<div style="margin-left:14px;font-size:9px;color:#444">▸ ${o.name||''}: ${o.option||o.value||''}</div>`).join('')}
+    ${it.observation?`<div style="margin-left:14px;font-size:9px;font-style:italic;color:#222">Obs: ${it.observation}</div>`:''}
+  `).join('');
+  const cliente=raw.customer?.name||pedido.cliente||'Cliente';
+  const tipo=raw.order_type==='delivery'?'DELIVERY':raw.order_type==='takeout'?'RETIRADA':'MESA';
+  const hora=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  const data=new Date().toLocaleDateString('pt-BR');
+  const total=Number(raw.total_price||pedido.total||0).toFixed(2);
+  const obs=raw.observation||pedido.observacao||'';
+  const num=pedido.numero||pedido.id?.toString().slice(-4)||'???';
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{font-family:'Courier New',monospace;font-size:11px;width:80mm;padding:5mm;background:#fff;color:#000;}
+    .c{text-align:center;}.b{font-weight:bold;}.sep{border-top:1px dashed #000;margin:5px 0;}
+    .hdr{font-size:15px;font-weight:bold;text-align:center;letter-spacing:1px;}
+    .num{background:#000;color:#fff;padding:3px 8px;border-radius:4px;font-size:14px;font-weight:bold;}
+    .tipo{display:inline-block;border:1px solid #000;padding:2px 7px;border-radius:3px;font-size:10px;font-weight:bold;margin-top:3px;}
+    @media print{body{width:80mm;}@page{margin:0;size:80mm auto;}}
+  </style></head><body>
+    <div class="hdr">ETIQUETA DE PRODUCAO</div>
+    <div class="c" style="font-size:9px;margin-top:2px">${data} ${hora}</div>
+    <div class="sep"></div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <div>
+        <div class="b" style="font-size:14px">${cliente}</div>
+        <div class="tipo">${tipo}</div>
+      </div>
+      <div class="num">#${num}</div>
+    </div>
+    <div class="sep"></div>
+    <div class="b" style="margin-bottom:5px;font-size:10px">ITENS:</div>
+    ${itens||'<div style="font-size:10px;color:#555">Sem itens</div>'}
+    ${obs?`<div class="sep"></div><div style="font-size:10px"><b>OBS GERAL:</b> ${obs}</div>`:''}
+    <div class="sep"></div>
+    <div style="display:flex;justify-content:space-between;font-size:13px">
+      <span class="b">TOTAL</span><span class="b">R$ ${total}</span>
+    </div>
+    <div class="sep"></div>
+  </body></html>`;
+}
+
+function imprimirEtiqueta(pedido){
+  const html=gerarLabelHTML(pedido);
+  const win=window.open('','_print_etq','width=350,height=550,toolbar=no,menubar=no,scrollbars=no');
+  if(!win){toast('⚠️ Permita pop-ups para imprimir!',true);return;}
+  win.document.open();win.document.write(html);win.document.close();
+  setTimeout(()=>{try{win.focus();win.print();setTimeout(()=>{try{win.close();}catch(e){}},1500);}catch(e){}},400);
+}
+
+function ImpressaoConfig(){
+  const[cfg,setCfg]=useState(()=>getPrintCfg());
+  const save=(k,v)=>{const n={...cfg,[k]:v};setCfg(n);savePrintCfg(n);};
+  const testar=()=>imprimirEtiqueta({
+    id:'TESTE001',numero:'042',cliente:'Maria Silva (TESTE)',total:95.80,
+    raw:{order_type:'delivery',customer:{name:'Maria Silva'},total_price:95.80,
+      observation:'Sem açúcar, embrulhar para presente',
+      items:[
+        {quantity:2,name:'Bolo de Chocolate',price:40.00,options:[{name:'Tamanho',option:'Grande'}],observation:''},
+        {quantity:3,name:'Brigadeiro Gourmet',price:4.00,options:[],observation:'Bem cremoso'},
+        {quantity:1,name:'Bem-casado',price:7.80,options:[{name:'Sabor',option:'Doce de leite'}],observation:''},
+      ]}
+  });
+  const toggleOp=(op)=>save('opcoes',{...(cfg.opcoes||{}),[op]:!(cfg.opcoes||{})[op]});
+  const OPS=['Impressora térmica','Suporta caracteres especiais','Guilhotina automática','Impressão rápida'];
+  return React.createElement(PW,{title:'Agente de Impressão',sub:'Configure impressão automática de etiquetas de produção'},
+    // Status card
+    React.createElement('div',{style:{...C.card,marginBottom:16,display:'flex',alignItems:'center',gap:14,flexWrap:'wrap'}},
+      React.createElement('div',{style:{width:40,height:40,borderRadius:12,background:cfg.autoprint?'#dcfce7':'#f5f5f5',display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,flexShrink:0}},'🖨️'),
+      React.createElement('div',{style:{flex:1,minWidth:200}},
+        React.createElement('div',{style:{fontWeight:700,color:'#111',fontSize:13}},cfg.autoprint?'✅ Impressão automática OK':'Impressão automática desativada'),
+        React.createElement('div',{style:{fontSize:11,color:'#aaa',marginTop:3}},cfg.autoprint?'Novo pedido chegou → imprime etiqueta de produção automático':'Ative para imprimir etiqueta ao receber pedido')
+      ),
+      React.createElement('label',{style:{display:'flex',alignItems:'center',gap:8,cursor:'pointer',background:'#f5f5f5',padding:'8px 14px',borderRadius:10}},
+        React.createElement('div',{style:{width:36,height:20,borderRadius:10,background:cfg.autoprint?'#16a34a':'#d1d5db',position:'relative',transition:'background 0.2s',cursor:'pointer'},onClick:()=>{const v=!cfg.autoprint;save('autoprint',v);toast(v?'✅ Impressão automática ativada!':'Impressão automática desativada',false,v);}},
+          React.createElement('div',{style:{width:16,height:16,borderRadius:'50%',background:'#fff',position:'absolute',top:2,left:cfg.autoprint?18:2,transition:'left 0.2s',boxShadow:'0 1px 4px rgba(0,0,0,0.2)'}})
+        ),
+        React.createElement('span',{style:{fontSize:13,fontWeight:600,color:cfg.autoprint?'#16a34a':'#888'}},cfg.autoprint?'Ativo':'Inativo')
+      )
+    ),
+    // Impressoras
+    React.createElement('div',{style:{...C.card,marginBottom:16}},
+      React.createElement('h3',{style:{fontSize:14,fontWeight:700,color:'#111',marginBottom:4}},'Impressoras'),
+      React.createElement('div',{style:{background:'#f9f9f9',border:'1px solid #f0f0f0',borderRadius:12,padding:'14px 16px',marginTop:12}},
+        React.createElement('div',{style:{fontSize:13,fontWeight:700,color:'#111',marginBottom:12,display:'flex',justifyContent:'space-between',alignItems:'center'}},
+          cfg.nome||'Impressora local',
+          React.createElement('button',{style:{...C.bsm,background:'#7c3aed'},onClick:testar},'TESTAR')
+        ),
+        React.createElement(G2,null,
+          React.createElement('div',null,
+            React.createElement(Lbl,{c:'Nome da impressora'}),
+            React.createElement('input',{style:C.inp,value:cfg.nome||'',onChange:e=>save('nome',e.target.value),placeholder:'Ex: ELGIN I9 (USB)'})
+          ),
+          React.createElement('div',null,
+            React.createElement(Lbl,{c:'Quantidade de colunas'}),
+            React.createElement('select',{style:C.sel,value:cfg.colunas||'48',onChange:e=>save('colunas',e.target.value)},
+              ['32','40','48','58','80'].map(v=>React.createElement('option',{key:v,value:v},v+' colunas'))
+            )
+          )
+        ),
+        React.createElement(Lbl,{c:'Configurações'}),
+        React.createElement('div',{style:{display:'flex',flexWrap:'wrap',gap:8,marginBottom:4}},
+          OPS.map(op=>React.createElement('label',{key:op,style:{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#555',cursor:'pointer',background:'#fff',border:'1px solid #e5e5e5',padding:'5px 11px',borderRadius:8}},
+            React.createElement('input',{type:'checkbox',checked:!!((cfg.opcoes||{})[op]),onChange:()=>toggleOp(op),style:{cursor:'pointer'}}),op
+          ))
+        )
+      ),
+      React.createElement('div',{style:{marginTop:12,display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}},
+        React.createElement('button',{style:{...C.ghost},onClick:()=>document.getElementById('imp_add')&&toast('Em breve: múltiplas impressoras!',false,true)},'+ ADICIONAR IMPRESSORA'),
+      )
+    ),
+    // Info
+    React.createElement('div',{style:{...C.card,background:'#f0f9ff',border:'1px solid #bae6fd'}},
+      React.createElement('h4',{style:{fontSize:13,fontWeight:700,color:'#0369a1',marginBottom:10}},'ℹ️ Como funciona'),
+      React.createElement('div',{style:{fontSize:12,color:'#0369a1',lineHeight:2}},
+        '• Ao chegar novo pedido do Cardápio Web → etiqueta abre e imprime automaticamente',React.createElement('br'),
+        '• Navegador abre diálogo de impressão → selecione sua impressora',React.createElement('br'),
+        '• Para imprimir SEM clicar: configure a impressora como padrão no Windows/Mac',React.createElement('br'),
+        '• Impressora USB/Bluetooth precisa estar instalada como impressora padrão do sistema',React.createElement('br'),
+        '• Permita pop-ups do site no navegador (necessário para abrir etiqueta)',
+      )
+    )
+  );
+}
+
 // SIDEBAR
 const PED_SUBS=[
   {id:'pedidos',l:'Gestão de Pedidos'},
@@ -293,6 +429,11 @@ function Sidebar({page,setPage,user,logout,col,setCol}){
             );
           })
         )
+      )
+    ),
+      // Impressão
+      React.createElement('div',{style:{marginTop:4}},
+        navBtn('imp_config','Impressão','🖨',0)
       )
     ),
     // User + collapse
@@ -6365,6 +6506,8 @@ function App(){
           const{data}=await sb.from('pedidos_cw').select('*').eq('user_id',user.id).gte('data_pedido',hoje).order('data_pedido',{ascending:false});
           if(data)setDb(prev=>({...prev,pedidos_cw:[...data,...(prev.pedidos_cw||[]).filter(p=>p.data_pedido<hoje)]}));
           toast('🛎 Novo pedido!',false,true);
+          // Auto-impressão de etiqueta de produção
+          try{const pc=getPrintCfg();if(pc.autoprint&&payload.new){setTimeout(()=>imprimirEtiqueta(payload.new),600);}}catch(e){}
           // Auto-abre o caixa se ainda não foi aberto hoje
           const{data:caixaExiste}=await sb.from('caixas').select('id').eq('user_id',user.id).eq('data',hoje).maybeSingle();
           if(!caixaExiste){
@@ -6426,6 +6569,7 @@ function App(){
     fin_categorias:()=>React.createElement(FinCategorias,{uid,db,reload:()=>refreshCategorias(uid),setM:setModal}),
     fin_centros:()=>React.createElement(FinCentros,{uid,db,reload:()=>refreshCentros(uid),setM:setModal}),
     fin_formas:()=>React.createElement(FinFormas,{uid,db,reload:()=>refreshFormasPag(uid),setM:setModal}),
+    imp_config:()=>React.createElement(ImpressaoConfig,{uid}),
   };
   const PC=PAGES[page]||PAGES.pedidos;
 
