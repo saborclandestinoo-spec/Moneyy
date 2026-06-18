@@ -147,48 +147,65 @@ function savePrintCfg(c){localStorage.setItem(PRINT_KEY,JSON.stringify(c));}
 function gerarLabelHTML(pedido){
   const raw=pedido.raw||{};
   const itens=(raw.items||[]).map(it=>`
-    <div style="display:flex;justify-content:space-between;margin:3px 0;font-size:11px">
-      <span><b>${it.quantity||1}x</b> ${it.name||it.product_name||''}</span>
-      <span>R$${Number(it.price||0).toFixed(2)}</span>
+    <div class="item">
+      <span class="item-qty">${it.quantity||1}x</span>
+      <span class="item-nome">${it.name||it.product_name||''}</span>
     </div>
-    ${(it.options||[]).map(o=>`<div style="margin-left:14px;font-size:9px;color:#444">▸ ${o.name||''}: ${o.option||o.value||''}</div>`).join('')}
-    ${it.observation?`<div style="margin-left:14px;font-size:9px;font-style:italic;color:#222">Obs: ${it.observation}</div>`:''}
+    ${(it.options||[]).map(o=>`<div class="item-opt">↳ ${o.name||''}: ${o.option||o.value||''}</div>`).join('')}
+    ${it.observation?`<div class="item-obs">⚠ ${it.observation}</div>`:''}
   `).join('');
   const cliente=raw.customer?.name||pedido.cliente||'Cliente';
-  const tipo=raw.order_type==='delivery'?'DELIVERY':raw.order_type==='takeout'?'RETIRADA':'MESA';
+  const tipoLabel=raw.order_type==='delivery'?'🛵 DELIVERY':raw.order_type==='takeout'?'🏪 RETIRADA':'🍽 MESA';
+  const tipoColor=raw.order_type==='delivery'?'#1d4ed8':raw.order_type==='takeout'?'#15803d':'#92400e';
   const hora=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-  const data=new Date().toLocaleDateString('pt-BR');
+  const data=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
   const total=Number(raw.total_price||pedido.total||0).toFixed(2);
   const obs=raw.observation||pedido.observacao||'';
   const num=pedido.numero||pedido.id?.toString().slice(-4)||'???';
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+    @page{margin:0;size:80mm auto;}
     *{margin:0;padding:0;box-sizing:border-box;}
-    body{font-family:'Courier New',monospace;font-size:11px;width:80mm;padding:5mm;background:#fff;color:#000;}
-    .c{text-align:center;}.b{font-weight:bold;}.sep{border-top:1px dashed #000;margin:5px 0;}
-    .hdr{font-size:15px;font-weight:bold;text-align:center;letter-spacing:1px;}
-    .num{background:#000;color:#fff;padding:3px 8px;border-radius:4px;font-size:14px;font-weight:bold;}
-    .tipo{display:inline-block;border:1px solid #000;padding:2px 7px;border-radius:3px;font-size:10px;font-weight:bold;margin-top:3px;}
-    @media print{body{width:80mm;}@page{margin:0;size:80mm auto;}}
+    body{font-family:Arial,Helvetica,sans-serif;width:80mm;background:#fff;color:#111;}
+    .header{background:#111;color:#fff;padding:8px 10px 6px;text-align:center;}
+    .header-title{font-size:9px;letter-spacing:3px;text-transform:uppercase;color:#aaa;margin-bottom:2px;}
+    .header-num{font-size:26px;font-weight:900;letter-spacing:-1px;line-height:1;}
+    .header-dt{font-size:10px;color:#ccc;margin-top:3px;}
+    .tipo-bar{background:${tipoColor};color:#fff;text-align:center;font-size:11px;font-weight:800;padding:5px;letter-spacing:1px;}
+    .cliente-box{padding:8px 10px 6px;border-bottom:1px dashed #ccc;}
+    .cliente-label{font-size:8px;color:#999;letter-spacing:2px;text-transform:uppercase;}
+    .cliente-nome{font-size:18px;font-weight:900;color:#111;line-height:1.1;margin-top:2px;}
+    .itens{padding:7px 10px;}
+    .itens-label{font-size:8px;color:#999;letter-spacing:2px;text-transform:uppercase;margin-bottom:5px;}
+    .item{display:flex;align-items:baseline;gap:5px;margin-bottom:4px;}
+    .item-qty{font-size:13px;font-weight:900;color:#111;min-width:18px;}
+    .item-nome{font-size:12px;font-weight:600;color:#111;flex:1;}
+    .item-opt{font-size:9px;color:#666;padding-left:20px;margin-bottom:2px;}
+    .item-obs{font-size:9px;color:#c0392b;font-weight:700;padding-left:20px;margin-bottom:3px;}
+    .obs-box{margin:0 10px;padding:5px 8px;background:#fff8dc;border-left:3px solid #f59e0b;margin-bottom:6px;}
+    .obs-txt{font-size:10px;font-weight:700;color:#78350f;}
+    .total-bar{background:#111;color:#fff;display:flex;justify-content:space-between;align-items:center;padding:7px 10px;}
+    .total-label{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#aaa;}
+    .total-val{font-size:18px;font-weight:900;}
   </style></head><body>
-    <div class="hdr">ETIQUETA DE PRODUCAO</div>
-    <div class="c" style="font-size:9px;margin-top:2px">${data} ${hora}</div>
-    <div class="sep"></div>
-    <div style="display:flex;justify-content:space-between;align-items:flex-start">
-      <div>
-        <div class="b" style="font-size:14px">${cliente}</div>
-        <div class="tipo">${tipo}</div>
-      </div>
-      <div class="num">#${num}</div>
+    <div class="header">
+      <div class="header-title">Pedido</div>
+      <div class="header-num">#${num}</div>
+      <div class="header-dt">${data} &nbsp;|&nbsp; ${hora}</div>
     </div>
-    <div class="sep"></div>
-    <div class="b" style="margin-bottom:5px;font-size:10px">ITENS:</div>
-    ${itens||'<div style="font-size:10px;color:#555">Sem itens</div>'}
-    ${obs?`<div class="sep"></div><div style="font-size:10px"><b>OBS GERAL:</b> ${obs}</div>`:''}
-    <div class="sep"></div>
-    <div style="display:flex;justify-content:space-between;font-size:13px">
-      <span class="b">TOTAL</span><span class="b">R$ ${total}</span>
+    <div class="tipo-bar">${tipoLabel}</div>
+    <div class="cliente-box">
+      <div class="cliente-label">Cliente</div>
+      <div class="cliente-nome">${cliente}</div>
     </div>
-    <div class="sep"></div>
+    <div class="itens">
+      <div class="itens-label">Itens do pedido</div>
+      ${itens||'<div style="font-size:11px;color:#999">Sem itens</div>'}
+    </div>
+    ${obs?`<div class="obs-box"><div class="obs-txt">⚠ OBS: ${obs}</div></div>`:''}
+    <div class="total-bar">
+      <span class="total-label">Total</span>
+      <span class="total-val">R$ ${total}</span>
+    </div>
   </body></html>`;
 }
 
@@ -4777,23 +4794,21 @@ function imprimirEtiquetas(p){
     const qtdNesteSaco=Math.min(POR_SACO,restante);
     etiquetasHtml+=
       '<div class="etiqueta">'+
-        '<div class="nome">'+p.ficha_nome+'</div>'+
-        '<div class="linha"><span>Qtd no saco</span><span>'+qtdNesteSaco+' un</span></div>'+
-        '<div class="linha"><span>Produção</span><span>'+dataFmt+' '+horaFmt+'</span></div>'+
-        '<div class="saco">Saco '+(i+1)+'/'+totalSacos+'</div>'+
+        '<div class="etq-nome">'+p.ficha_nome+'</div>'+
+        '<div class="etq-data">'+dataFmt+'</div>'+
+        '<div class="etq-hora">'+horaFmt+'</div>'+
       '</div>';
   }
 
   const html='<html><head><meta charset="UTF-8"><style>'+
-    '@page{margin:4mm;size:auto;}'+
-    '*{box-sizing:border-box;}'+
-    'body{font-family:Arial,sans-serif;margin:0;padding:2mm;}'+
-    '.grid{display:grid;grid-template-columns:repeat('+cols+',1fr);gap:3mm;}'+
-    '.etiqueta{border:1.5px dashed #999;border-radius:4px;padding:8px 10px;page-break-inside:avoid;break-inside:avoid;}'+
-    '.nome{font-size:'+fs+'px;font-weight:800;margin-bottom:5px;word-break:break-word;}'+
-    '.linha{display:flex;justify-content:space-between;font-size:'+(fs-4)+'px;color:#333;margin-bottom:2px;}'+
-    '.linha span:first-child{color:#888;}'+
-    '.saco{margin-top:5px;font-size:'+(fs-5)+'px;font-weight:700;color:#7c3aed;text-align:right;}'+
+    '@page{margin:2mm;size:auto;}'+
+    '*{box-sizing:border-box;margin:0;padding:0;}'+
+    'body{font-family:Arial,Helvetica,sans-serif;background:#fff;padding:2mm;}'+
+    '.grid{display:grid;grid-template-columns:repeat('+cols+',1fr);gap:4mm;}'+
+    '.etiqueta{text-align:center;border:1.5px solid #ddd;border-radius:6px;overflow:hidden;page-break-inside:avoid;break-inside:avoid;padding-bottom:12px;}'+
+    '.etq-nome{font-size:'+fs+'px;font-weight:900;color:#111;padding:12px 8px 10px;line-height:1;word-break:break-word;letter-spacing:-0.5px;}'+
+    '.etq-data{background:#111;color:#fff;font-size:'+fs+'px;font-weight:800;padding:8px;display:block;}'+
+    '.etq-hora{font-size:'+(fs-2)+'px;font-weight:700;color:#111;padding:8px 8px 0;}'+
     '</style></head><body>'+
     '<div class="grid">'+etiquetasHtml+'</div>'+
     '</body></html>';
