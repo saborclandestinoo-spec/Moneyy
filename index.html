@@ -194,10 +194,18 @@ function gerarLabelHTML(pedido){
 
 function imprimirEtiqueta(pedido){
   const html=gerarLabelHTML(pedido);
-  const win=window.open('','_print_etq','width=350,height=550,toolbar=no,menubar=no,scrollbars=no');
-  if(!win){toast('⚠️ Permita pop-ups para imprimir!',true);return;}
-  win.document.open();win.document.write(html);win.document.close();
-  setTimeout(()=>{try{win.focus();win.print();setTimeout(()=>{try{win.close();}catch(e){}},1500);}catch(e){}},400);
+  const old=document.getElementById('_print_frame');
+  if(old)old.remove();
+  const iframe=document.createElement('iframe');
+  iframe.id='_print_frame';
+  iframe.style.cssText='position:fixed;top:-9999px;left:-9999px;width:90mm;height:200mm;border:none;visibility:hidden;';
+  document.body.appendChild(iframe);
+  const doc=iframe.contentDocument||iframe.contentWindow.document;
+  doc.open();doc.write(html);doc.close();
+  iframe.onload=()=>{
+    try{iframe.contentWindow.focus();iframe.contentWindow.print();}catch(e){toast('Erro ao imprimir: '+e.message,true);}
+    setTimeout(()=>{try{iframe.remove();}catch(e){}},3000);
+  };
 }
 
 function ImpressaoConfig(){
@@ -265,11 +273,11 @@ function ImpressaoConfig(){
     React.createElement('div',{style:{...C.card,background:'#f0f9ff',border:'1px solid #bae6fd'}},
       React.createElement('h4',{style:{fontSize:13,fontWeight:700,color:'#0369a1',marginBottom:10}},'ℹ️ Como funciona'),
       React.createElement('div',{style:{fontSize:12,color:'#0369a1',lineHeight:2}},
-        '• Ao chegar novo pedido do Cardápio Web → etiqueta abre e imprime automaticamente',React.createElement('br'),
-        '• Navegador abre diálogo de impressão → selecione sua impressora',React.createElement('br'),
-        '• Para imprimir SEM clicar: configure a impressora como padrão no Windows/Mac',React.createElement('br'),
-        '• Impressora USB/Bluetooth precisa estar instalada como impressora padrão do sistema',React.createElement('br'),
-        '• Permita pop-ups do site no navegador (necessário para abrir etiqueta)',
+        '• Novo pedido → etiqueta imprime automaticamente via iframe oculto (sem popup)',React.createElement('br'),
+        '• Diálogo de impressão abre → selecione sua impressora térmica ELGIN I9',React.createElement('br'),
+        '• Para não precisar clicar: defina a ELGIN I9 como impressora padrão no Windows',React.createElement('br'),
+        '• Impressoras do computador não podem ser listadas pelo navegador (limitação do Chrome)',React.createElement('br'),
+        '• Para impressão 100% silenciosa sem diálogo: instale o QZ Tray (qz.io)',
       )
     )
   );
