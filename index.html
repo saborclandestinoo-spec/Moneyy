@@ -253,13 +253,35 @@ function ImpressaoConfig(){
             React.createElement('input',{style:C.inp,value:cfg.nome||'',onChange:e=>save('nome',e.target.value),placeholder:'Ex: ELGIN I9 (USB)'})
           ),
           React.createElement('div',null,
-            React.createElement(Lbl,{c:'Quantidade de colunas'}),
+            React.createElement(Lbl,{c:'Largura do papel'}),
             React.createElement('select',{style:C.sel,value:cfg.colunas||'48',onChange:e=>save('colunas',e.target.value)},
               ['32','40','48','58','80'].map(v=>React.createElement('option',{key:v,value:v},v+' colunas'))
             )
           )
         ),
-        React.createElement(Lbl,{c:'Configurações'}),
+        React.createElement('div',{style:{borderTop:'1px solid #efefef',paddingTop:14,marginTop:4}}),
+        React.createElement(Lbl,{c:'Layout das etiquetas de produção'}),
+        React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'0 12px',marginBottom:8}},
+          React.createElement('div',null,
+            React.createElement(Lbl,{c:'Etiquetas por linha'}),
+            React.createElement('select',{style:C.sel,value:cfg.etq_por_linha||'1',onChange:e=>save('etq_por_linha',e.target.value)},
+              ['1','2','3','4'].map(v=>React.createElement('option',{key:v,value:v},v+' por linha'))
+            )
+          ),
+          React.createElement('div',null,
+            React.createElement(Lbl,{c:'Tamanho da fonte (px)'}),
+            React.createElement('select',{style:C.sel,value:cfg.etq_fonte||'16',onChange:e=>save('etq_fonte',e.target.value)},
+              [['10','Pequena (10px)'],['13','Média (13px)'],['16','Normal (16px)'],['20','Grande (20px)'],['24','Muito grande (24px)']].map(([v,l])=>React.createElement('option',{key:v,value:v},l))
+            )
+          ),
+          React.createElement('div',null,
+            React.createElement(Lbl,{c:'Unidades por saco'}),
+            React.createElement('select',{style:C.sel,value:cfg.etq_por_saco||'16',onChange:e=>save('etq_por_saco',e.target.value)},
+              ['1','5','8','10','12','16','20','24','30','50'].map(v=>React.createElement('option',{key:v,value:v},v+' un/saco'))
+            )
+          )
+        ),
+        React.createElement(Lbl,{c:'Configurações da impressora'}),
         React.createElement('div',{style:{display:'flex',flexWrap:'wrap',gap:8}},
           OPS.map(op=>React.createElement('label',{key:op,style:{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#555',cursor:'pointer',background:'#fff',border:'1px solid #e5e5e5',padding:'5px 11px',borderRadius:8}},
             React.createElement('input',{type:'checkbox',checked:!!((cfg.opcoes||{})[op]),onChange:()=>toggleOp(op),style:{cursor:'pointer'}}),op
@@ -4740,7 +4762,10 @@ function FloatInput({label,acent,value,onChange,type,placeholder,readOnly,style:
 
 
 function imprimirEtiquetas(p){
-  const POR_SACO=16;
+  const pc=getPrintCfg();
+  const cols=parseInt(pc.etq_por_linha||1);
+  const fs=parseInt(pc.etq_fonte||16);
+  const POR_SACO=parseInt(pc.etq_por_saco||16);
   const qtd=Number(p.quantidade||0);
   const totalSacos=Math.ceil(qtd/POR_SACO);
   const dataFmt=FD(p.data);
@@ -4754,30 +4779,37 @@ function imprimirEtiquetas(p){
       '<div class="etiqueta">'+
         '<div class="nome">'+p.ficha_nome+'</div>'+
         '<div class="linha"><span>Qtd no saco</span><span>'+qtdNesteSaco+' un</span></div>'+
-        '<div class="linha"><span>Produção</span><span>'+dataFmt+' · '+horaFmt+'</span></div>'+
+        '<div class="linha"><span>Produção</span><span>'+dataFmt+' '+horaFmt+'</span></div>'+
         '<div class="saco">Saco '+(i+1)+'/'+totalSacos+'</div>'+
       '</div>';
   }
 
-  const w=window.open('','_blank');
-  w.document.write(
-    '<html><head><title>Etiquetas — '+p.ficha_nome+'</title><style>'+
-    '@page{margin:8mm;}'+
+  const html='<html><head><meta charset="UTF-8"><style>'+
+    '@page{margin:4mm;size:auto;}'+
     '*{box-sizing:border-box;}'+
-    'body{font-family:Arial,Helvetica,sans-serif;margin:0;}'+
-    '.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6mm;}'+
-    '.etiqueta{border:1.5px dashed #999;border-radius:6px;padding:10px 12px;page-break-inside:avoid;}'+
-    '.nome{font-size:16px;font-weight:800;margin-bottom:6px;}'+
-    '.linha{display:flex;justify-content:space-between;font-size:11px;color:#333;margin-bottom:3px;}'+
+    'body{font-family:Arial,sans-serif;margin:0;padding:2mm;}'+
+    '.grid{display:grid;grid-template-columns:repeat('+cols+',1fr);gap:3mm;}'+
+    '.etiqueta{border:1.5px dashed #999;border-radius:4px;padding:8px 10px;page-break-inside:avoid;break-inside:avoid;}'+
+    '.nome{font-size:'+fs+'px;font-weight:800;margin-bottom:5px;word-break:break-word;}'+
+    '.linha{display:flex;justify-content:space-between;font-size:'+(fs-4)+'px;color:#333;margin-bottom:2px;}'+
     '.linha span:first-child{color:#888;}'+
-    '.saco{margin-top:6px;font-size:10px;font-weight:700;color:#7c3aed;text-align:right;}'+
-    '@media print{.grid{gap:4mm;}}'+
+    '.saco{margin-top:5px;font-size:'+(fs-5)+'px;font-weight:700;color:#7c3aed;text-align:right;}'+
     '</style></head><body>'+
     '<div class="grid">'+etiquetasHtml+'</div>'+
-    '</body></html>'
-  );
-  w.document.close();
-  setTimeout(()=>w.print(),300);
+    '</body></html>';
+
+  const old=document.getElementById('_print_frame');
+  if(old)old.remove();
+  const iframe=document.createElement('iframe');
+  iframe.id='_print_frame';
+  iframe.style.cssText='position:fixed;top:-9999px;left:-9999px;width:210mm;height:297mm;border:none;visibility:hidden;';
+  document.body.appendChild(iframe);
+  const doc=iframe.contentDocument||iframe.contentWindow.document;
+  doc.open();doc.write(html);doc.close();
+  iframe.onload=()=>{
+    try{iframe.contentWindow.focus();iframe.contentWindow.print();}catch(e){}
+    setTimeout(()=>{try{iframe.remove();}catch(e){}},3000);
+  };
 }
 
 function ProducaoDetalhe({producao,db,close}){
