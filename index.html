@@ -2056,7 +2056,7 @@ function PedidosCW({uid,db,setDb,reload,setM,cfg,setCfg}){
         // Processa baixa de estoque para pedidos entregues/finalizados encontrados na sincronização
         if(data&&window._processarBaixaEstoque){
           for(const p of data){
-            if(['confirmed','ready','released','delivered','closed','canceled'].includes(p.status))await window._processarBaixaEstoque(p);
+            if(['confirmed','ready','released','waiting_to_catch','delivered','closed','canceled'].includes(p.status))await window._processarBaixaEstoque(p);
           }
         }
         // Auto-abre o caixa se chegou pedido hoje e ainda não foi aberto
@@ -6225,7 +6225,7 @@ function App(){
     }
 
     // Baixa a partir do momento que o pedido é aceito (confirmed) até finalizado
-    if(!['confirmed','ready','released','delivered','closed'].includes(pedido.status))return;
+    if(!['confirmed','ready','released','waiting_to_catch','delivered','closed'].includes(pedido.status))return;
     if(jaProcessado)return;
 
     const itens=(pedido.raw&&pedido.raw.items)||pedido.itens||[];
@@ -6291,7 +6291,7 @@ function App(){
       const hoje=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});
       const ontem=new Date();ontem.setDate(ontem.getDate()-1);
       const ontemStr=ontem.toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});
-      const{data:pedidosRecentes}=await sb.from('pedidos_cw').select('*').eq('user_id',user.id).gte('data_pedido',ontemStr).in('status',['confirmed','ready','released','delivered','closed','canceled']);
+      const{data:pedidosRecentes}=await sb.from('pedidos_cw').select('*').eq('user_id',user.id).gte('data_pedido',ontemStr).in('status',['confirmed','ready','released','waiting_to_catch','delivered','closed','canceled']);
       if(!pedidosRecentes||!pedidosRecentes.length)return;
       for(const p of pedidosRecentes){
         await processarBaixaEstoque(p);
@@ -6327,7 +6327,7 @@ function App(){
       })
       .on('postgres_changes',{event:'UPDATE',schema:'public',table:'pedidos_cw'},async(payload)=>{
         if(payload.new&&payload.new.user_id!==user.id)return;
-        if(payload.new&&['confirmed','ready','released','delivered','closed','canceled'].includes(payload.new.status)){
+        if(payload.new&&['confirmed','ready','released','waiting_to_catch','delivered','closed','canceled'].includes(payload.new.status)){
           processarBaixaEstoque(payload.new);
         }
         clearTimeout(debounce);
