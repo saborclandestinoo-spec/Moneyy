@@ -6185,6 +6185,7 @@ function App(){
     const sourceId=String(pedido.source_id||pedido.id||'');
     if(!sourceId)return;
 
+    // Verifica se já foi processado (leitura rápida, não é a trava definitiva)
     const{data:jaProcessado,error:errCheck}=await sb.from('estoque_baixas').select('id').eq('user_id',user.id).eq('pedido_source_id',sourceId).maybeSingle();
     if(errCheck){toast('Erro estoque_baixas: '+errCheck.message,true);return;}
 
@@ -6228,6 +6229,16 @@ function App(){
     if(!['confirmed','ready','released','waiting_to_catch','delivered','closed'].includes(pedido.status))return;
     if(jaProcessado)return;
 
+    // TRAVA ATÔMICA: tenta inserir o registro de baixa ANTES de processar.
+    // Se outra chamada concorrente já inseriu (constraint UNIQUE violada), aborta aqui
+    // — isso evita descontar o mesmo pedido 2x quando Realtime e polling disparam quase juntos.
+    const{error:errLock}=await sb.from('estoque_baixas').insert({user_id:user.id,pedido_source_id:sourceId});
+    if(errLock){
+      // 23505 = unique_violation no Postgres: outra chamada já processou este pedido, ignora
+      if(errLock.code!=='23505')toast('Erro ao travar baixa: '+errLock.message,true);
+      return;
+    }
+
     const itens=(pedido.raw&&pedido.raw.items)||pedido.itens||[];
     if(!itens.length)return;
 
@@ -6264,10 +6275,6 @@ function App(){
       }
       // Se não existe produto acabado cadastrado ainda, não cria — só alerta quando vender sem produção prévia
     }
-
-    // Marca como processado (mesmo com itens sem vínculo, para não tentar de novo)
-    const{error:errMark}=await sb.from('estoque_baixas').insert({user_id:user.id,pedido_source_id:sourceId});
-    if(errMark){toast('Erro ao marcar baixa: '+errMark.message,true);return;}
 
     if(semVinculo.length>0){
       toast('⚠ Pedido #'+(pedido.pedido_id||'')+': sem vínculo de estoque para '+semVinculo.join(', '),true);
