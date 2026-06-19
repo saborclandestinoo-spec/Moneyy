@@ -1884,6 +1884,59 @@ function PedCaixa({uid,db,setDb,reload,setM}){
   const abrirMov=(tipo)=>setM({title:tipo==='suprimento'?'➕ Suprimento':'➖ Sangria',body:React.createElement(MovCaixaModal,{uid,caixa:caixaHoje,tipo,reload,close:()=>setM(null)})});
   const verRelatorio=(caixa)=>setM({title:'Relatório de Caixa — '+FD(caixa.data),wide:true,body:React.createElement(CaixaReportModal,{uid,caixa,db,close:()=>setM(null)})});
 
+  const fecharCaixaHistorico=(c)=>{
+    const dataCx=c.data;
+    const pedsDia=(pedidos_cw||[]).filter(p=>(p.data_pedido||'').startsWith(dataCx));
+    const pedEntregues=pedsDia.filter(p=>p.status==='delivered'||p.status==='closed');
+    const vendas=pedEntregues.reduce((acc,p)=>{
+      (p.pagamentos||[]).forEach(pg=>{
+        const k=(pg.payment_method||'').toLowerCase();
+        const nm=PM_MAP_CW[k]||k;
+        if(!acc[nm])acc[nm]=0;
+        acc[nm]+=Number(pg.value||pg.total||0);
+      });
+      return acc;
+    },{});
+    const vP=Object.entries(vendas).map(([forma,total])=>({forma,total}));
+    const aberturaCx=c.saldo_abertura||0;
+    const suprimCx=c.suprimentos||0;
+    const sangriaCx=c.sangrias||0;
+    const gerarLancHistorico=async()=>{
+      await sb.from('lancamentos').delete().eq('user_id',uid).eq('data',dataCx).eq('obs','consolidado_cw');
+      const grupos={};
+      pedEntregues.forEach(p=>{
+        (p.pagamentos||[]).forEach(pg=>{
+          const k=(pg.payment_method||'').toLowerCase();
+          const pmNome=PM_MAP_CW[k]||k;
+          const norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
+          const forma=(formas_pag||[]).find(f=>norm(f.nome)===norm(pmNome))||(formas_pag||[]).find(f=>norm(f.nome).includes(norm(pmNome)))||(formas_pag||[]).find(f=>norm(pmNome).includes(norm(f.nome)));
+          const valor=Number(pg.value||pg.total||0);if(!valor)return;
+          const taxa=forma&&forma.taxa_pct?valor*(forma.taxa_pct/100):0;
+          const dias=forma&&forma.dias||0;
+          const contaId=forma&&forma.conta_id||(contas||[])[0]&&(contas||[])[0].id;
+          if(!contaId)return;
+          const ch=contaId+'::'+pmNome+'::'+dias;
+          if(!grupos[ch])grupos[ch]={forma:forma&&forma.nome||pmNome,contaId,bruto:0,taxa:0,dias};
+          grupos[ch].bruto+=valor;grupos[ch].taxa+=taxa;
+        });
+      });
+      const rows=[];
+      for(const g of Object.values(grupos)){
+        const liq=parseFloat((g.bruto-g.taxa).toFixed(2));
+        let dt=dataCx;
+        if(g.dias>0){const d=new Date(dataCx+'T12:00:00');d.setDate(d.getDate()+g.dias);dt=d.toISOString().split('T')[0];}
+        rows.push({user_id:uid,tipo:'receita',descricao:'Vendas '+g.forma,valor:liq,data:dt,venc:dt,data_pag:g.dias===0?dt:null,pago:g.dias===0,conta_id:g.contaId,categoria:'3.1 Receita de Venda de Produtos',forma_pag:g.forma,obs:'consolidado_cw'});
+        if(g.taxa>0)rows.push({user_id:uid,tipo:'despesa',descricao:'Taxa '+g.forma,valor:parseFloat(g.taxa.toFixed(2)),data:dataCx,venc:dataCx,data_pag:dataCx,pago:true,conta_id:g.contaId,categoria:'4.2.4 Taxas',forma_pag:g.forma,obs:'consolidado_cw'});
+      }
+      if(rows.length)await sb.from('lancamentos').insert(rows);
+      return rows.length;
+    };
+    setM({title:'Fechar Caixa — '+FD(dataCx),wide:true,body:React.createElement(FecharCaixaModal,{
+      uid,caixa:c,vendasPrincipais:vP,abertura:aberturaCx,suprimentos:suprimCx,sangrias:sangriaCx,
+      gerarLancamentos:gerarLancHistorico,reload,close:()=>setM(null),setLd
+    })});
+  };
+
   const horaCaixa=(dt)=>dt?new Date(dt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'}):null;
   const FORMA_COR={PIX:'#16a34a','Cartão Crédito':'#f59e0b','Cartão Débito':'#3b82f6',Dinheiro:'#6b7280','iFood Online':'#dc2626'};
 
@@ -2039,7 +2092,9 @@ function PedCaixa({uid,db,setDb,reload,setM}){
                 React.createElement('span',{style:{fontWeight:700}},c.saldo_fechamento!=null?F(c.saldo_fechamento):'—'),
                 React.createElement('span',{style:{fontSize:11,color:'#aaa'}},horaCaixa(c.aberto_em)||'—'),
                 React.createElement('span',{style:{fontSize:11,color:'#aaa'}},horaCaixa(c.fechado_em)||'—'),
-                React.createElement('span',{style:{fontSize:11,color:'#dc2626',fontWeight:600}},'📄 Ver')
+                c.status!=='fechado'
+                  ?React.createElement('button',{style:{background:'#dc2626',color:'#fff',border:'none',borderRadius:7,padding:'4px 10px',fontSize:11,fontWeight:700,cursor:'pointer'},onClick:e=>{e.stopPropagation();fecharCaixaHistorico(c);}},'🔒 Fechar')
+                  :React.createElement('span',{style:{fontSize:11,color:'#6366f1',fontWeight:600}},'📄 Ver')
               ]});
             }),
             empty:'Nenhum caixa anterior'
