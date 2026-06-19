@@ -5724,6 +5724,69 @@ function LancForm({uid,tipo,db,reload,close,inicial}){
 }
 
 
+function ContaExtrato({conta,lancamentos,saldoInicial,dtRef,close}){
+  const[busca,setBusca]=React.useState('');
+  const[dtIni,setDtIni]=React.useState(()=>{const d=new Date();d.setDate(d.getDate()-30);return d.toISOString().split('T')[0];});
+  const[dtFim,setDtFim]=React.useState(TODAY());
+
+  const movs=React.useMemo(()=>(lancamentos||[])
+    .filter(l=>l.conta_id===conta.id&&l.pago&&l.data_pag)
+    .filter(l=>(!dtIni||l.data_pag>=dtIni)&&(!dtFim||l.data_pag<=dtFim))
+    .filter(l=>!busca||(l.descricao||'').toLowerCase().includes(busca.toLowerCase())||(l.categoria||'').toLowerCase().includes(busca.toLowerCase()))
+    .sort((a,b)=>(b.data_pag||'').localeCompare(a.data_pag||''))
+  ,[lancamentos,conta.id,dtIni,dtFim,busca]);
+
+  // Saldo corrido: começamos do saldo inicial e calculamos saldo em cada data
+  const totalEntradas=movs.filter(l=>l.tipo==='receita').reduce((s,l)=>s+Number(l.valor||0),0);
+  const totalSaidas=movs.filter(l=>l.tipo==='despesa').reduce((s,l)=>s+Number(l.valor||0),0);
+  const saldoFinal=saldoInicial+totalEntradas-totalSaidas;
+
+  const Inp2=({v,set,ph,type})=>React.createElement('input',{style:{...C.inp,fontSize:12,padding:'7px 10px'},value:v,onChange:e=>set(e.target.value),placeholder:ph,type:type||'text'});
+
+  return React.createElement('div',{style:{minWidth:560,maxHeight:580,display:'flex',flexDirection:'column'}},
+    // Saldo cards
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:14}},
+      [['Entradas',totalEntradas,'#16a34a','#f0fdf4'],['Saídas',totalSaidas,'#dc2626','#fff5f5'],['Saldo Período',totalEntradas-totalSaidas,totalEntradas-totalSaidas>=0?'#16a34a':'#dc2626','#f9f9f9']].map(([l,v,cor,bg])=>
+        React.createElement('div',{key:l,style:{background:bg,borderRadius:10,padding:'10px 14px'}},
+          React.createElement('div',{style:{fontSize:10,color:cor,fontWeight:700,textTransform:'uppercase',letterSpacing:'1px',marginBottom:3}},l),
+          React.createElement('div',{style:{fontSize:16,fontWeight:800,color:cor}},(v>=0?'+':'')+F(v))
+        )
+      )
+    ),
+    // Filtros
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 120px 120px',gap:8,marginBottom:12}},
+      React.createElement(Inp2,{v:busca,set:setBusca,ph:'Buscar lançamento...'}),
+      React.createElement(Inp2,{v:dtIni,set:setDtIni,type:'date'}),
+      React.createElement(Inp2,{v:dtFim,set:setDtFim,type:'date'})
+    ),
+    // Lista
+    React.createElement('div',{style:{flex:1,overflowY:'auto',borderRadius:10,border:'1px solid #f0f0f0'}},
+      movs.length===0
+        ?React.createElement('div',{style:{textAlign:'center',padding:'30px',color:'#ccc',fontSize:13}},'Nenhuma movimentação no período')
+        :movs.map(l=>{
+          const ent=l.tipo==='receita';
+          return React.createElement('div',{key:l.id,style:{display:'flex',gap:12,padding:'10px 14px',borderBottom:'1px solid #f8f8f8',alignItems:'center'}},
+            React.createElement('div',{style:{width:32,height:32,borderRadius:'50%',background:ent?'#f0fdf4':'#fff5f5',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:14,color:ent?'#16a34a':'#dc2626',flexShrink:0}},ent?'↑':'↓'),
+            React.createElement('div',{style:{flex:1,minWidth:0}},
+              React.createElement('div',{style:{fontWeight:700,fontSize:13,color:'#111',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},l.descricao||'—'),
+              React.createElement('div',{style:{fontSize:11,color:'#aaa',marginTop:2}},
+                (l.categoria||'')+(l.forma_pag?' · '+l.forma_pag:'')
+              )
+            ),
+            React.createElement('div',{style:{textAlign:'right',flexShrink:0}},
+              React.createElement('div',{style:{fontWeight:800,fontSize:14,color:ent?'#16a34a':'#dc2626'}},(ent?'+':'-')+F(Number(l.valor||0))),
+              React.createElement('div',{style:{fontSize:11,color:'#bbb',marginTop:2}},FD(l.data_pag))
+            )
+          );
+        })
+    ),
+    React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:12,paddingTop:10,borderTop:'1px solid #f0f0f0'}},
+      React.createElement('span',{style:{fontSize:12,color:'#aaa'}},movs.length+' lançamento(s)'),
+      React.createElement('button',{onClick:close,style:{background:'#f5f5f5',color:'#555',padding:'8px 16px',borderRadius:9,fontSize:13,border:'none',cursor:'pointer'}},'Fechar')
+    )
+  );
+}
+
 function FinContas({uid,db,reload,setM}){
   const{contas,lancamentos}=db;
 
@@ -5762,14 +5825,21 @@ function FinContas({uid,db,reload,setM}){
         const movs=(lancamentos||[]).filter(l=>l.conta_id===c.id&&l.pago&&l.data_pag&&(dtRef?l.data_pag>=dtRef:true));
         const receitas=movs.filter(l=>l.tipo==='receita').reduce((s,l)=>s+Number(l.valor||0),0);
         const despesas=movs.filter(l=>l.tipo==='despesa').reduce((s,l)=>s+Number(l.valor||0),0);
-        return React.createElement('div',{key:c.id,onClick:()=>editar(c),style:{background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden',borderTop:'3px solid '+(c.cor||'#dc2626'),cursor:'pointer',transition:'box-shadow 0.15s'}},
+        const verExtrato=(e)=>{
+          e.stopPropagation();
+          setM({title:'Extrato — '+c.nome,wide:true,body:React.createElement(ContaExtrato,{conta:c,lancamentos,saldoInicial:parseFloat(c.saldo_inicial!=null?c.saldo_inicial:(c.saldo!=null?c.saldo:0))||0,dtRef:c.data_saldo_inicial,close:()=>setM(null)})});
+        };
+        return React.createElement('div',{key:c.id,onClick:verExtrato,style:{background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden',borderTop:'3px solid '+(c.cor||'#dc2626'),cursor:'pointer',transition:'box-shadow 0.15s'}},
           React.createElement('div',{style:{padding:'16px'}},
             React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12}},
               React.createElement('div',null,
                 React.createElement('div',{style:{fontWeight:700,fontSize:15}},c.nome),
                 React.createElement('div',{style:{fontSize:11,color:'#aaa',marginTop:2}},c.tipo+(c.banco?' · '+c.banco:''))
               ),
-              React.createElement('button',{onClick:e=>excluir(e,c),style:{background:'#fee2e2',border:'none',borderRadius:7,padding:'3px 8px',fontSize:11,color:'#dc2626',cursor:'pointer',fontWeight:600}},'×')
+              React.createElement('div',{style:{display:'flex',gap:6}},
+                React.createElement('button',{onClick:e=>{e.stopPropagation();editar(c);},style:{background:'#f5f5f5',border:'none',borderRadius:7,padding:'3px 8px',fontSize:11,color:'#555',cursor:'pointer',fontWeight:600}},'✏'),
+                React.createElement('button',{onClick:e=>excluir(e,c),style:{background:'#fee2e2',border:'none',borderRadius:7,padding:'3px 8px',fontSize:11,color:'#dc2626',cursor:'pointer',fontWeight:600}},'×')
+              )
             ),
             React.createElement('div',{style:{fontSize:28,fontWeight:800,color:saldoReal>=0?'#111':'#dc2626',letterSpacing:'-0.5px',marginBottom:4}},F(saldoReal)),
             dtRef&&React.createElement('div',{style:{fontSize:11,color:'#aaa',marginBottom:10}},'Inicial: '+F(c.saldo_inicial!=null?c.saldo_inicial:(c.saldo!=null?c.saldo:0))+' em '+FD(dtRef)),
