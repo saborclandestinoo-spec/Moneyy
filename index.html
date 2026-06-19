@@ -1887,16 +1887,18 @@ function PedCaixa({uid,db,setDb,reload,setM}){
   const fecharCaixaHistorico=(c)=>{
     const dataCx=c.data;
     const pedsDia=(pedidos_cw||[]).filter(p=>(p.data_pedido||'').startsWith(dataCx));
-    const pedEntregues=pedsDia.filter(p=>p.status==='delivered'||p.status==='closed');
-    // vendasPrincipais deve ser {formaNome: valorTotal} igual agruparPagTodos
+    const pedNaoCancDia=pedsDia.filter(p=>p.status!=='canceled');
+    // vendasPrincipais = todos (incluindo ifood) para exibição no modal
     const vP={};
-    pedEntregues.forEach(p=>{
+    pedNaoCancDia.forEach(p=>{
       (p.pagamentos||[]).forEach(pg=>{
         const k=(pg.payment_method||'').toLowerCase();
         const nm=k==='ifood'?'iFood Online':PM_MAP_CW[k]||k;
         vP[nm]=(vP[nm]||0)+Number(pg.value||pg.total||0);
       });
     });
+    // Para lançamentos: exclui canal ifood igual ao original
+    const pedEntregues=pedNaoCancDia.filter(p=>p.canal!=='ifood'&&(p.status==='delivered'||p.status==='closed'));
     const aberturaCx=c.saldo_abertura||0;
     const suprimCx=c.suprimentos||0;
     const sangriaCx=c.sangrias||0;
