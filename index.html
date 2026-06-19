@@ -5726,7 +5726,7 @@ function LancForm({uid,tipo,db,reload,close,inicial}){
 
 function ContaExtrato({conta,lancamentos,saldoInicial,dtRef,close}){
   const[busca,setBusca]=React.useState('');
-  const[dtIni,setDtIni]=React.useState(()=>{const d=new Date();d.setDate(d.getDate()-30);return d.toISOString().split('T')[0];});
+  const[dtIni,setDtIni]=React.useState(dtRef||'');
   const[dtFim,setDtFim]=React.useState(TODAY());
 
   const movs=React.useMemo(()=>(lancamentos||[])
@@ -5754,10 +5754,10 @@ function ContaExtrato({conta,lancamentos,saldoInicial,dtRef,close}){
       )
     ),
     // Filtros
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 120px 120px',gap:8,marginBottom:12}},
-      React.createElement(Inp2,{v:busca,set:setBusca,ph:'Buscar lançamento...'}),
-      React.createElement(Inp2,{v:dtIni,set:setDtIni,type:'date'}),
-      React.createElement(Inp2,{v:dtFim,set:setDtFim,type:'date'})
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}},
+      React.createElement('input',{style:{...C.inp,fontSize:13},value:busca,onChange:e=>setBusca(e.target.value),placeholder:'Buscar lançamento...'}),
+      React.createElement('input',{type:'date',style:{...C.inp,fontSize:13},value:dtIni,onChange:e=>{e.stopPropagation();setDtIni(e.target.value);},onClick:e=>e.stopPropagation()}),
+      React.createElement('input',{type:'date',style:{...C.inp,fontSize:13},value:dtFim,onChange:e=>{e.stopPropagation();setDtFim(e.target.value);},onClick:e=>e.stopPropagation()})
     ),
     // Lista
     React.createElement('div',{style:{flex:1,overflowY:'auto',borderRadius:10,border:'1px solid #f0f0f0'}},
