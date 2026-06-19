@@ -1888,16 +1888,15 @@ function PedCaixa({uid,db,setDb,reload,setM}){
     const dataCx=c.data;
     const pedsDia=(pedidos_cw||[]).filter(p=>(p.data_pedido||'').startsWith(dataCx));
     const pedEntregues=pedsDia.filter(p=>p.status==='delivered'||p.status==='closed');
-    const vendas=pedEntregues.reduce((acc,p)=>{
+    // vendasPrincipais deve ser {formaNome: valorTotal} igual agruparPagTodos
+    const vP={};
+    pedEntregues.forEach(p=>{
       (p.pagamentos||[]).forEach(pg=>{
         const k=(pg.payment_method||'').toLowerCase();
-        const nm=PM_MAP_CW[k]||k;
-        if(!acc[nm])acc[nm]=0;
-        acc[nm]+=Number(pg.value||pg.total||0);
+        const nm=k==='ifood'?'iFood Online':PM_MAP_CW[k]||k;
+        vP[nm]=(vP[nm]||0)+Number(pg.value||pg.total||0);
       });
-      return acc;
-    },{});
-    const vP=Object.entries(vendas).map(([forma,total])=>({forma,total}));
+    });
     const aberturaCx=c.saldo_abertura||0;
     const suprimCx=c.suprimentos||0;
     const sangriaCx=c.sangrias||0;
