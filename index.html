@@ -1884,10 +1884,13 @@ function PedCaixa({uid,db,setDb,reload,setM}){
   const abrirMov=(tipo)=>setM({title:tipo==='suprimento'?'➕ Suprimento':'➖ Sangria',body:React.createElement(MovCaixaModal,{uid,caixa:caixaHoje,tipo,reload,close:()=>setM(null)})});
   const verRelatorio=(caixa)=>setM({title:'Relatório de Caixa — '+FD(caixa.data),wide:true,body:React.createElement(CaixaReportModal,{uid,caixa,db,close:()=>setM(null)})});
 
-  const fecharCaixaHistorico=(c)=>{
+  const fecharCaixaHistorico=async(c)=>{
     const dataCx=c.data;
-    const pedsDia=(pedidos_cw||[]).filter(p=>(p.data_pedido||'').startsWith(dataCx));
-    const pedNaoCancDia=pedsDia.filter(p=>p.status!=='canceled');
+    setLd(true);
+    // Busca pedidos do dia direto do banco (pedidos_cw só carrega >= hoje)
+    const{data:pedsDia=[]}=await sb.from('pedidos_cw').select('*').eq('user_id',uid).eq('data_pedido',dataCx);
+    setLd(false);
+    const pedNaoCancDia=(pedsDia||[]).filter(p=>p.status!=='canceled');
     // vendasPrincipais = todos (incluindo ifood) para exibição no modal
     const vP={};
     pedNaoCancDia.forEach(p=>{
