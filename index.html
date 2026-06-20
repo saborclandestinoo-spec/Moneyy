@@ -2100,7 +2100,51 @@ function PedCaixa({uid,db,setDb,reload,setM}){
                   ?React.createElement('button',{style:{background:'#dc2626',color:'#fff',border:'none',borderRadius:7,padding:'4px 10px',fontSize:11,fontWeight:700,cursor:'pointer'},onClick:e=>{e.stopPropagation();fecharCaixaHistorico(c);}},'🔒 Fechar')
                   :React.createElement('div',{style:{display:'flex',gap:6},onClick:e=>e.stopPropagation()},
                       React.createElement('button',{style:{background:'#f5f5f5',color:'#555',border:'none',borderRadius:7,padding:'4px 10px',fontSize:11,fontWeight:700,cursor:'pointer'},onClick:e=>{e.stopPropagation();verRelatorio(c);}},'📄 Ver'),
-                      React.createElement('button',{style:{background:'#7c3aed',color:'#fff',border:'none',borderRadius:7,padding:'4px 10px',fontSize:11,fontWeight:700,cursor:'pointer'},onClick:async e=>{e.stopPropagation();if(!confirm('Regerar lançamentos de '+FD(c.data)+'? Os lançamentos existentes do dia serão substituídos.'))return;setLd(true);const{data:pedsDia=[]}=await sb.from('pedidos_cw').select('*').eq('user_id',uid).eq('data_pedido',c.data);setLd(false);const pedEntregues=(pedsDia||[]).filter(p=>p.canal!=='ifood'&&p.status!=='canceled'&&(p.status==='delivered'||p.status==='closed'));await sb.from('lancamentos').delete().eq('user_id',uid).eq('data',c.data).eq('obs','consolidado_cw');const grupos={};pedEntregues.forEach(p=>{const pgs=p.pagamentos||(p.raw&&p.raw.payments)||[];pgs.forEach(pg=>{const k=(pg.payment_method||pg.method||pg.type||'').toLowerCase();const pmNome=PM_MAP_CW[k]||k;const norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();const forma=(formas_pag||[]).find(f=>norm(f.nome)===norm(pmNome))||(formas_pag||[]).find(f=>norm(f.nome).includes(norm(pmNome)))||(formas_pag||[]).find(f=>norm(pmNome).includes(norm(f.nome)));const valor=Number(pg.value||pg.amount||pg.total||pg.valor||0);if(!valor)return;const taxa=forma&&forma.taxa_pct?valor*(forma.taxa_pct/100):0;const dias=forma&&forma.dias||0;const contaId=forma&&forma.conta_id||(contas||[])[0]?.id;if(!contaId)return;const ch=contaId+'::'+pmNome+'::'+dias;if(!grupos[ch])grupos[ch]={forma:forma?.nome||pmNome,contaId,bruto:0,taxa:0,dias};grupos[ch].bruto+=valor;grupos[ch].taxa+=taxa;});});const rows=[];for(const g of Object.values(grupos)){const liq=parseFloat((g.bruto-g.taxa).toFixed(2));let dt=c.data;if(g.dias>0){const d=new Date(c.data+'T12:00:00');d.setDate(d.getDate()+g.dias);dt=d.toISOString().split('T')[0];}rows.push({user_id:uid,tipo:'receita',descricao:'Vendas '+g.forma,valor:liq,data:dt,venc:dt,data_pag:g.dias===0?dt:null,pago:g.dias===0,conta_id:g.contaId,categoria:'3.1 Receita de Venda de Produtos',forma_pag:g.forma,obs:'consolidado_cw'});if(g.taxa>0)rows.push({user_id:uid,tipo:'despesa',descricao:'Taxa '+g.forma,valor:parseFloat(g.taxa.toFixed(2)),data:c.data,venc:c.data,data_pag:c.data,pago:true,conta_id:g.contaId,categoria:'4.2.4 Taxas',forma_pag:g.forma,obs:'consolidado_cw'});}if(rows.length){await sb.from('lancamentos').insert(rows);}reload();toast('✅ '+rows.length+' lançamentos gerados para '+FD(c.data),false,true);}},'↺ Regerar')
+                      React.createElement('button',{style:{background:'#7c3aed',color:'#fff',border:'none',borderRadius:7,padding:'4px 10px',fontSize:11,fontWeight:700,cursor:'pointer'},onClick:e=>{e.stopPropagation();setM({title:'Regerar Lançamentos',body:React.createElement('div',{style:{padding:'8px 0'}},
+  React.createElement('p',{style:{fontSize:13,color:'#555',marginBottom:16}},'Regerar lançamentos de '+FD(c.data)+'? Os lançamentos consolidado_cw existentes serão substituídos.'),
+  React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
+    React.createElement('button',{style:{...C.ghost},onClick:()=>setM(null)},'Cancelar'),
+    React.createElement('button',{style:{...C.bgrn,background:'#7c3aed'},onClick:async()=>{
+      setM(null);setLd(true);
+      const{data:pedsDia=[]}=await sb.from('pedidos_cw').select('*').eq('user_id',uid).eq('data_pedido',c.data);
+      setLd(false);
+      const todos=pedsDia||[];
+      const pedEntregues=todos.filter(p=>p.canal!=='ifood'&&p.status!=='canceled'&&(p.status==='delivered'||p.status==='closed'));
+      if(!pedEntregues.length){toast('Nenhum pedido entregue encontrado em '+FD(c.data)+'. Total buscado: '+todos.length,true);return;}
+      await sb.from('lancamentos').delete().eq('user_id',uid).eq('data',c.data).eq('obs','consolidado_cw');
+      const grupos={};
+      pedEntregues.forEach(p=>{
+        const pgs=p.pagamentos||(p.raw&&p.raw.payments)||[];
+        pgs.forEach(pg=>{
+          const k=(pg.payment_method||pg.method||pg.type||'').toLowerCase();
+          const pmNome=PM_MAP_CW[k]||k||'Outros';
+          const norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
+          const forma=(formas_pag||[]).find(f=>norm(f.nome)===norm(pmNome))||(formas_pag||[]).find(f=>norm(f.nome).includes(norm(pmNome)))||(formas_pag||[]).find(f=>norm(pmNome).includes(norm(f.nome)));
+          const valor=Number(pg.value||pg.amount||pg.total||pg.valor||0);
+          if(!valor)return;
+          const taxa=forma&&forma.taxa_pct?valor*(forma.taxa_pct/100):0;
+          const dias=forma&&forma.dias||0;
+          const contaId=(forma&&forma.conta_id)||((contas||[])[0]&&(contas||[])[0].id);
+          if(!contaId){toast('Conta não encontrada para forma: '+pmNome,true);return;}
+          const ch=contaId+'::'+pmNome+'::'+dias;
+          if(!grupos[ch])grupos[ch]={forma:forma?.nome||pmNome,contaId,bruto:0,taxa:0,dias};
+          grupos[ch].bruto+=valor;grupos[ch].taxa+=taxa;
+        });
+      });
+      const rows=[];
+      for(const g of Object.values(grupos)){
+        const liq=parseFloat((g.bruto-g.taxa).toFixed(2));
+        let dt=c.data;
+        if(g.dias>0){const d=new Date(c.data+'T12:00:00');d.setDate(d.getDate()+g.dias);dt=d.toISOString().split('T')[0];}
+        rows.push({user_id:uid,tipo:'receita',descricao:'Vendas '+g.forma,valor:liq,data:dt,venc:dt,data_pag:g.dias===0?dt:null,pago:g.dias===0,conta_id:g.contaId,categoria:'3.1 Receita de Venda de Produtos',forma_pag:g.forma,obs:'consolidado_cw'});
+        if(g.taxa>0)rows.push({user_id:uid,tipo:'despesa',descricao:'Taxa '+g.forma,valor:parseFloat(g.taxa.toFixed(2)),data:c.data,venc:c.data,data_pag:c.data,pago:true,conta_id:g.contaId,categoria:'4.2.4 Taxas',forma_pag:g.forma,obs:'consolidado_cw'});
+      }
+      if(rows.length){const{error}=await sb.from('lancamentos').insert(rows);if(error){toast('Erro: '+error.message,true);return;}}
+      reload();
+      toast('✅ '+rows.length+' lançamentos gerados para '+FD(c.data)+' ('+pedEntregues.length+' pedidos)',false,true);
+    }},'↺ Regerar')
+  )
+)});}},'↺ Regerar')
                     )
               ]});
             }),
