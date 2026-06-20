@@ -1888,8 +1888,12 @@ function PedCaixa({uid,db,setDb,reload,setM}){
     const dataCx=c.data;
     setLd(true);
     // Busca pedidos do dia direto do banco (pedidos_cw só carrega >= hoje)
-    const{data:pedsDia=[]}=await sb.from('pedidos_cw').select('*').eq('user_id',uid).eq('data_pedido',dataCx);
+    const{data:_p1=[]}=await sb.from('pedidos_cw').select('*').eq('user_id',uid).eq('data_pedido',dataCx);
+    const _nd=new Date(dataCx+'T12:00:00');_nd.setDate(_nd.getDate()+1);const _ndStr=_nd.toISOString().split('T')[0];
+    const{data:_p2=[]}=await sb.from('pedidos_cw').select('*').eq('user_id',uid).is('data_pedido',null).gte('created_at',dataCx+'T03:00:00Z').lt('created_at',_ndStr+'T03:00:00Z');
     setLd(false);
+    const _seen=new Set((_p1||[]).map(p=>p.id));
+    const pedsDia=[...(_p1||[]),...(_p2||[]).filter(p=>!_seen.has(p.id))];
     const pedNaoCancDia=(pedsDia||[]).filter(p=>p.status!=='canceled');
     // vendasPrincipais = todos (incluindo ifood) para exibição no modal
     const vP={};
@@ -2106,9 +2110,14 @@ function PedCaixa({uid,db,setDb,reload,setM}){
     React.createElement('button',{style:{...C.ghost},onClick:()=>setM(null)},'Cancelar'),
     React.createElement('button',{style:{...C.bgrn,background:'#7c3aed'},onClick:async()=>{
       setM(null);setLd(true);
-      const{data:pedsDia=[]}=await sb.from('pedidos_cw').select('*').eq('user_id',uid).eq('data_pedido',c.data);
+      // Busca 1: por data_pedido exata
+      const{data:p1=[]}=await sb.from('pedidos_cw').select('*').eq('user_id',uid).eq('data_pedido',c.data);
+      // Busca 2: por created_at do dia (UTC-3 → +3h) para pedidos sem data_pedido
+      const nd=new Date(c.data+'T12:00:00');nd.setDate(nd.getDate()+1);const ndStr=nd.toISOString().split('T')[0];
+      const{data:p2=[]}=await sb.from('pedidos_cw').select('*').eq('user_id',uid).is('data_pedido',null).gte('created_at',c.data+'T03:00:00Z').lt('created_at',ndStr+'T03:00:00Z');
       setLd(false);
-      const todos=pedsDia||[];
+      const seen=new Set((p1||[]).map(p=>p.id));
+      const todos=[...(p1||[]),...(p2||[]).filter(p=>!seen.has(p.id))];
       const pedEntregues=todos.filter(p=>p.canal!=='ifood'&&p.status!=='canceled'&&(p.status==='delivered'||p.status==='closed'));
       if(!pedEntregues.length){toast('Nenhum pedido entregue encontrado em '+FD(c.data)+'. Total buscado: '+todos.length,true);return;}
       await sb.from('lancamentos').delete().eq('user_id',uid).eq('data',c.data).eq('obs','consolidado_cw');
