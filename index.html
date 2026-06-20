@@ -1904,8 +1904,8 @@ function PedCaixa({uid,db,setDb,reload,setM}){
         vP[nm]=(vP[nm]||0)+Number(pg.value||pg.total||0);
       });
     });
-    // Para lançamentos: exclui canal ifood igual ao original
-    const pedEntregues=pedNaoCancDia.filter(p=>p.canal!=='ifood'&&(p.status==='delivered'||p.status==='closed'));
+    // Inclui todos os entregues - payment_method separa iFood Online dos demais
+    const pedEntregues=pedNaoCancDia.filter(p=>p.status==='delivered'||p.status==='closed');
     const aberturaCx=c.saldo_abertura||0;
     const suprimCx=c.suprimentos||0;
     const sangriaCx=c.sangrias||0;
@@ -2128,8 +2128,9 @@ function PedCaixa({uid,db,setDb,reload,setM}){
         return dt===c.data;
       };
       const todosDia=todos.filter(matchDia);
-      const pedEntregues=todosDia.filter(p=>p.canal!=='ifood'&&p.status!=='canceled'&&(p.status==='delivered'||p.status==='closed'));
-      if(!pedEntregues.length){toast('Buscados: '+todos.length+' | Dia: '+todosDia.length+' | Entregues não-ifood: '+pedEntregues.length+'. Canais: '+[...new Set(todosDia.map(p=>p.canal||'null'))].join(','),true);return;}
+      // Inclui TODOS os entregues (iFood marketplace também) - o payment_method separa iFood Online dos cartões
+      const pedEntregues=todosDia.filter(p=>p.status!=='canceled'&&(p.status==='delivered'||p.status==='closed'));
+      if(!pedEntregues.length){toast('Nenhum pedido entregue em '+FD(c.data)+'. Buscados: '+todos.length+', Dia: '+todosDia.length,true);return;}
       await sb.from('lancamentos').delete().eq('user_id',uid).eq('data',c.data).eq('obs','consolidado_cw');
       const grupos={};
       pedEntregues.forEach(p=>{
