@@ -2474,7 +2474,9 @@ function PedidoCWDetalhe({p,contas,formas_pag,uid,reload,close}){
   const dtFmt=raw.created_at?new Date(raw.created_at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'}):'—';
   const addr=raw.delivery_address||{};
   const addrStr=[addr.street,addr.number,addr.complement,addr.neighborhood,addr.city,addr.state].filter(Boolean).join(', ');
-  const subtotal=itens.reduce((s,it)=>s+Number(it.total_price||0),0);
+  const itensAtivos=itens.filter(it=>it.status!=='CANCELLED'&&it.status!=='cancelled'&&!it.cancelled);
+  const itensCancelados=itens.filter(it=>it.status==='CANCELLED'||it.status==='cancelled'||it.cancelled);
+  const subtotal=itensAtivos.reduce((s,it)=>s+Number(it.total_price||0),0);
   const taxaEntrega=Number(raw.delivery_fee||0);
   const adicional=Number(raw.additional_fee||0);
   const total=Number(p.total||0);
@@ -2541,8 +2543,8 @@ function PedidoCWDetalhe({p,contas,formas_pag,uid,reload,close}){
 
     // Itens
     React.createElement('div',{style:{background:'#f8f9fc',borderRadius:12,padding:'12px 14px',marginBottom:12}},
-      secTitle('📋','Itens do pedido',React.createElement('span',{style:{fontSize:12,color:'#aaa'}},itens.length+' item(s)')),
-      itens.map((it,i)=>React.createElement('div',{key:i,style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',padding:'8px 0',borderBottom:i<itens.length-1?'1px solid #eee':'none'}},
+      secTitle('📋','Itens do pedido',React.createElement('span',{style:{fontSize:12,color:'#aaa'}},itensAtivos.length+' item(s)'+(itensCancelados.length?' · '+itensCancelados.length+' cancelado(s)':''))),
+      itensAtivos.map((it,i)=>React.createElement('div',{key:i,style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',padding:'8px 0',borderBottom:i<itensAtivos.length-1?'1px solid #eee':'none'}},
         React.createElement('div',{style:{flex:1}},
           React.createElement('div',{style:{display:'flex',gap:8,alignItems:'center'}},
             React.createElement('span',{style:{background:'#e0e0e0',borderRadius:6,padding:'1px 7px',fontSize:12,fontWeight:700,color:'#555'}},(it.quantity||it.qty||1)+'x'),
@@ -2553,6 +2555,16 @@ function PedidoCWDetalhe({p,contas,formas_pag,uid,reload,close}){
         ),
         React.createElement('span',{style:{fontWeight:700,fontSize:13,whiteSpace:'nowrap'}},F(it.total_price||0))
       )),
+      itensCancelados.length>0&&React.createElement('div',{style:{marginTop:8,padding:'8px 10px',background:'#fff5f5',borderRadius:8,border:'1px solid #fecaca'}},
+        React.createElement('div',{style:{fontSize:11,fontWeight:700,color:'#dc2626',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.5px'}},'🚫 Itens cancelados'),
+        itensCancelados.map((it,i)=>React.createElement('div',{key:i,style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'4px 0',opacity:0.7}},
+          React.createElement('div',{style:{display:'flex',gap:8,alignItems:'center'}},
+            React.createElement('span',{style:{background:'#fecaca',borderRadius:6,padding:'1px 7px',fontSize:12,fontWeight:700,color:'#dc2626'}},(it.quantity||it.qty||1)+'x'),
+            React.createElement('span',{style:{fontSize:13,color:'#dc2626',textDecoration:'line-through'}},it.name||it.nome||'?')
+          ),
+          React.createElement('span',{style:{fontWeight:600,fontSize:13,color:'#dc2626',textDecoration:'line-through'}},F(it.total_price||0))
+        ))
+      ),
       // Totais
       React.createElement('div',{style:{marginTop:10,paddingTop:10,borderTop:'1px solid #e0e0e0'}},
         React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:12,color:'#888',marginBottom:4}},
