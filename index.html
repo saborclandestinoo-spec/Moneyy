@@ -2110,16 +2110,26 @@ function PedCaixa({uid,db,setDb,reload,setM}){
     React.createElement('button',{style:{...C.ghost},onClick:()=>setM(null)},'Cancelar'),
     React.createElement('button',{style:{...C.bgrn,background:'#7c3aed'},onClick:async()=>{
       setM(null);setLd(true);
-      // Busca 1: por data_pedido exata
+      // Busca ampla: qualquer pedido criado naquele dia (sem filtro de data_pedido)
+      const _dIni=c.data+'T03:00:00Z'; // meia-noite BRT = 03:00 UTC
+      const _nd2=new Date(c.data+'T12:00:00');_nd2.setDate(_nd2.getDate()+1);
+      const _dFim=_nd2.toISOString().split('T')[0]+'T03:00:00Z';
+      const{data:allFetch=[]}=await sb.from('pedidos_cw').select('*').eq('user_id',uid)
+        .gte('created_at',_dIni).lt('created_at',_dFim);
+      // Também busca por data_pedido exata (pode estar em outro fuso)
       const{data:p1=[]}=await sb.from('pedidos_cw').select('*').eq('user_id',uid).eq('data_pedido',c.data);
-      // Busca 2: por created_at do dia (UTC-3 → +3h) para pedidos sem data_pedido
-      const nd=new Date(c.data+'T12:00:00');nd.setDate(nd.getDate()+1);const ndStr=nd.toISOString().split('T')[0];
-      const{data:p2=[]}=await sb.from('pedidos_cw').select('*').eq('user_id',uid).is('data_pedido',null).gte('created_at',c.data+'T03:00:00Z').lt('created_at',ndStr+'T03:00:00Z');
       setLd(false);
-      const seen=new Set((p1||[]).map(p=>p.id));
-      const todos=[...(p1||[]),...(p2||[]).filter(p=>!seen.has(p.id))];
-      const pedEntregues=todos.filter(p=>p.canal!=='ifood'&&p.status!=='canceled'&&(p.status==='delivered'||p.status==='closed'));
-      if(!pedEntregues.length){toast('Nenhum pedido entregue encontrado em '+FD(c.data)+'. Total buscado: '+todos.length,true);return;}
+      const seen=new Set((allFetch||[]).map(p=>p.id));
+      const todos=[...(allFetch||[]),...(p1||[]).filter(p=>!seen.has(p.id))];
+      // Filtra client-side pelo dia BR
+      const matchDia=p=>{
+        if((p.data_pedido||'').startsWith(c.data))return true;
+        const dt=p.raw&&p.raw.created_at?new Date(p.raw.created_at).toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'}):null;
+        return dt===c.data;
+      };
+      const todosDia=todos.filter(matchDia);
+      const pedEntregues=todosDia.filter(p=>p.canal!=='ifood'&&p.status!=='canceled'&&(p.status==='delivered'||p.status==='closed'));
+      if(!pedEntregues.length){toast('Buscados: '+todos.length+' | Dia: '+todosDia.length+' | Entregues não-ifood: '+pedEntregues.length+'. Canais: '+[...new Set(todosDia.map(p=>p.canal||'null'))].join(','),true);return;}
       await sb.from('lancamentos').delete().eq('user_id',uid).eq('data',c.data).eq('obs','consolidado_cw');
       const grupos={};
       pedEntregues.forEach(p=>{
