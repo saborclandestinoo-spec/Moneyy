@@ -6747,7 +6747,8 @@ function App(){
           toast('🛎 Novo pedido!',false,true);
           // Auto-impressão de etiqueta de produção
           try{const pc=getPrintCfg();if(pc.autoprint&&payload.new){setTimeout(()=>imprimirEtiqueta(payload.new),600);}}catch(e){}
-             // Auto-abertura desativada
+          // Auto-abertura desativada — caixa só abre manualmente
+        },800);
       })
       .on('postgres_changes',{event:'UPDATE',schema:'public',table:'pedidos_cw'},async(payload)=>{
         if(payload.new&&payload.new.user_id!==user.id)return;
