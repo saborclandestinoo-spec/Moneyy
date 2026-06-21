@@ -3773,7 +3773,8 @@ function FinPagar({uid,db,reload,setM}){
     if(!confirm('Confirmar pagamento de '+F(l.valor)+'?'))return;
     await sb.from('lancamentos').update({pago:true,data_pag:hoje,conta_id:conta.id}).eq('id',l.id);
     await sb.from('contas_bancarias').update({saldo:Number(conta.saldo)-Number(l.valor)}).eq('id',conta.id);
-    toast('Pago!',false,true);reload();
+    await gerarCashback(uid,conta.id,Number(l.valor),hoje,contas);
+    toast('Pago!'+(conta.cashback_pct>0?' 💰 +cashback':''),false,true);reload();
   };
 
   const badgeStyle=(v,ativo)=>({padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,background:ativo?'#dc2626':'#f5f5f5',color:ativo?'#fff':'#666',border:'none',cursor:'pointer'});
@@ -5683,6 +5684,7 @@ function LancForm({uid,tipo,db,reload,close,inicial}){
     if(pago&&contaId&&!(inicial&&inicial.id)){
       const conta=(contas||[]).find(c=>c.id===contaId);
       if(conta){const delta=isRec?totalFinal:-totalFinal;await sb.from('contas_bancarias').update({saldo:Number(conta.saldo)+delta}).eq('id',contaId);}
+      if(!isRec)await gerarCashback(uid,contaId,totalFinal,dataPag||TODAY(),contas);
     }
     // Dá entrada no estoque (quantidade só na criação, para evitar duplicar)
     if(vincularEstoque&&estoqueId&&estQtdTotal>0){
@@ -5906,8 +5908,8 @@ function FinContas({uid,db,reload,setM}){
   };
 
   const total=(contas||[]).reduce((s,c)=>s+calcSaldoReal(c),0);
-  const novo=()=>setM({title:'Nova Conta',body:React.createElement(ContaForm,{uid,reload,close:()=>setM(null)})});
-  const editar=(c)=>setM({title:'Editar — '+c.nome,body:React.createElement(ContaForm,{uid,reload,conta:c,close:()=>setM(null)})});
+  const novo=()=>setM({title:'Nova Conta',body:React.createElement(ContaForm,{uid,reload,contas,close:()=>setM(null)})});
+  const editar=(c)=>setM({title:'Editar — '+c.nome,body:React.createElement(ContaForm,{uid,reload,conta:c,contas,close:()=>setM(null)})});
   const excluir=async(e,c)=>{
     e.stopPropagation();
     if(!confirm('Excluir conta "'+c.nome+'"? Lançamentos vinculados não serão excluídos.'))return;
@@ -6495,13 +6497,31 @@ function CatForm({uid,grupo,tipo,reload,close}){
 }
 
 
-function ContaForm({uid,reload,close,conta}){
+function gerarCashback(uid, contaId, valor, data, contas){
+  // Busca conta e verifica se tem cashback configurado
+  const conta=(contas||[]).find(c=>c.id===contaId);
+  if(!conta||!conta.cashback_pct||!conta.cashback_conta_id)return Promise.resolve(null);
+  const cbVal=parseFloat((valor*conta.cashback_pct/100).toFixed(2));
+  if(cbVal<=0)return Promise.resolve(null);
+  return sb.from('lancamentos').insert({
+    user_id:uid,tipo:'receita',
+    descricao:'Cashback '+conta.nome+' ('+conta.cashback_pct+'%)',
+    valor:cbVal,data,venc:data,data_pag:data,pago:true,
+    conta_id:conta.cashback_conta_id,
+    categoria:'3.1 Receita de Venda de Produtos',
+    obs:'cashback_despesa'
+  });
+}
+
+function ContaForm({uid,reload,close,conta,contas}){
   const[nome,setNome]=React.useState(conta?.nome||'');
   const[tipo,setTipo]=React.useState(conta?.tipo||'Digital');
   const[banco,setBanco]=React.useState(conta?.banco||'');
   const[cor,setCor]=React.useState(conta?.cor||'#dc2626');
   const[saldo,setSaldo]=React.useState(String((conta&&conta.saldo_inicial!=null?conta.saldo_inicial:(conta&&conta.saldo!=null?conta.saldo:'0'))));
   const[dataSaldo,setDataSaldo]=React.useState(conta?.data_saldo_inicial||TODAY());
+  const[cashbackPct,setCashbackPct]=React.useState(String(conta?.cashback_pct||''));
+  const[cashbackContaId,setCashbackContaId]=React.useState(conta?.cashback_conta_id||'');
   const[ld,setLd]=React.useState(false);
   const isEdit=!!(conta?.id);
 
@@ -6513,7 +6533,7 @@ function ContaForm({uid,reload,close,conta}){
     if(!nome){toast('Informe o nome',true);return;}
     setLd(true);
     const vl=parseFloat(String(saldo).replace(',','.'))||0;
-    const payload={user_id:uid,nome,tipo,banco,cor,saldo_inicial:vl,data_saldo_inicial:dataSaldo,saldo:vl,ativo:true};
+    const payload={user_id:uid,nome,tipo,banco,cor,saldo_inicial:vl,data_saldo_inicial:dataSaldo,saldo:vl,ativo:true,cashback_pct:parseFloat(cashbackPct)||0,cashback_conta_id:cashbackContaId||null};
     if(isEdit){
       await sb.from('contas_bancarias').update(payload).eq('id',conta.id);
       toast('Conta atualizada!',false,true);
@@ -6537,6 +6557,20 @@ function ContaForm({uid,reload,close,conta}){
     ),
     React.createElement(FloatInput,{label:'Saldo atual (R$) *',acent:'#dc2626',type:'number',value:saldo,onChange:e=>setSaldo(e.target.value)}),
     React.createElement(MiniDatePicker,{label:'Data do saldo *',value:dataSaldo,onChange:setDataSaldo,acent:'#dc2626'}),
+    // Cashback
+    React.createElement('div',{style:{background:'#f0fdf4',borderRadius:10,padding:'12px 14px',marginBottom:12,border:'1px solid #bbf7d0'}},
+      React.createElement('div',{style:{fontSize:11,fontWeight:700,color:'#16a34a',marginBottom:8}},'💰 Cashback em despesas'),
+      React.createElement('div',{style:{fontSize:11,color:'#555',marginBottom:10,lineHeight:1.5}},'Ao pagar uma despesa com esta conta, gera automaticamente um lançamento de cashback na conta escolhida.'),
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1.5fr',gap:10}},
+        React.createElement(FloatInput,{label:'Cashback (%)',acent:'#16a34a',type:'number',value:cashbackPct,onChange:e=>setCashbackPct(e.target.value)}),
+        React.createElement(CustomSelect,{label:'Conta destino cashback',value:cashbackContaId,onChange:setCashbackContaId,
+          options:(contas||[]).filter(c=>!conta||c.id!==conta.id).map(c=>({v:c.id,l:c.nome})),placeholder:'— Sem cashback —',acent:'#16a34a'
+        })
+      ),
+      parseFloat(cashbackPct)>0&&cashbackContaId&&React.createElement('div',{style:{fontSize:11,color:'#16a34a',marginTop:4,fontWeight:600}},
+        'Despesa de R$100 → gera R$'+(100*parseFloat(cashbackPct||0)/100).toFixed(2)+' de cashback automaticamente'
+      )
+    ),
     React.createElement('label',{style:lbS},'Cor'),
     React.createElement('div',{style:{display:'flex',gap:8,marginBottom:16,flexWrap:'wrap'}},
       CORES.map(c=>React.createElement('button',{key:c,onClick:()=>setCor(c),style:{width:28,height:28,borderRadius:'50%',background:c,border:cor===c?'3px solid #111':'2px solid transparent',cursor:'pointer',flexShrink:0}}))
