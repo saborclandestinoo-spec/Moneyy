@@ -1763,7 +1763,7 @@ function PedCaixa({uid,db,setDb,reload,setM}){
     fn();const t=setInterval(fn,30000);return()=>clearInterval(t);
   },[uid,hoje]);
 
-  const caixaHoje=(caixas||[]).find(c=>c.data===hoje);
+  const caixaHoje=(caixas||[]).find(c=>c.status==='aberto')||(caixas||[]).find(c=>c.data===hoje);
   const caixaAberto=caixaHoje&&caixaHoje.status==='aberto';
   const caixaFechado=caixaHoje&&caixaHoje.status==='fechado';
 
@@ -1981,7 +1981,7 @@ function PedCaixa({uid,db,setDb,reload,setM}){
   );
 
   // ── Histórico ──
-  const historico=(caixas||[]).filter(c=>c.data!==hoje).sort((a,b)=>(b.data||'').localeCompare(a.data||''));
+  const historico=(caixas||[]).filter(c=>!caixaAberto||c.id!==caixaHoje.id).sort((a,b)=>(b.data||'').localeCompare(a.data||''));
 
   return React.createElement(PW,{title:'Caixa',sub:new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',timeZone:'America/Sao_Paulo'}),
     actions:[
@@ -2367,16 +2367,8 @@ function PedidosCW({uid,db,setDb,reload,setM,cfg,setCfg}){
             if(['confirmed','ready','released','waiting_to_catch','delivered','closed','canceled'].includes(p.status))await window._processarBaixaEstoque(p);
           }
         }
-        // Auto-abre o caixa se chegou pedido hoje e ainda não foi aberto
-        if(data&&data.length>0){
-          const{data:caixaExiste}=await sb.from('caixas').select('id').eq('user_id',uid).eq('data',hoje).maybeSingle();
-          if(!caixaExiste){
-            await sb.from('caixas').insert({user_id:uid,data:hoje,status:'aberto',saldo_abertura:0,suprimentos:0,sangrias:0});
-            const{data:cxs}=await sb.from('caixas').select('*').eq('user_id',uid).order('criado_em',{ascending:false}).limit(30);
-            if(cxs&&setDb)setDb(prev=>({...prev,caixas:cxs}));
-            if(!silent)toast('🔓 Caixa aberto automaticamente!',false,true);
-          }
-        }
+        /// Auto-abertura desativada — caixa só abre manualmente
+        if(data&&data.length>0){ /* pedidos chegaram */ }
       }
     }catch(e){toast('Erro: '+e.message,true);}
     setSyncing(false);
@@ -6755,15 +6747,7 @@ function App(){
           toast('🛎 Novo pedido!',false,true);
           // Auto-impressão de etiqueta de produção
           try{const pc=getPrintCfg();if(pc.autoprint&&payload.new){setTimeout(()=>imprimirEtiqueta(payload.new),600);}}catch(e){}
-          // Auto-abre o caixa se ainda não foi aberto hoje
-          const{data:caixaExiste}=await sb.from('caixas').select('id').eq('user_id',user.id).eq('data',hoje).maybeSingle();
-          if(!caixaExiste){
-            await sb.from('caixas').insert({user_id:user.id,data:hoje,status:'aberto',saldo_abertura:0,suprimentos:0,sangrias:0});
-            const{data:cxs}=await sb.from('caixas').select('*').eq('user_id',user.id).order('criado_em',{ascending:false}).limit(30);
-            if(cxs)setDb(prev=>({...prev,caixas:cxs}));
-            toast('🔓 Caixa aberto automaticamente!',false,true);
-          }
-        },800);
+             // Auto-abertura desativada
       })
       .on('postgres_changes',{event:'UPDATE',schema:'public',table:'pedidos_cw'},async(payload)=>{
         if(payload.new&&payload.new.user_id!==user.id)return;
