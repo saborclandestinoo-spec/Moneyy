@@ -1494,37 +1494,38 @@ function FecharCaixaModal({uid,caixa,vendasPrincipais,abertura,suprimentos,sangr
     if(imprimir)window.print();
   };
 
-  const cols='2fr 1fr 90px 1fr';
-  return React.createElement('div',{style:{minWidth:420}},
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:cols,gap:8,padding:'4px 0 8px',fontSize:10,color:'#aaa',fontWeight:700,letterSpacing:'0.5px',textTransform:'uppercase',borderBottom:'2px solid #f0f0f0'}},
-      React.createElement('span',null,''),
-      React.createElement('span',{style:{textAlign:'right'}},'Esperado'),
-      React.createElement('span',{style:{textAlign:'center'}},'Em caixa'),
-      React.createElement('span',{style:{textAlign:'right'}},'Diferença')
+  const cols='1.5fr 100px 80px 90px';
+  const hd={textAlign:'right',fontSize:10,color:'#aaa',fontWeight:700,letterSpacing:'0.5px',textTransform:'uppercase'};
+  return React.createElement('div',{style:{minWidth:380}},
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:cols,gap:6,padding:'4px 0 8px',borderBottom:'2px solid #f0f0f0',alignItems:'center'}},
+      React.createElement('span',{style:{fontSize:10,color:'#aaa',fontWeight:700}},''),
+      React.createElement('span',{style:hd},'Esperado'),
+      React.createElement('span',{style:{...hd,textAlign:'center'}},'Em caixa'),
+      React.createElement('span',{style:hd},'Diferença')
     ),
 
     formasExibidas.map(f=>{
       const esp=esperadoPorForma[f]||0;
       const cont=parseFloat(contadoPorForma[f])||0;
       const diff=contadoPorForma[f]!==''?cont-esp:null;
-      return React.createElement('div',{key:f,style:{display:'grid',gridTemplateColumns:cols,gap:8,padding:'8px 0',borderBottom:'1px solid #f8f8f8',alignItems:'center'}},
+      return React.createElement('div',{key:f,style:{display:'grid',gridTemplateColumns:cols,gap:6,padding:'7px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}},
         React.createElement('span',{style:{fontSize:13,fontWeight:600,color:'#111'}},f),
-        React.createElement('span',{style:{textAlign:'right',fontSize:13,color:'#555'}},F(esp)),
-        React.createElement('div',{style:{display:'flex',alignItems:'center',gap:3,justifyContent:'center'}},
-          React.createElement('span',{style:{fontSize:11,color:'#bbb'}},'R$'),
+        React.createElement('span',{style:{textAlign:'right',fontSize:12,color:'#555'}},F(esp)),
+        React.createElement('div',{style:{display:'flex',alignItems:'center',gap:2,justifyContent:'center'}},
+          React.createElement('span',{style:{fontSize:10,color:'#bbb'}},'R$'),
           React.createElement('input',{
             type:'number',placeholder:'0,00',value:contadoPorForma[f],
             onChange:e=>setContadoPorForma(p=>({...p,[f]:e.target.value})),
-            style:{width:64,textAlign:'right',border:'1.5px solid #d1d5db',borderRadius:7,padding:'5px 6px',fontSize:13,outline:'none'}
+            style:{width:52,textAlign:'right',border:'1.5px solid #d1d5db',borderRadius:6,padding:'4px 5px',fontSize:12,outline:'none'}
           })
         ),
-        React.createElement('span',{style:{textAlign:'right',fontSize:13,fontWeight:700,color:diff===null?'#ccc':diff<-0.005?'#dc2626':diff>0.005?'#16a34a':'#16a34a'}},
+        React.createElement('span',{style:{textAlign:'right',fontSize:12,fontWeight:700,color:diff===null?'#ddd':diff<-0.005?'#dc2626':'#16a34a'}},
           diff===null?'—':(diff>=0?'+':'')+F(diff)
         )
       );
     }),
 
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:cols,gap:8,padding:'10px 0',borderTop:'2px solid #111',marginTop:2}},
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:cols,gap:6,padding:'8px 0',borderTop:'2px solid #111',marginTop:2}},
       React.createElement('span',{style:{fontWeight:800,fontSize:13}},'Total'),
       React.createElement('span',{style:{textAlign:'right',fontWeight:800,fontSize:13}},F(totalEsperado)),
       React.createElement('span',null,''),
