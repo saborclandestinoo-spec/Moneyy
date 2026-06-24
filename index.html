@@ -1815,8 +1815,9 @@ function PedCaixa({uid,db,setDb,reload,setM}){
   const gerarLancamentos=async()=>{
     await sb.from('lancamentos').delete().eq('user_id',uid).eq('data',dataCaixa).eq('obs','consolidado_cw');
     const grupos={};
-    [...pedDelivery,...pedRetirada].filter(p=>p.status==='delivered'||p.status==='closed').forEach(p=>{
-      (p.pagamentos||[]).forEach(pg=>{
+    pedNaoCancelados.filter(p=>p.status==='delivered'||p.status==='closed').forEach(p=>{
+      const pgs=p.pagamentos||(p.raw&&p.raw.payments)||[];
+      pgs.forEach(pg=>{
         const k=(pg.payment_method||'').toLowerCase();
         const pmNome=PM_MAP_CW[k]||k;
         const norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
