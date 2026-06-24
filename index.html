@@ -1937,17 +1937,6 @@ function PedCaixa({uid,db,setDb,reload,setM}){
         if(g.taxa>0)rows.push({user_id:uid,tipo:'despesa',descricao:'Taxa '+g.forma,valor:parseFloat(g.taxa.toFixed(2)),data:dataCx,venc:dataCx,data_pag:dataCx,pago:true,conta_id:g.contaId,categoria:'4.2.4 Taxas',forma_pag:g.forma,obs:'consolidado_cw'});
       }
       if(rows.length)await sb.from('lancamentos').insert(rows);
-      // Cashback automático
-      const cbRows=[];
-      for(const g of Object.values(grupos)){
-        const norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
-        const forma=(formas_pag||[]).find(f=>norm(f.nome)===norm(g.forma)||norm(f.nome).includes(norm(g.forma))||norm(g.forma).includes(norm(f.nome)));
-        if(forma&&forma.cashback_pct>0&&forma.cashback_conta_id){
-          const cbVal=parseFloat((g.bruto*forma.cashback_pct/100).toFixed(2));
-          if(cbVal>0)cbRows.push({user_id:uid,tipo:'receita',descricao:'Cashback '+g.forma,valor:cbVal,data:dataCx,venc:dataCx,data_pag:dataCx,pago:true,conta_id:forma.cashback_conta_id,categoria:'3.1 Receita de Venda de Produtos',forma_pag:g.forma,obs:'cashback_cw'});
-        }
-      }
-      if(cbRows.length){await sb.from('lancamentos').delete().eq('user_id',uid).eq('data',dataCx).eq('obs','cashback_cw');await sb.from('lancamentos').insert(cbRows);}
       return rows.length;
     };
     setM({title:'Fechar Caixa — '+FD(dataCx),wide:true,body:React.createElement(FecharCaixaModal,{
@@ -2184,18 +2173,8 @@ function PedCaixa({uid,db,setDb,reload,setM}){
         if(g.taxa>0)rows.push({user_id:uid,tipo:'despesa',descricao:'Taxa '+g.forma,valor:parseFloat(g.taxa.toFixed(2)),data:c.data,venc:c.data,data_pag:c.data,pago:true,conta_id:g.contaId,categoria:'4.2.4 Taxas',forma_pag:g.forma,obs:'consolidado_cw'});
       }
       if(rows.length){const{error}=await sb.from('lancamentos').insert(rows);if(error){toast('Erro: '+error.message,true);return;}}
-      // Cashback: gera receita para formas com cashback_pct > 0
-      const cbRows=[];
-      for(const g of Object.values(grupos)){
-        const forma=(formas_pag||[]).find(f=>{const norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();return norm(f.nome)===norm(g.forma)||norm(f.nome).includes(norm(g.forma))||norm(g.forma).includes(norm(f.nome));});
-        if(forma&&forma.cashback_pct>0&&forma.cashback_conta_id){
-          const cbVal=parseFloat((g.bruto*forma.cashback_pct/100).toFixed(2));
-          if(cbVal>0)cbRows.push({user_id:uid,tipo:'receita',descricao:'Cashback '+g.forma,valor:cbVal,data:c.data,venc:c.data,data_pag:c.data,pago:true,conta_id:forma.cashback_conta_id,categoria:'3.1 Receita de Venda de Produtos',forma_pag:g.forma,obs:'cashback_cw'});
-        }
-      }
-      if(cbRows.length){await sb.from('lancamentos').delete().eq('user_id',uid).eq('data',c.data).eq('obs','cashback_cw');await sb.from('lancamentos').insert(cbRows);}
       reload();
-      toast('✅ '+rows.length+' lançamentos'+(cbRows.length?' + '+cbRows.length+' cashback':'')+' gerados para '+FD(c.data)+' ('+pedEntregues.length+' pedidos)',false,true);
+      toast('✅ '+rows.length+' lançamentos gerados para '+FD(c.data)+' ('+pedEntregues.length+' pedidos)',false,true);
     }},'↺ Regerar')
   )
 )});}},'↺ Regerar')
@@ -3217,8 +3196,105 @@ function HistoricoMovimentos({uid,produtoNome,close}){
   );
 }
 
+function AlterarEstoqueModal({uid, produto, close, reload}){
+  const[tab,setTab]=React.useState('add'); // 'add' | 'rem'
+  const[qtd,setQtd]=React.useState('');
+  const[custoUnit,setCustoUnit]=React.useState('');
+  const[desc,setDesc]=React.useState('Atualização de estoque');
+  const[ld,setLd]=React.useState(false);
+
+  const atual=Number(produto?.qtd||produto?.qtd_estoque||0);
+  const custoAtual=Number(produto?.custo||0);
+  const qtdNum=parseFloat(qtd)||0;
+  const atualizado=tab==='add'?atual+qtdNum:Math.max(0,atual-qtdNum);
+  const custoUnitNum=parseFloat(String(custoUnit).replace(',','.'))||0;
+  const custoMedio=tab==='add'&&qtdNum>0&&custoUnitNum>0
+    ?(custoAtual*atual+custoUnitNum*qtdNum)/(atual+qtdNum)
+    :custoAtual;
+
+  const tabStyle=(active)=>({
+    flex:1,padding:'10px',fontWeight:700,fontSize:13,cursor:'pointer',border:'none',
+    background:active?'#7c3aed':'transparent',color:active?'#fff':'#999',
+    borderRadius:active?(tab==='add'?'8px 0 0 8px':'0 8px 8px 0'):'none',transition:'all 0.15s'
+  });
+
+  const salvar=async()=>{
+    if(!qtdNum){toast('Informe a quantidade',true);return;}
+    setLd(true);
+    const delta=tab==='add'?qtdNum:-qtdNum;
+    const novaQtd=Math.max(0,atual+delta);
+    const novoCusto=tab==='add'&&custoUnitNum>0?parseFloat((custoMedio*novaQtd).toFixed(2)):custoAtual;
+    await sb.from('estoque').update({qtd:novaQtd,qtd_estoque:novaQtd,custo:novoCusto}).eq('id',produto.id);
+    await sb.from('movimentacoes_estoque').insert({
+      user_id:uid,estoque_id:produto.id,produto_nome:produto.nome,
+      tipo:tab==='add'?'entrada':'saida',quantidade:qtdNum,custo_unit:custoUnitNum||null,
+      referencia:'ajuste_manual',descricao:desc||'Ajuste manual',data:TODAY()
+    });
+    setLd(false);
+    toast(tab==='add'?'✅ Estoque adicionado!':'✅ Estoque retirado!',false,true);
+    if(reload)reload();
+    close();
+  };
+
+  const colStyle={textAlign:'center',flex:1};
+  const numBox=(val,label,input,onChange)=>React.createElement('div',{style:colStyle},
+    React.createElement('div',{style:{fontSize:11,color:'#aaa',marginBottom:6}},label),
+    input
+      ?React.createElement('input',{style:{width:'100%',textAlign:'center',fontWeight:800,fontSize:18,border:'2px solid #7c3aed',borderRadius:10,padding:'10px 4px',color:'#7c3aed',outline:'none',background:'#faf5ff'},
+          type:'number',value:val,onChange:e=>onChange(e.target.value),placeholder:'0',min:0})
+      :React.createElement('div',{style:{fontSize:22,fontWeight:800,color:label==='Atualizado'?(atualizado<0?'#dc2626':'#111'):'#555'}},val)
+  );
+
+  return React.createElement('div',{style:{minWidth:380}},
+    // Tabs
+    React.createElement('div',{style:{display:'flex',background:'#f5f5f5',borderRadius:10,padding:3,marginBottom:20,gap:3}},
+      React.createElement('button',{style:tabStyle(tab==='add'),onClick:()=>setTab('add')},'↑ ADICIONAR'),
+      React.createElement('button',{style:tabStyle(tab==='rem'),onClick:()=>setTab('rem')},'↓ RETIRAR')
+    ),
+    // Qty row
+    React.createElement('div',{style:{display:'flex',gap:10,marginBottom:16,background:'#f9f9f9',borderRadius:12,padding:'14px 10px'}},
+      numBox(atual,'Atual',false),
+      React.createElement('div',{style:{display:'flex',alignItems:'center',color:'#ccc',fontSize:20,fontWeight:300}},'|'),
+      numBox(qtd,tab==='add'?'Adicionar':'Retirar',true,setQtd),
+      React.createElement('div',{style:{display:'flex',alignItems:'center',color:'#ccc',fontSize:20,fontWeight:300}},'|'),
+      numBox(atualizado,'Atualizado',false)
+    ),
+    // Cost row
+    React.createElement('div',{style:{display:'flex',gap:10,marginBottom:16,background:'#f9f9f9',borderRadius:12,padding:'14px 10px'}},
+      React.createElement('div',{style:colStyle},
+        React.createElement('div',{style:{fontSize:11,color:'#aaa',marginBottom:6}},'Custo atual'),
+        React.createElement('div',{style:{fontSize:16,fontWeight:700,color:'#555'}},F(custoAtual))
+      ),
+      React.createElement('div',{style:{display:'flex',alignItems:'center',color:'#ccc',fontSize:20,fontWeight:300}},'|'),
+      React.createElement('div',{style:{...colStyle}},
+        React.createElement('div',{style:{fontSize:11,color:'#aaa',marginBottom:6}},'Custo unitário'),
+        React.createElement('div',{style:{display:'flex',alignItems:'center',gap:4,justifyContent:'center'}},
+          React.createElement('span',{style:{fontSize:13,color:'#888'}},'R$'),
+          React.createElement('input',{style:{width:80,textAlign:'center',fontWeight:700,fontSize:15,border:'2px solid #e5e5e5',borderRadius:8,padding:'7px 4px',color:'#111',outline:'none'},
+            type:'number',value:custoUnit,onChange:e=>setCustoUnit(e.target.value),placeholder:'0,00',min:0,step:'0.01'})
+        )
+      ),
+      React.createElement('div',{style:{display:'flex',alignItems:'center',color:'#ccc',fontSize:20,fontWeight:300}},'|'),
+      React.createElement('div',{style:colStyle},
+        React.createElement('div',{style:{fontSize:11,color:'#aaa',marginBottom:6}},'Custo médio'),
+        React.createElement('div',{style:{fontSize:16,fontWeight:700,color:'#555'}},F(custoMedio))
+      )
+    ),
+    // Desc
+    React.createElement('textarea',{value:desc,onChange:e=>setDesc(e.target.value),
+      style:{width:'100%',border:'1.5px solid #e5e5e5',borderRadius:10,padding:'10px 13px',fontSize:13,color:'#333',resize:'none',height:70,marginBottom:16,boxSizing:'border-box'},
+      placeholder:'Descrição da movimentação'}),
+    // Actions
+    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
+      React.createElement('button',{onClick:close,style:{background:'#f5f5f5',color:'#555',padding:'10px 18px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'}},'Cancelar'),
+      React.createElement('button',{onClick:salvar,disabled:ld,style:{background:'#7c3aed',color:'#fff',padding:'10px 24px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},ld?'Salvando...':'SALVAR')
+    )
+  );
+}
+
 function FichaForm({uid,db,reload,close,ficha,setM}){
   const[verHistorico,setVerHistorico]=React.useState(false);
+  const[alterarEstoque,setAlterarEstoque]=React.useState(false);
   const{estoque}=db;
   const[nome,setNome]=React.useState(ficha?.nome||'');
   const[nomeCw,setNomeCw]=React.useState(ficha?.nome_cw||'');
@@ -3312,6 +3388,15 @@ function FichaForm({uid,db,reload,close,ficha,setM}){
   const CAT_CORES={Cookie:'#dc2626',Bolo:'#7c3aed',Brownie:'#92400e',Trufa:'#db2777',Brigadeiro:'#ea580c',Torta:'#0891b2',Outro:'#6b7280'};
   const cor=CAT_CORES[cat]||'#dc2626';
 
+  if(alterarEstoque){
+    return React.createElement('div',null,
+      React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10,marginBottom:16}},
+        React.createElement('button',{onClick:()=>setAlterarEstoque(false),style:{background:'#f5f5f5',color:'#555',padding:'7px 14px',borderRadius:9,fontSize:12,fontWeight:600,border:'none',cursor:'pointer'}},'← Voltar'),
+        React.createElement('span',{style:{fontWeight:700,color:'#7c3aed',fontSize:14}},'Alterar Estoque — '+nome)
+      ),
+      React.createElement(AlterarEstoqueModal,{uid,produto:prodAcabadoAtual,close:()=>setAlterarEstoque(false),reload})
+    );
+  }
   if(verHistorico){
     return React.createElement('div',null,
       React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}},
@@ -3339,21 +3424,19 @@ function FichaForm({uid,db,reload,close,ficha,setM}){
     ),
 
     React.createElement('div',{style:{background:'#faf5ff',borderRadius:10,padding:'12px 14px',marginBottom:14}},
-      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}},
-        React.createElement(FloatInput,{label:'Estoque Inicial (un)',acent:'#7c3aed',type:'number',value:estoqueInicial,onChange:e=>setEstoqueInicial(e.target.value)}),
+      React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:isEdit?10:0}},
         React.createElement('div',null,
-          React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700,letterSpacing:'1.5px',textTransform:'uppercase',marginBottom:5}},'Estoque Atual'),
-          React.createElement('div',{style:{background:'#fff',border:'1.5px solid #ede9fe',borderRadius:10,padding:'10px 13px',fontSize:18,fontWeight:800,color:'#7c3aed'}},
+          React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700,letterSpacing:'1.5px',textTransform:'uppercase',marginBottom:4}},'Estoque Atual'),
+          React.createElement('div',{style:{fontSize:22,fontWeight:900,color:'#7c3aed'}},
             (prodAcabadoAtual?Number(prodAcabadoAtual.qtd||0):0)+' un'
           )
+        ),
+        isEdit&&React.createElement('div',{style:{display:'flex',gap:8}},
+          React.createElement('button',{onClick:()=>setVerHistorico(true),style:{background:'#fff',color:'#7c3aed',border:'1.5px solid #ede9fe',padding:'7px 12px',borderRadius:9,fontSize:12,fontWeight:700,cursor:'pointer'}},'📋 Histórico'),
+          React.createElement('button',{onClick:()=>setAlterarEstoque(true),style:{background:'#7c3aed',color:'#fff',border:'none',padding:'7px 14px',borderRadius:9,fontSize:12,fontWeight:700,cursor:'pointer'}},'✏ Alterar Estoque')
         )
       ),
-      React.createElement('div',{style:{fontSize:11,color:'#7c3aed',marginTop:8}},
-        isEdit
-          ?'Estoque Inicial é o ponto de partida. Alterá-lo ajusta o saldo atual pela diferença, sem afetar produções/vendas já registradas. O Estoque Atual muda automaticamente com Produção (+) e pedidos entregues (−).'
-          :'Quantidade já existente em estoque ao cadastrar esta ficha (se houver). Pode deixar 0 e usar Produção depois.'
-      ),
-      isEdit&&React.createElement('button',{onClick:()=>setVerHistorico(true),style:{marginTop:10,background:'#fff',color:'#7c3aed',border:'1.5px solid #ede9fe',padding:'7px 14px',borderRadius:9,fontSize:12,fontWeight:700,cursor:'pointer'}},'📋 Ver Histórico de Movimentação')
+      !isEdit&&React.createElement(FloatInput,{label:'Estoque Inicial (un)',acent:'#7c3aed',type:'number',value:estoqueInicial,onChange:e=>setEstoqueInicial(e.target.value)})
     ),
 
     React.createElement(FloatInput,{label:'Preço de Venda (R$)',acent:cor,type:'number',value:precoVenda,onChange:e=>setPrecoVenda(e.target.value)}),
@@ -6332,11 +6415,10 @@ function FinFormas({uid,db,reload,setM}){
     conta_id:formasMap[p.nome]&&formasMap[p.nome].conta_id||'',
     taxa_pct:formasMap[p.nome]?formasMap[p.nome].taxa_pct:p.taxa_pct,
     dias:formasMap[p.nome]?formasMap[p.nome].dias:p.dias,
-    cashback_pct:formasMap[p.nome]?formasMap[p.nome].cashback_pct||0:0,
-    cashback_conta_id:formasMap[p.nome]&&formasMap[p.nome].cashback_conta_id||'',
+
   }));
 
-  const[local,setLocal]=React.useState(()=>Object.fromEntries(todas.map(f=>[f.nome,{conta_id:f.conta_id||'',taxa_pct:f.taxa_pct,dias:f.dias,cashback_pct:f.cashback_pct||0,cashback_conta_id:f.cashback_conta_id||''}])));
+  const[local,setLocal]=React.useState(()=>Object.fromEntries(todas.map(f=>[f.nome,{conta_id:f.conta_id||'',taxa_pct:f.taxa_pct,dias:f.dias}])));
 
   const upd=(nome,k,v)=>setLocal(p=>({...p,[nome]:{...p[nome],[k]:v}}));
 
@@ -6344,7 +6426,7 @@ function FinFormas({uid,db,reload,setM}){
     setSaving(p=>({...p,[nome]:true}));
     const d=local[nome];
     const existing=formasMap[nome];
-    const payload={conta_id:d.conta_id||null,taxa_pct:parseFloat(d.taxa_pct)||0,dias:parseInt(d.dias)||0,status:'ativa',cashback_pct:parseFloat(d.cashback_pct)||0,cashback_conta_id:d.cashback_conta_id||null};
+    const payload={conta_id:d.conta_id||null,taxa_pct:parseFloat(d.taxa_pct)||0,dias:parseInt(d.dias)||0,status:'ativa'};
     if(existing&&existing.id){
       await sb.from('formas_pagamento').update(payload).eq('id',existing.id);
     }else{
@@ -6404,17 +6486,6 @@ function FinFormas({uid,db,reload,setM}){
             React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}},
               React.createElement(FloatInput,{label:'Taxa (%)',acent:f.cor||'#dc2626',type:'number',value:loc.taxa_pct,onChange:e=>upd(f.nome,'taxa_pct',e.target.value)}),
               React.createElement(FloatInput,{label:'Prazo (dias)',acent:f.cor||'#dc2626',type:'number',value:loc.dias,onChange:e=>upd(f.nome,'dias',e.target.value)})
-            ),
-            // Cashback
-            React.createElement('div',{style:{background:'#f0fdf4',borderRadius:9,padding:'10px 12px',marginBottom:10,border:'1px solid #bbf7d0'}},
-              React.createElement('div',{style:{fontSize:10,color:'#16a34a',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:8}},'💰 Cashback'),
-              React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1.5fr',gap:8}},
-                React.createElement(FloatInput,{label:'Cashback (%)',acent:'#16a34a',type:'number',value:loc.cashback_pct||0,onChange:e=>upd(f.nome,'cashback_pct',e.target.value)}),
-                React.createElement(CustomSelect,{label:'Conta que recebe',value:loc.cashback_conta_id||'',onChange:v=>upd(f.nome,'cashback_conta_id',v),options:(contas||[]).map(c=>({v:c.id,l:c.nome})),placeholder:'— Sem cashback —',acent:'#16a34a'})
-              ),
-              loc.cashback_pct>0&&loc.cashback_conta_id&&React.createElement('div',{style:{fontSize:11,color:'#16a34a',marginTop:4}},
-                'Venda de R$100 → gera R$'+(100*loc.cashback_pct/100).toFixed(2)+' de cashback automaticamente'
-              )
             ),
             // Preview
             React.createElement('div',{style:{background:'#f9f9fb',borderRadius:9,padding:'9px 12px',marginBottom:12,fontSize:12,color:'#888'}},
