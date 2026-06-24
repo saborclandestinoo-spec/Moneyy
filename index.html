@@ -1751,45 +1751,64 @@ function CaixaReportModal({uid,caixa,db,close}){
 }
 
 function PedCaixa({uid,db,setDb,reload,setM}){
-  const{lancamentos,contas,formas_pag,caixas}=db;
+  const{pedidos_cw,lancamentos,contas,formas_pag,caixas}=db;
   const hoje=TODAY();
   const[ld,setLd]=React.useState(false);
   const[aba,setAba]=React.useState('hoje');
+  const[pedidosLocal,setPedidosLocal]=React.useState(pedidos_cw||[]);
+
+  React.useEffect(()=>{setPedidosLocal(pedidos_cw||[]);},[pedidos_cw]);
+  React.useEffect(()=>{
+    const fn=()=>sb.from('pedidos_cw').select('*').eq('user_id',uid).gte('data_pedido',hoje).order('data_pedido',{ascending:false}).then(({data})=>{if(data)setPedidosLocal(data);});
+    fn();const t=setInterval(fn,30000);return()=>clearInterval(t);
+  },[uid,hoje]);
 
   const caixaHoje=(caixas||[]).find(c=>c.status==='aberto')||(caixas||[]).find(c=>c.data===hoje)||(caixas||[]).find(c=>c.fechado_em&&c.fechado_em.startsWith(hoje))||(caixas||[]).sort((a,b)=>(b.fechado_em||b.aberto_em||'').localeCompare(a.fechado_em||a.aberto_em||''))[0]||null;
   const caixaAberto=caixaHoje&&caixaHoje.status==='aberto';
   const caixaFechado=caixaHoje&&caixaHoje.status==='fechado';
 
-  // Vendas vêm dos lançamentos do dia (sistema interno)
   const dataCaixa=caixaHoje&&caixaHoje.data||hoje;
-  const lancDia=(lancamentos||[]).filter(l=>l.data===dataCaixa&&l.tipo==='receita'&&l.obs!=='cashback_despesa');
-  const lancHoje=lancDia;
-
-  // vendasPrincipais agrupadas por forma_pag dos lançamentos
-  const vendasPrincipais={};
-  lancDia.forEach(l=>{
-    const f=l.forma_pag||l.descricao||'Outros';
-    vendasPrincipais[f]=(vendasPrincipais[f]||0)+Number(l.valor||0);
+  const pedidosHoje=(pedidosLocal||[]).filter(p=>{
+    if((p.data_pedido||'').startsWith(dataCaixa))return true;
+    const r=p.raw||{};
+    if(r.created_at)return new Date(r.created_at).toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'})===dataCaixa;
+    return false;
   });
-  const totalPrincipal=Object.values(vendasPrincipais).reduce((s,v)=>s+v,0);
-  const vendasDelivery={};const totalDelivery=0;const taxaEntregaDelivery=0;
-  const vendasRetirada={};const totalRetirada=0;
-  const totalIfood=0;const taxaEntregaIfood=0;const taxaAdIfood=0;const descIfood=0;
-  const totalCancelados=0;
-  const pedNaoCancelados=[];const pedAtivos=[];const pedCancelados=[];
-  const totalCookies=0;const faturamentoTotal=totalPrincipal;
-  const ticketMedio=0;
 
-  const vendasDinheiro=vendasPrincipais['Dinheiro']||vendasPrincipais['dinheiro']||0;
+  const pedNaoCancelados=pedidosHoje.filter(p=>p.status!=='canceled');
+  const pedIfood=pedNaoCancelados.filter(p=>p.canal==='ifood');
+  const pedDelivery=pedNaoCancelados.filter(p=>p.raw&&p.raw.order_type==='delivery'&&p.canal!=='ifood');
+  const pedRetirada=pedNaoCancelados.filter(p=>p.raw&&p.raw.order_type!=='delivery'&&p.canal!=='ifood');
+  const pedCancelados=pedidosHoje.filter(p=>p.status==='canceled');
+  const pedAtivos=pedidosHoje.filter(p=>!['canceled','closed','delivered'].includes(p.status));
+
+  const agruparPag=(lista,excluirIfoodOnline=false)=>{const g={};lista.forEach(p=>{(p.pagamentos||[]).forEach(pg=>{const k=(pg.payment_method||'').toLowerCase();const isOnline=pg.payment_type==='online';if(excluirIfoodOnline&&k==='ifood'&&isOnline)return;if(excluirIfoodOnline&&k==='online_credit_card')return;if(k==='ifood'&&isOnline)return;const n=PM_MAP_CW[k]||k;g[n]=(g[n]||0)+Number(pg.value||pg.total||0);});});return g;};
+  const agruparPagTodos=(lista)=>{const g={};lista.forEach(p=>{(p.pagamentos||[]).forEach(pg=>{const k=(pg.payment_method||'').toLowerCase();const n=k==='ifood'?'iFood Online':PM_MAP_CW[k]||k;g[n]=(g[n]||0)+Number(pg.value||pg.total||0);});});return g;};
+  const vendasPrincipais=agruparPagTodos(pedNaoCancelados);
+  const totalPrincipal=Object.values(vendasPrincipais).reduce((s,v)=>s+v,0);
+  const vendasDelivery=agruparPag(pedDelivery,true);
+  const totalDelivery=pedDelivery.reduce((s,p)=>s+Number(p.total||0),0);
+  const taxaEntregaDelivery=pedDelivery.reduce((s,p)=>s+Number(p.raw&&p.raw.delivery_fee||0),0);
+  const vendasRetirada=agruparPag(pedRetirada,true);
+  const totalRetirada=pedRetirada.reduce((s,p)=>s+Number(p.total||0),0);
+  const totalIfood=pedIfood.reduce((s,p)=>s+Number(p.total||0),0);
+  const taxaEntregaIfood=pedIfood.reduce((s,p)=>s+Number(p.raw&&p.raw.delivery_fee||0),0);
+  const taxaAdIfood=pedIfood.reduce((s,p)=>s+Number(p.raw&&p.raw.additional_fee||0),0);
+  const descIfood=pedIfood.reduce((s,p)=>s+((p.raw&&p.raw.discounts||[]).reduce((sd,d)=>sd+Number(d.total||0),0)),0);
+  const totalCancelados=pedCancelados.reduce((s,p)=>s+Number(p.total||0),0);
+  const totalCookies=pedNaoCancelados.reduce((s,p)=>{const itens=(p.raw&&p.raw.items)||p.itens||[];return s+itens.reduce((si,it)=>si+Number(it.quantity||1),0);},0);
+  const faturamentoTotal=pedNaoCancelados.reduce((s,p)=>s+Number(p.total||0),0);
+  const ticketMedio=pedNaoCancelados.length>0?faturamentoTotal/pedNaoCancelados.length:0;
+
+  const lancHoje=(lancamentos||[]).filter(l=>l.data===dataCaixa&&l.obs==='consolidado_cw'&&l.tipo==='receita');
+  const vendasDinheiro=vendasPrincipais['Dinheiro']||0;
   const abertura=Number(caixaHoje&&caixaHoje.saldo_abertura||0);
   const suprimentos=Number(caixaHoje&&caixaHoje.suprimentos||0);
   const sangrias=Number(caixaHoje&&caixaHoje.sangrias||0);
   const valorEsperado=abertura+suprimentos-sangrias+vendasDinheiro;
 
   const gerarLancamentos=async()=>{
-    // Lançamentos gerados via "Regerar" no Histórico de Caixa
-    return 0;
-    await sb.from('lancamentos').delete().eq('user_id',uid).eq('data',hoje).eq('obs','consolidado_cw');
+    await sb.from('lancamentos').delete().eq('user_id',uid).eq('data',dataCaixa).eq('obs','consolidado_cw');
     const grupos={};
     [...pedDelivery,...pedRetirada].filter(p=>p.status==='delivered'||p.status==='closed').forEach(p=>{
       (p.pagamentos||[]).forEach(pg=>{
