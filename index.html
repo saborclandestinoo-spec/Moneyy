@@ -2536,8 +2536,17 @@ function PedidoCWDetalhe({p,contas,formas_pag,uid,reload,close}){
   const dtFmt=raw.created_at?new Date(raw.created_at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'}):'—';
   const addr=raw.delivery_address||{};
   const addrStr=[addr.street,addr.number,addr.complement,addr.neighborhood,addr.city,addr.state].filter(Boolean).join(', ');
-  const itensAtivos=itens.filter(it=>it.status!=='CANCELLED'&&it.status!=='cancelled'&&!it.cancelled);
-  const itensCancelados=itens.filter(it=>it.status==='CANCELLED'||it.status==='cancelled'||it.cancelled);
+  // IDs de itens cancelados via raw.cancellations ou raw.order_cancellations
+  const cancelledIds=new Set([
+    ...((raw.cancellations||[]).flatMap(c=>(c.items||c.orderItems||[]).map(i=>i.id||i.itemId||i.item_id))),
+    ...((raw.order_cancellations||[]).flatMap(c=>(c.items||[]).map(i=>i.id||i.itemId))),
+  ].filter(Boolean));
+  const isCancelled=(it)=>
+    it.status==='CANCELLED'||it.status==='cancelled'||it.status==='EXCLUDED'||
+    it.cancelled===true||it.situation==='CANCELLED'||it.isFromCancellation===true||
+    (it.id&&cancelledIds.has(it.id))||it.quantity===0;
+  const itensAtivos=itens.filter(it=>!isCancelled(it));
+  const itensCancelados=itens.filter(it=>isCancelled(it));
   const subtotal=itensAtivos.reduce((s,it)=>s+Number(it.total_price||0),0);
   const taxaEntrega=Number(raw.delivery_fee||0);
   const adicional=Number(raw.additional_fee||0);
