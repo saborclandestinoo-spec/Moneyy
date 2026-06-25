@@ -1627,7 +1627,7 @@ function CaixaReport({uid,caixa,db}){
   const cancelDelivery=pedCancelados.filter(p=>p.raw&&p.raw.order_type==='delivery');
   const cancelRetirada=pedCancelados.filter(p=>!(p.raw&&p.raw.order_type==='delivery'));
 
-  const totalCookies=pedNaoCancelados.reduce((s,p)=>{const itens=(p.raw&&p.raw.items)||p.itens||[];return s+itens.reduce((si,it)=>si+Number(it.quantity||1),0);},0);
+  const totalCookies=pedNaoCancelados.reduce((s,p)=>{const itens=((p.raw&&p.raw.items)||p.itens||[]).filter(it=>!it.cancelled&&it.status!=='CANCELLED'&&it.status!=='cancelled'&&it.quantity>0);return s+itens.reduce((si,it)=>si+Number(it.quantity||1),0);},0);
   const faturamentoTotal=pedNaoCancelados.reduce((s,p)=>s+Number(p.total||0),0);
   const ticketMedio=pedNaoCancelados.length>0?faturamentoTotal/pedNaoCancelados.length:0;
 
@@ -1822,7 +1822,7 @@ function PedCaixa({uid,db,setDb,reload,setM}){
   const taxaAdIfood=pedIfood.reduce((s,p)=>s+Number(p.raw&&p.raw.additional_fee||0),0);
   const descIfood=pedIfood.reduce((s,p)=>s+((p.raw&&p.raw.discounts||[]).reduce((sd,d)=>sd+Number(d.total||0),0)),0);
   const totalCancelados=pedCancelados.reduce((s,p)=>s+Number(p.total||0),0);
-  const totalCookies=pedNaoCancelados.reduce((s,p)=>{const itens=(p.raw&&p.raw.items)||p.itens||[];return s+itens.reduce((si,it)=>si+Number(it.quantity||1),0);},0);
+  const totalCookies=pedNaoCancelados.reduce((s,p)=>{const itens=((p.raw&&p.raw.items)||p.itens||[]).filter(it=>!it.cancelled&&it.status!=='CANCELLED'&&it.status!=='cancelled'&&it.quantity>0);return s+itens.reduce((si,it)=>si+Number(it.quantity||1),0);},0);
   const faturamentoTotal=pedNaoCancelados.reduce((s,p)=>s+Number(p.total||0),0);
   const ticketMedio=pedNaoCancelados.length>0?faturamentoTotal/pedNaoCancelados.length:0;
 
