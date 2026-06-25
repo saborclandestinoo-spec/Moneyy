@@ -4414,6 +4414,19 @@ function EdicaoMassaModal({uid,db,lancamentosSelecionados,onConcluido,close}){
 }
 
 function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas,refreshEstoque}){
+  const dbRef=React.useRef(db);
+  React.useEffect(()=>{dbRef.current=db;},[db]);
+  const[reopenTipo,setReopenTipo]=React.useState(null);
+
+  React.useEffect(()=>{
+    if(!reopenTipo)return;
+    const t=reopenTipo;
+    setReopenTipo(null);
+    const titles2={receita:'+ Nova Receita',despesa:'+ Nova Despesa',transferencia:'+ Transferência'};
+    const rc2=async()=>{if(refreshLanc)await refreshLanc();if(refreshContas)await refreshContas();if(refreshEstoque)await refreshEstoque();};
+    setM({wide:true,title:titles2[t]||'+ Lançamento',body:React.createElement(LancForm,{uid,tipo:t,db:dbRef.current,reload:rc2,close:()=>setM(null),onLancarOutro:()=>setReopenTipo(t)})});
+  },[reopenTipo]);
+
   const{lancamentos,contas}=db;
   const hoje=TODAY();
 
@@ -4469,8 +4482,7 @@ function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas,refreshEst
       if(refreshEstoque)await refreshEstoque();
       if(refreshContas)await refreshContas();
     };
-    const abrirLancForm=(t)=>setM({wide:true,title:titles[t]||'+ Lançamento',body:React.createElement(LancForm,{uid,tipo:t,db,reload:reloadCombined,close:()=>setM(null),onLancarOutro:()=>{setM(null);setTimeout(()=>abrirLancForm(t),80);}})});
-    abrirLancForm(tipo);
+    setM({wide:true,title:titles[tipo]||'+ Lançamento',body:React.createElement(LancForm,{uid,tipo,db,reload:reloadCombined,close:()=>setM(null),onLancarOutro:()=>setReopenTipo(tipo)})});
   };
 
   const confirmar=(l)=>setM({title:'Confirmar',body:
