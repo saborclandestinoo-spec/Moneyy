@@ -3791,13 +3791,9 @@ function FinReceber({uid,db,reload,setM}){
       ),
       React.createElement('input',{placeholder:'Buscar...',value:busca,onChange:e=>setBusca(e.target.value),style:{background:'#f5f5f5',border:'none',borderRadius:9,padding:'7px 12px',fontSize:12,color:'#111',outline:'none',width:180}})
     ),
-    diaFiltro&&React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:8}},
-      React.createElement('span',{style:{fontSize:12,color:'#555'}},`Filtrando: ${FD(diaFiltro)}`),
-      React.createElement('button',{onClick:()=>setDiaFiltro(null),style:{fontSize:11,color:'#888',background:'#f5f5f5',border:'none',borderRadius:6,padding:'3px 8px',cursor:'pointer'}},'✕ Limpar')
-    ),
     React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
       React.createElement(Tbl,{cols:['Descrição','Categoria','Conta','Vencimento','Valor','Ação'],
-        rows:listComDia.map(l=>{
+        rows:list.map(l=>{
           const conta=(contas||[]).find(c=>c.id===l.conta_id);
           const vencido=!l.pago&&(l.venc||l.data)<hoje;
           return React.createElement(TR,{key:l.id,cells:[
@@ -3820,68 +3816,80 @@ function FinReceber({uid,db,reload,setM}){
 
 function CalendarioPagar({lancamentos,hoje,onClickDia}){
   const d=new Date(hoje+'T12:00:00');
-  const ano=d.getFullYear(),mes=d.getMonth();
-  const MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const[ano,setAno]=React.useState(d.getFullYear());
+  const[mes,setMes]=React.useState(d.getMonth());
+  const MESES=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const MESESF=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   const DIAS=['D','S','T','Q','Q','S','S'];
+  const navM=(d2)=>{let m=mes+d2,a=ano;if(m<0){m=11;a--;}else if(m>11){m=0;a++;}setMes(m);setAno(a);};
   const primeiroDia=new Date(ano,mes,1).getDay();
   const totalDias=new Date(ano,mes+1,0).getDate();
-  const cells=[];
-  for(let i=0;i<primeiroDia;i++)cells.push(null);
-  for(let d2=1;d2<=totalDias;d2++)cells.push(d2);
+  const cells=[];for(let i=0;i<primeiroDia;i++)cells.push(null);for(let x=1;x<=totalDias;x++)cells.push(x);
 
-  // Agrupar lançamentos por dia
   const porDia={};
   (lancamentos||[]).forEach(l=>{
     const dt=l.venc||l.data||'';
     if(!dt.startsWith(ano+'-'+String(mes+1).padStart(2,'0')))return;
     const dia=parseInt(dt.split('-')[2]);
     if(!porDia[dia])porDia[dia]={total:0,vencido:0,count:0};
-    porDia[dia].total+=Number(l.valor||0);
-    porDia[dia].count+=1;
+    porDia[dia].total+=Number(l.valor||0);porDia[dia].count++;
     if(dt<hoje)porDia[dia].vencido+=Number(l.valor||0);
   });
 
   const hojeD=parseInt(hoje.split('-')[2]);
   const hojeMes=hoje.startsWith(ano+'-'+String(mes+1).padStart(2,'0'));
+  const totalMes=Object.values(porDia).reduce((s,v)=>s+v.total,0);
+  const vencidoMes=Object.values(porDia).reduce((s,v)=>s+v.vencido,0);
 
-  return React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'16px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)',marginBottom:16}},
-    React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}},
-      React.createElement('span',{style:{fontWeight:700,fontSize:14,color:'#111'}},MESES[mes]+' '+ano),
-      React.createElement('div',{style:{display:'flex',gap:12,fontSize:11}},
-        React.createElement('span',{style:{display:'flex',alignItems:'center',gap:4}},
-          React.createElement('span',{style:{width:10,height:10,borderRadius:3,background:'#fee2e2',border:'1px solid #dc2626',display:'inline-block'}}),
-          React.createElement('span',{style:{color:'#888'}},'Vencido')
-        ),
-        React.createElement('span',{style:{display:'flex',alignItems:'center',gap:4}},
-          React.createElement('span',{style:{width:10,height:10,borderRadius:3,background:'#fef3c7',border:'1px solid #f59e0b',display:'inline-block'}}),
-          React.createElement('span',{style:{color:'#888'}},'A vencer')
-        )
+  const atalhos=[
+    {l:'Hoje',fn:()=>{const d2=new Date(hoje+'T12:00:00');setAno(d2.getFullYear());setMes(d2.getMonth());}},
+    {l:'Mês atual',fn:()=>{const d2=new Date();setAno(d2.getFullYear());setMes(d2.getMonth());}},
+    {l:'Mês passado',fn:()=>{const d2=new Date();d2.setMonth(d2.getMonth()-1);setAno(d2.getFullYear());setMes(d2.getMonth());}},
+    {l:'Próximo mês',fn:()=>{const d2=new Date();d2.setMonth(d2.getMonth()+1);setAno(d2.getFullYear());setMes(d2.getMonth());}},
+  ];
+
+  return React.createElement('div',{style:{background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)',marginBottom:16,display:'flex',overflow:'hidden'}},
+    // Left: atalhos + totais
+    React.createElement('div',{style:{width:140,background:'#f9f9f9',padding:'12px 10px',borderRight:'1px solid #f0f0f0',flexShrink:0}},
+      React.createElement('div',{style:{fontSize:10,fontWeight:700,color:'#bbb',letterSpacing:'1px',textTransform:'uppercase',marginBottom:8}},'Período'),
+      atalhos.map((a,i)=>React.createElement('button',{key:i,onClick:a.fn,style:{display:'block',width:'100%',textAlign:'left',padding:'6px 8px',borderRadius:7,border:'none',background:'transparent',fontSize:12,color:'#555',cursor:'pointer',marginBottom:2}},a.l)),
+      React.createElement('div',{style:{borderTop:'1px solid #eee',marginTop:10,paddingTop:10}}),
+      React.createElement('div',{style:{fontSize:10,color:'#bbb',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:6}},'Resumo'),
+      React.createElement('div',{style:{fontSize:11,color:'#555',marginBottom:4}},'Total: ',React.createElement('span',{style:{fontWeight:700,color:'#dc2626'}},F(totalMes))),
+      vencidoMes>0&&React.createElement('div',{style:{fontSize:11,color:'#dc2626',fontWeight:600}},'Vencido: '+F(vencidoMes))
+    ),
+    // Right: calendar
+    React.createElement('div',{style:{flex:1,padding:'12px'}},
+      React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}},
+        React.createElement('button',{onClick:()=>navM(-1),style:{background:'#f5f5f5',border:'none',borderRadius:7,width:26,height:26,cursor:'pointer',fontSize:13,color:'#555',display:'flex',alignItems:'center',justifyContent:'center'}},'‹'),
+        React.createElement('span',{style:{fontWeight:700,fontSize:13,color:'#111'}},MESESF[mes]+' '+ano),
+        React.createElement('button',{onClick:()=>navM(1),style:{background:'#f5f5f5',border:'none',borderRadius:7,width:26,height:26,cursor:'pointer',fontSize:13,color:'#555',display:'flex',alignItems:'center',justifyContent:'center'}},'›')
+      ),
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(7,1fr)',marginBottom:3}},
+        DIAS.map((d2,i)=>React.createElement('div',{key:i,style:{textAlign:'center',fontSize:9,fontWeight:700,color:'#bbb',padding:'2px 0'}},d2))
+      ),
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:1}},
+        cells.map((d2,i)=>{
+          if(!d2)return React.createElement('div',{key:i});
+          const info=porDia[d2];
+          const dtStr=ano+'-'+String(mes+1).padStart(2,'0')+'-'+String(d2).padStart(2,'0');
+          const isHoje=hojeMes&&d2===hojeD;
+          const hasVencido=info&&info.vencido>0;
+          const hasPendente=info&&info.total>0&&!hasVencido;
+          const bg=isHoje?'#111':hasVencido?'#fee2e2':hasPendente?'#fef3c7':'transparent';
+          const cor=isHoje?'#fff':hasVencido?'#dc2626':hasPendente?'#92400e':'#888';
+          const brd=hasVencido?'1.5px solid #dc2626':hasPendente?'1.5px solid #f59e0b':isHoje?'none':'1px solid transparent';
+          return React.createElement('div',{key:i,onClick:()=>info&&onClickDia&&onClickDia(dtStr),
+            style:{textAlign:'center',padding:'4px 0',borderRadius:6,background:bg,border:brd,cursor:info?'pointer':'default',minHeight:34,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}},
+            React.createElement('span',{style:{fontSize:11,fontWeight:isHoje||info?700:400,color:cor,lineHeight:1}},d2),
+            info&&React.createElement('span',{style:{fontSize:8,color:hasVencido?'#dc2626':'#92400e',fontWeight:700,lineHeight:1,marginTop:1}},info.count+'x')
+          );
+        })
       )
-    ),
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:1,marginBottom:4}},
-      DIAS.map((d2,i)=>React.createElement('div',{key:i,style:{textAlign:'center',fontSize:10,fontWeight:700,color:'#bbb',padding:'2px 0'}},d2))
-    ),
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2}},
-      cells.map((d2,i)=>{
-        if(!d2)return React.createElement('div',{key:i});
-        const info=porDia[d2];
-        const dtStr=ano+'-'+String(mes+1).padStart(2,'0')+'-'+String(d2).padStart(2,'0');
-        const isHoje=hojeMes&&d2===hojeD;
-        const hasVencido=info&&info.vencido>0;
-        const hasPendente=info&&info.total>0&&!hasVencido;
-        const bg=isHoje?'#111':hasVencido?'#fee2e2':hasPendente?'#fef3c7':'transparent';
-        const cor=isHoje?'#fff':hasVencido?'#dc2626':hasPendente?'#92400e':'#555';
-        const border=isHoje?'none':hasVencido?'1.5px solid #dc2626':hasPendente?'1.5px solid #f59e0b':'1px solid transparent';
-        return React.createElement('div',{key:i,
-          onClick:()=>info&&onClickDia&&onClickDia(dtStr),
-          style:{textAlign:'center',padding:'5px 2px',borderRadius:8,background:bg,border,cursor:info?'pointer':'default',transition:'all 0.1s',minHeight:44,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}},
-          React.createElement('span',{style:{fontSize:12,fontWeight:isHoje||info?700:400,color:cor}},d2),
-          info&&React.createElement('span',{style:{fontSize:9,color:hasVencido?'#dc2626':'#92400e',fontWeight:700,lineHeight:1,marginTop:2}},info.count+'x')
-        );
-      })
     )
   );
 }
+
 
 function FinPagar({uid,db,reload,setM}){
   const{lancamentos,contas}=db;
@@ -3939,13 +3947,9 @@ function FinPagar({uid,db,reload,setM}){
       ),
       React.createElement('input',{placeholder:'Buscar...',value:busca,onChange:e=>setBusca(e.target.value),style:{background:'#f5f5f5',border:'none',borderRadius:9,padding:'7px 12px',fontSize:12,color:'#111',outline:'none',width:180}})
     ),
-    diaFiltro&&React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:8}},
-      React.createElement('span',{style:{fontSize:12,color:'#555'}},`Filtrando: ${FD(diaFiltro)}`),
-      React.createElement('button',{onClick:()=>setDiaFiltro(null),style:{fontSize:11,color:'#888',background:'#f5f5f5',border:'none',borderRadius:6,padding:'3px 8px',cursor:'pointer'}},'✕ Limpar')
-    ),
     React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
       React.createElement(Tbl,{cols:['Descrição','Categoria','Conta','Vencimento','Valor','Ação'],
-        rows:listComDia.map(l=>{
+        rows:list.map(l=>{
           const conta=(contas||[]).find(c=>c.id===l.conta_id);
           const vencido=!l.pago&&(l.venc||l.data)<hoje;
           return React.createElement(TR,{key:l.id,cells:[
