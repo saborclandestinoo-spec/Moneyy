@@ -7120,6 +7120,7 @@ function App(){
       })
       .on('postgres_changes',{event:'UPDATE',schema:'public',table:'pedidos_cw'},async(payload)=>{
         if(payload.new&&payload.new.user_id!==user.id)return;
+        if(payload.new){setDb(prev=>({...prev,pedidos_cw:(prev.pedidos_cw||[]).map(p=>p.id===payload.new.id?{...p,...payload.new}:p)}));}
         if(payload.new&&['confirmed','ready','released','waiting_to_catch','delivered','closed','canceled'].includes(payload.new.status)){
           processarBaixaEstoque(payload.new);
         }
