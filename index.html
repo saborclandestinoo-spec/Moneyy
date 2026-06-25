@@ -6702,7 +6702,7 @@ function ContaForm({uid,reload,close,conta,contas}){
       if(!e)toast('Conta criada!',false,true);
     }
     if(error){toast('Erro: '+error.message,true);setLd(false);return;}
-    await afterSave();setLd(false);
+    reload();close();setLd(false);
   };
 
   const lbS={fontSize:10,color:'#aaa',fontWeight:700,letterSpacing:'1.5px',textTransform:'uppercase',display:'block',marginBottom:5,marginTop:10};
