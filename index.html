@@ -5831,7 +5831,7 @@ function LancForm({uid,tipo,db,reload,close,inicial}){
   return React.createElement('div',{style:{minWidth:500}},
     // ── LINHA 1: Descricao + Valor ──
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1.8fr 1fr',gap:10,marginBottom:0}},
-      React.createElement(DescAutoComplete,{label:'Descricao *',acent,value:desc,onChange:setDesc,lancamentos,tipo})
+      React.createElement(DescAutoComplete,{label:'Descricao *',acent,value:desc,onChange:setDesc,lancamentos,tipo}),
       React.createElement(FloatInput,{label:'Valor *',acent,type:'number',step:'0.01',value:valor,onChange:e=>setValor(e.target.value)})
     ),
     // ── LINHA 2: Conta + Vencimento + Competencia ──
