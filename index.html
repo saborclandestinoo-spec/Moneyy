@@ -4469,7 +4469,8 @@ function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas,refreshEst
       if(refreshEstoque)await refreshEstoque();
       if(refreshContas)await refreshContas();
     };
-    setM({wide:true,title:titles[tipo]||'+ Lançamento',body:React.createElement(LancForm,{uid,tipo,db,reload:reloadCombined,close:()=>setM(null),setM,titles})});
+    const abrirLancForm=(t)=>setM({wide:true,title:titles[t]||'+ Lançamento',body:React.createElement(LancForm,{uid,tipo:t,db,reload:reloadCombined,close:()=>setM(null),onLancarOutro:()=>{setM(null);setTimeout(()=>abrirLancForm(t),80);}})});
+    abrirLancForm(tipo);
   };
 
   const confirmar=(l)=>setM({title:'Confirmar',body:
@@ -5681,7 +5682,7 @@ function DescAutoComplete({label,acent,value,onChange,lancamentos,tipo}){
   );
 }
 
-function LancForm({uid,tipo,db,reload,close,inicial,setM,titles}){
+function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){
   const{contas,categorias_fin,centros_custo,estoque,lancamentos}=db;
   const isRec=tipo==='receita';
   const isTransf=tipo==='transferencia';
@@ -5741,7 +5742,7 @@ function LancForm({uid,tipo,db,reload,close,inicial,setM,titles}){
   // Field and SelField are defined at module level below
 
   const salvar=async(mode)=>{
-    const afterSave=async()=>{await reload();if(mode==='novo'&&setM){await reload();setM({wide:true,title:titles&&titles[tipo]||'+ Lançamento',body:React.createElement(LancForm,{uid,tipo,db,reload,close:()=>setM(null),setM,titles})});toast('✅ Salvo! Lançar outro.',false,true);}else if(mode==='novo'){setDesc('');setValor('');setCat('');setFornecedor('');setFormaPag('');setCentroCusto('');setJuros('');setMulta('');setDesconto('');setPago(false);setVenc(TODAY());setCompetencia('');toast('✅ Salvo!',false,true);}else{close();}};
+    const afterSave=async()=>{await reload();if(mode==='novo'){await reload();toast('✅ Salvo!',false,true);if(onLancarOutro)onLancarOutro();else{setDesc('');setValor('');setCat('');setFornecedor('');setFormaPag('');setCentroCusto('');setJuros('');setMulta('');setDesconto('');setPago(false);setVenc(TODAY());setCompetencia('');}}else{close();}};
     if(!desc||!valor){toast('Preencha descricao e valor',true);return;}
     setLd(true);
     const estQtdTotal=vincularEstoque&&estoqueId?(()=>{const it=(estoque||[]).find(e=>e.id===estoqueId);return(parseFloat(estoqueQtdEmb)||0)*((it&&it.qtd_embalagem)||1);})():null;
