@@ -3791,6 +3791,10 @@ function FinReceber({uid,db,reload,setM}){
       ),
       React.createElement('input',{placeholder:'Buscar...',value:busca,onChange:e=>setBusca(e.target.value),style:{background:'#f5f5f5',border:'none',borderRadius:9,padding:'7px 12px',fontSize:12,color:'#111',outline:'none',width:180}})
     ),
+    diaFiltro&&React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:8}},
+      React.createElement('span',{style:{fontSize:12,color:'#555',fontWeight:600}},'📅 '+FD(diaFiltro)),
+      React.createElement('button',{onClick:()=>setDiaFiltro(null),style:{fontSize:11,color:'#888',background:'#f5f5f5',border:'none',borderRadius:6,padding:'3px 8px',cursor:'pointer'}},'✕ Ver mês todo')
+    ),
     React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
       React.createElement(Tbl,{cols:['Descrição','Categoria','Conta','Vencimento','Valor','Ação'],
         rows:list.map(l=>{
@@ -3903,18 +3907,20 @@ function FinPagar({uid,db,reload,setM}){
     l.tipo==='despesa'&&!l.pago&&l.obs!=='consolidado_cw'
   ),[lancamentos]);
 
+  const aPagarMes=React.useMemo(()=>aPagar.filter(l=>(l.venc||l.data||'').startsWith(mesStr)),[aPagar,mesStr]);
+
   const list=React.useMemo(()=>{
-    let r=aPagar;
+    let r=diaFiltro?aPagar.filter(l=>(l.venc||l.data)===diaFiltro):aPagarMes;
     if(fil==='pendentes')r=r.filter(l=>!l.pago&&(l.venc||l.data)>=hoje);
     else if(fil==='vencidos')r=r.filter(l=>!l.pago&&(l.venc||l.data)<hoje);
     else if(fil==='pagos')r=r.filter(l=>l.pago);
     if(busca){const b=busca.toLowerCase();r=r.filter(l=>(l.descricao||'').toLowerCase().includes(b)||(l.categoria||'').toLowerCase().includes(b));}
     return r.sort((a,b)=>(a.venc||a.data||'').localeCompare(b.venc||b.data||''));
-  },[aPagar,fil,busca,hoje]);
+  },[aPagar,aPagarMes,diaFiltro,fil,busca,hoje]);
 
-  const totalPendente=aPagar.filter(l=>!l.pago&&(l.venc||l.data)>=hoje).reduce((s,l)=>s+Number(l.valor||0),0);
-  const totalVencido=aPagar.filter(l=>!l.pago&&(l.venc||l.data)<hoje).reduce((s,l)=>s+Number(l.valor||0),0);
-  const totalPago=aPagar.filter(l=>l.pago).reduce((s,l)=>s+Number(l.valor||0),0);
+  const totalPendente=aPagarMes.filter(l=>!l.pago&&(l.venc||l.data)>=hoje).reduce((s,l)=>s+Number(l.valor||0),0);
+  const totalVencido=aPagarMes.filter(l=>!l.pago&&(l.venc||l.data)<hoje).reduce((s,l)=>s+Number(l.valor||0),0);
+  const totalPago=aPagarMes.filter(l=>l.pago).reduce((s,l)=>s+Number(l.valor||0),0);
 
   const confirmarPagamento=async(l)=>{
     const conta=(contas||[]).find(c=>c.id===l.conta_id)||(contas||[])[0];
@@ -3933,9 +3939,6 @@ function FinPagar({uid,db,reload,setM}){
   const[calAno,setCalAno]=React.useState(hoje2.getFullYear());
   const[calMes,setCalMes]=React.useState(hoje2.getMonth());
   const mesStr=calAno+'-'+String(calMes+1).padStart(2,'0');
-  const listComDia=diaFiltro
-    ?list.filter(l=>(l.venc||l.data)===diaFiltro)
-    :list.filter(l=>(l.venc||l.data||'').startsWith(mesStr));
 
   return React.createElement(PW,{title:'A Pagar',sub:'Lançamentos de despesa pendentes de pagamento'},
     React.createElement(CalendarioPagar,{lancamentos:aPagar,hoje,calAno,calMes,setCalAno,setCalMes,onClickDia:(d)=>setDiaFiltro(d===null?null:p=>p===d?null:d)}),
@@ -3953,6 +3956,10 @@ function FinPagar({uid,db,reload,setM}){
         )
       ),
       React.createElement('input',{placeholder:'Buscar...',value:busca,onChange:e=>setBusca(e.target.value),style:{background:'#f5f5f5',border:'none',borderRadius:9,padding:'7px 12px',fontSize:12,color:'#111',outline:'none',width:180}})
+    ),
+    diaFiltro&&React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:8}},
+      React.createElement('span',{style:{fontSize:12,color:'#555',fontWeight:600}},'📅 '+FD(diaFiltro)),
+      React.createElement('button',{onClick:()=>setDiaFiltro(null),style:{fontSize:11,color:'#888',background:'#f5f5f5',border:'none',borderRadius:6,padding:'3px 8px',cursor:'pointer'}},'✕ Ver mês todo')
     ),
     React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
       React.createElement(Tbl,{cols:['Descrição','Categoria','Conta','Vencimento','Valor','Ação'],
