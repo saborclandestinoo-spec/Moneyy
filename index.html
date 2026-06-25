@@ -2005,10 +2005,10 @@ function PedCaixa({uid,db,setDb,reload,setM}){
     // ── ABA HOJE ──
     aba==='hoje'&&React.createElement('div',null,
 
-    !caixaHoje&&React.createElement('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'60px 20px',textAlign:'center'}},
+    (!caixaHoje||caixaFechado)&&React.createElement('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'60px 20px',textAlign:'center'}},
       React.createElement('div',{style:{fontSize:72,marginBottom:16,opacity:0.3}},'🏧'),
       React.createElement('div',{style:{fontSize:22,fontWeight:900,color:'#555',letterSpacing:'2px',marginBottom:24}},'CAIXA FECHADO'),
-      React.createElement('button',{type:'button',onClick:abrirCaixa,style:{background:'#7c3aed',color:'#fff',padding:'12px 32px',borderRadius:12,fontSize:14,fontWeight:800,border:'none',cursor:'pointer',marginBottom:32}},'ABRIR CAIXA'),
+      caixaFechado?React.createElement('button',{type:'button',onClick:reabrirCaixa,style:{background:'#f5f5f5',color:'#555',padding:'12px 32px',borderRadius:12,fontSize:14,fontWeight:700,border:'none',cursor:'pointer',marginBottom:32}},'↩ Reabrir Caixa'):React.createElement('button',{type:'button',onClick:abrirCaixa,style:{background:'#7c3aed',color:'#fff',padding:'12px 32px',borderRadius:12,fontSize:14,fontWeight:800,border:'none',cursor:'pointer',marginBottom:32}},'ABRIR CAIXA'),
       React.createElement('div',{style:{maxWidth:480,background:'#fff',borderRadius:12,padding:'18px 20px',textAlign:'left',boxShadow:'0 1px 8px rgba(0,0,0,0.07)',border:'1px solid #f0f0f0'}},
         React.createElement('div',{style:{fontWeight:700,fontSize:13,color:'#111',marginBottom:10}},'Informações sobre o caixa'),
         React.createElement('div',{style:{fontSize:12,color:'#555',lineHeight:1.8}},
@@ -2020,14 +2020,14 @@ function PedCaixa({uid,db,setDb,reload,setM}){
     ),
 
 
-    // KPIs - só mostra se caixa aberto/fechado
-    caixaHoje&&React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:12,marginBottom:20}},
+    // KPIs - só mostra se caixa aberto
+    caixaAberto&&React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:12,marginBottom:20}},
       [{l:'Faturamento',v:F(faturamentoTotal),c:'#111'},{l:'Pedidos',v:pedNaoCancelados.length,c:'#2563eb'},{l:'Em andamento',v:pedAtivos.length,c:'#f59e0b'},{l:'Ticket Médio',v:F(ticketMedio),c:'#7c3aed'},{l:'Cookies',v:totalCookies,c:'#dc2626'}]
       .map(({l,v,c})=>React.createElement(SC,{key:l,label:l,val:String(v),color:c}))
     ),
 
     // Resumo caixa + vendas principais
-    caixaHoje&&React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}},
+    caixaAberto&&React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}},
       React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'18px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
         React.createElement('div',{style:{fontWeight:700,fontSize:14,color:'#111',marginBottom:14}},'Resumo do Caixa'),
         caixaHoje?[
