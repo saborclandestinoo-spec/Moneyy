@@ -5623,8 +5623,66 @@ function ProducaoForm({uid,db,reload,close,fichaIdInicial}){
 }
 
 
+function DescAutoComplete({label,acent,value,onChange,lancamentos,tipo}){
+  const[sugs,setSugs]=React.useState([]);
+  const[show,setShow]=React.useState(false);
+  const ref=React.useRef(null);
+
+  React.useEffect(()=>{
+    if(!show)return;
+    const h=(e)=>{if(ref.current&&!ref.current.contains(e.target))setShow(false);};
+    document.addEventListener('mousedown',h,true);
+    return()=>document.removeEventListener('mousedown',h,true);
+  },[show]);
+
+  const handleChange=(v)=>{
+    onChange(v);
+    if(v.length<2){setSugs([]);setShow(false);return;}
+    const norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+    const q=norm(v);
+    const seen=new Set();
+    const matches=(lancamentos||[])
+      .filter(l=>l.tipo===tipo&&l.descricao&&norm(l.descricao).includes(q))
+      .sort((a,b)=>(b.data||'').localeCompare(a.data||''))
+      .filter(l=>{if(seen.has(l.descricao))return false;seen.add(l.descricao);return true;})
+      .slice(0,6);
+    setSugs(matches);
+    setShow(matches.length>0);
+  };
+
+  const pick=(l)=>{
+    onChange(l.descricao);
+    setShow(false);setSugs([]);
+  };
+
+  const lbFloat={position:'absolute',top:7,left:14,fontSize:9,color:acent,fontWeight:700,letterSpacing:'1.2px',textTransform:'uppercase',pointerEvents:'none',zIndex:1};
+  return React.createElement('div',{ref,style:{position:'relative',marginBottom:10,flex:1}},
+    React.createElement('label',{style:lbFloat},label),
+    React.createElement('input',{
+      style:{width:'100%',background:'#fff',border:'1.5px solid #e2e2e2',borderRadius:10,padding:'24px 14px 8px',fontSize:13,color:'#111',outline:'none',boxSizing:'border-box'},
+      value:value,
+      onChange:e=>handleChange(e.target.value),
+      onFocus:()=>value.length>=2&&sugs.length>0&&setShow(true),
+      placeholder:'',autoComplete:'off'
+    }),
+    show&&React.createElement('div',{style:{position:'absolute',top:'calc(100% + 2px)',left:0,right:0,zIndex:1000,background:'#fff',borderRadius:10,boxShadow:'0 8px 24px rgba(0,0,0,0.12)',border:'1px solid #f0f0f0',overflow:'hidden'}},
+      sugs.map((l,i)=>React.createElement('div',{key:i,
+        onMouseDown:e=>{e.preventDefault();pick(l);},
+        style:{padding:'9px 14px',cursor:'pointer',borderBottom:'1px solid #f8f8f8',display:'flex',justifyContent:'space-between',alignItems:'center'}},
+        React.createElement('div',null,
+          React.createElement('div',{style:{fontSize:13,fontWeight:600,color:'#111'}},l.descricao),
+          React.createElement('div',{style:{fontSize:10,color:'#aaa',marginTop:2}},FD(l.data)+(l.categoria?' · '+l.categoria:'')),
+        ),
+        React.createElement('span',{style:{fontSize:13,fontWeight:700,color:l.tipo==='receita'?'#16a34a':'#dc2626'}},
+          (l.tipo==='receita'?'+':'-')+F(l.valor)
+        )
+      ))
+    )
+  );
+}
+
 function LancForm({uid,tipo,db,reload,close,inicial}){
-  const{contas,categorias_fin,centros_custo,estoque}=db;
+  const{contas,categorias_fin,centros_custo,estoque,lancamentos}=db;
   const isRec=tipo==='receita';
   const isTransf=tipo==='transferencia';
   const acent=isRec?'#16a34a':isTransf?'#2563eb':'#dc2626';
@@ -5773,7 +5831,7 @@ function LancForm({uid,tipo,db,reload,close,inicial}){
   return React.createElement('div',{style:{minWidth:500}},
     // ── LINHA 1: Descricao + Valor ──
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1.8fr 1fr',gap:10,marginBottom:0}},
-      React.createElement(FloatInput,{label:'Descricao *',acent,value:desc,onChange:e=>setDesc(e.target.value)}),
+      React.createElement(DescAutoComplete,{label:'Descricao *',acent,value:desc,onChange:setDesc,lancamentos,tipo})
       React.createElement(FloatInput,{label:'Valor *',acent,type:'number',step:'0.01',value:valor,onChange:e=>setValor(e.target.value)})
     ),
     // ── LINHA 2: Conta + Vencimento + Competencia ──
