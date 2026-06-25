@@ -3782,9 +3782,13 @@ function FinReceber({uid,db,reload,setM}){
       ),
       React.createElement('input',{placeholder:'Buscar...',value:busca,onChange:e=>setBusca(e.target.value),style:{background:'#f5f5f5',border:'none',borderRadius:9,padding:'7px 12px',fontSize:12,color:'#111',outline:'none',width:180}})
     ),
+    diaFiltro&&React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:8}},
+      React.createElement('span',{style:{fontSize:12,color:'#555'}},`Filtrando: ${FD(diaFiltro)}`),
+      React.createElement('button',{onClick:()=>setDiaFiltro(null),style:{fontSize:11,color:'#888',background:'#f5f5f5',border:'none',borderRadius:6,padding:'3px 8px',cursor:'pointer'}},'✕ Limpar')
+    ),
     React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
       React.createElement(Tbl,{cols:['Descrição','Categoria','Conta','Vencimento','Valor','Ação'],
-        rows:list.map(l=>{
+        rows:listComDia.map(l=>{
           const conta=(contas||[]).find(c=>c.id===l.conta_id);
           const vencido=!l.pago&&(l.venc||l.data)<hoje;
           return React.createElement(TR,{key:l.id,cells:[
@@ -3799,6 +3803,72 @@ function FinReceber({uid,db,reload,setM}){
           ]});
         }),
         empty:'Nenhum lançamento encontrado.'
+      })
+    )
+  );
+}
+
+
+function CalendarioPagar({lancamentos,hoje,onClickDia}){
+  const d=new Date(hoje+'T12:00:00');
+  const ano=d.getFullYear(),mes=d.getMonth();
+  const MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const DIAS=['D','S','T','Q','Q','S','S'];
+  const primeiroDia=new Date(ano,mes,1).getDay();
+  const totalDias=new Date(ano,mes+1,0).getDate();
+  const cells=[];
+  for(let i=0;i<primeiroDia;i++)cells.push(null);
+  for(let d2=1;d2<=totalDias;d2++)cells.push(d2);
+
+  // Agrupar lançamentos por dia
+  const porDia={};
+  (lancamentos||[]).forEach(l=>{
+    const dt=l.venc||l.data||'';
+    if(!dt.startsWith(ano+'-'+String(mes+1).padStart(2,'0')))return;
+    const dia=parseInt(dt.split('-')[2]);
+    if(!porDia[dia])porDia[dia]={total:0,vencido:0,count:0};
+    porDia[dia].total+=Number(l.valor||0);
+    porDia[dia].count+=1;
+    if(dt<hoje)porDia[dia].vencido+=Number(l.valor||0);
+  });
+
+  const hojeD=parseInt(hoje.split('-')[2]);
+  const hojeMes=hoje.startsWith(ano+'-'+String(mes+1).padStart(2,'0'));
+
+  return React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'16px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)',marginBottom:16}},
+    React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}},
+      React.createElement('span',{style:{fontWeight:700,fontSize:14,color:'#111'}},MESES[mes]+' '+ano),
+      React.createElement('div',{style:{display:'flex',gap:12,fontSize:11}},
+        React.createElement('span',{style:{display:'flex',alignItems:'center',gap:4}},
+          React.createElement('span',{style:{width:10,height:10,borderRadius:3,background:'#fee2e2',border:'1px solid #dc2626',display:'inline-block'}}),
+          React.createElement('span',{style:{color:'#888'}},'Vencido')
+        ),
+        React.createElement('span',{style:{display:'flex',alignItems:'center',gap:4}},
+          React.createElement('span',{style:{width:10,height:10,borderRadius:3,background:'#fef3c7',border:'1px solid #f59e0b',display:'inline-block'}}),
+          React.createElement('span',{style:{color:'#888'}},'A vencer')
+        )
+      )
+    ),
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:1,marginBottom:4}},
+      DIAS.map((d2,i)=>React.createElement('div',{key:i,style:{textAlign:'center',fontSize:10,fontWeight:700,color:'#bbb',padding:'2px 0'}},d2))
+    ),
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2}},
+      cells.map((d2,i)=>{
+        if(!d2)return React.createElement('div',{key:i});
+        const info=porDia[d2];
+        const dtStr=ano+'-'+String(mes+1).padStart(2,'0')+'-'+String(d2).padStart(2,'0');
+        const isHoje=hojeMes&&d2===hojeD;
+        const hasVencido=info&&info.vencido>0;
+        const hasPendente=info&&info.total>0&&!hasVencido;
+        const bg=isHoje?'#111':hasVencido?'#fee2e2':hasPendente?'#fef3c7':'transparent';
+        const cor=isHoje?'#fff':hasVencido?'#dc2626':hasPendente?'#92400e':'#555';
+        const border=isHoje?'none':hasVencido?'1.5px solid #dc2626':hasPendente?'1.5px solid #f59e0b':'1px solid transparent';
+        return React.createElement('div',{key:i,
+          onClick:()=>info&&onClickDia&&onClickDia(dtStr),
+          style:{textAlign:'center',padding:'5px 2px',borderRadius:8,background:bg,border,cursor:info?'pointer':'default',transition:'all 0.1s',minHeight:44,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}},
+          React.createElement('span',{style:{fontSize:12,fontWeight:isHoje||info?700:400,color:cor}},d2),
+          info&&React.createElement('span',{style:{fontSize:9,color:hasVencido?'#dc2626':'#92400e',fontWeight:700,lineHeight:1,marginTop:2}},info.count+'x')
+        );
       })
     )
   );
@@ -3840,7 +3910,11 @@ function FinPagar({uid,db,reload,setM}){
 
   const badgeStyle=(v,ativo)=>({padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,background:ativo?'#dc2626':'#f5f5f5',color:ativo?'#fff':'#666',border:'none',cursor:'pointer'});
 
+  const[diaFiltro,setDiaFiltro]=React.useState(null);
+  const listComDia=diaFiltro?list.filter(l=>(l.venc||l.data)===diaFiltro):list;
+
   return React.createElement(PW,{title:'A Pagar',sub:'Lançamentos de despesa pendentes de pagamento'},
+    React.createElement(CalendarioPagar,{lancamentos:aPagar,hoje,onClickDia:(d)=>setDiaFiltro(p=>p===d?null:d)}),
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:20}},
       React.createElement(SC,{label:'A pagar',val:F(totalPendente),color:'#f59e0b'}),
       React.createElement(SC,{label:'Vencidos',val:F(totalVencido),color:'#dc2626'}),
@@ -3856,9 +3930,13 @@ function FinPagar({uid,db,reload,setM}){
       ),
       React.createElement('input',{placeholder:'Buscar...',value:busca,onChange:e=>setBusca(e.target.value),style:{background:'#f5f5f5',border:'none',borderRadius:9,padding:'7px 12px',fontSize:12,color:'#111',outline:'none',width:180}})
     ),
+    diaFiltro&&React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:8}},
+      React.createElement('span',{style:{fontSize:12,color:'#555'}},`Filtrando: ${FD(diaFiltro)}`),
+      React.createElement('button',{onClick:()=>setDiaFiltro(null),style:{fontSize:11,color:'#888',background:'#f5f5f5',border:'none',borderRadius:6,padding:'3px 8px',cursor:'pointer'}},'✕ Limpar')
+    ),
     React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
       React.createElement(Tbl,{cols:['Descrição','Categoria','Conta','Vencimento','Valor','Ação'],
-        rows:list.map(l=>{
+        rows:listComDia.map(l=>{
           const conta=(contas||[]).find(c=>c.id===l.conta_id);
           const vencido=!l.pago&&(l.venc||l.data)<hoje;
           return React.createElement(TR,{key:l.id,cells:[
@@ -6993,7 +7071,19 @@ function App(){
           toast('🛎 Novo pedido!',false,true);
           // Auto-impressão de etiqueta de produção
           try{const pc=getPrintCfg();if(pc.autoprint&&payload.new){setTimeout(()=>imprimirEtiqueta(payload.new),600);}}catch(e){}
-          // Auto-abertura desativada — caixa só abre manualmente
+          // Auto-abertura do caixa no primeiro pedido do dia
+          try{
+            const{data:cxExiste}=await sb.from('caixas').select('id').eq('user_id',user.id).eq('status','aberto').maybeSingle();
+            if(!cxExiste){
+              const{data:cxHoje}=await sb.from('caixas').select('id').eq('user_id',user.id).eq('data',hoje).maybeSingle();
+              if(!cxHoje){
+                await sb.from('caixas').insert({user_id:user.id,data:hoje,status:'aberto',saldo_abertura:0,suprimentos:0,sangrias:0});
+                const{data:cxs}=await sb.from('caixas').select('*').eq('user_id',user.id).order('criado_em',{ascending:false}).limit(30);
+                if(cxs)setDb(prev=>({...prev,caixas:cxs}));
+                toast('🔓 Caixa aberto automaticamente!',false,true);
+              }
+            }
+          }catch(e){}
         },800);
       })
       .on('postgres_changes',{event:'UPDATE',schema:'public',table:'pedidos_cw'},async(payload)=>{
