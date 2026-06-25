@@ -3814,14 +3814,15 @@ function FinReceber({uid,db,reload,setM}){
 }
 
 
-function CalendarioPagar({lancamentos,hoje,onClickDia}){
+function CalendarioPagar({lancamentos,hoje,onClickDia,calAno,calMes,setCalAno,setCalMes}){
   const d=new Date(hoje+'T12:00:00');
-  const[ano,setAno]=React.useState(d.getFullYear());
-  const[mes,setMes]=React.useState(d.getMonth());
+  const ano=calAno!==undefined?calAno:d.getFullYear();
+  const mes=calMes!==undefined?calMes:d.getMonth();
+  const setAno=setCalAno||(()=>{});const setMes=setCalMes||(()=>{});
   const MESES=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
   const MESESF=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   const DIAS=['D','S','T','Q','Q','S','S'];
-  const navM=(d2)=>{let m=mes+d2,a=ano;if(m<0){m=11;a--;}else if(m>11){m=0;a++;}setMes(m);setAno(a);};
+  const navM=(d2)=>{let m=mes+d2,a=ano;if(m<0){m=11;a--;}else if(m>11){m=0;a++;}setMes(m);setAno(a);if(onClickDia)onClickDia(null);};
   const primeiroDia=new Date(ano,mes,1).getDay();
   const totalDias=new Date(ano,mes+1,0).getDate();
   const cells=[];for(let i=0;i<primeiroDia;i++)cells.push(null);for(let x=1;x<=totalDias;x++)cells.push(x);
@@ -3928,10 +3929,16 @@ function FinPagar({uid,db,reload,setM}){
   const badgeStyle=(v,ativo)=>({padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,background:ativo?'#dc2626':'#f5f5f5',color:ativo?'#fff':'#666',border:'none',cursor:'pointer'});
 
   const[diaFiltro,setDiaFiltro]=React.useState(null);
-  const listComDia=diaFiltro?list.filter(l=>(l.venc||l.data)===diaFiltro):list;
+  const hoje2=new Date(hoje+'T12:00:00');
+  const[calAno,setCalAno]=React.useState(hoje2.getFullYear());
+  const[calMes,setCalMes]=React.useState(hoje2.getMonth());
+  const mesStr=calAno+'-'+String(calMes+1).padStart(2,'0');
+  const listComDia=diaFiltro
+    ?list.filter(l=>(l.venc||l.data)===diaFiltro)
+    :list.filter(l=>(l.venc||l.data||'').startsWith(mesStr));
 
   return React.createElement(PW,{title:'A Pagar',sub:'Lançamentos de despesa pendentes de pagamento'},
-    React.createElement(CalendarioPagar,{lancamentos:aPagar,hoje,onClickDia:(d)=>setDiaFiltro(p=>p===d?null:d)}),
+    React.createElement(CalendarioPagar,{lancamentos:aPagar,hoje,calAno,calMes,setCalAno,setCalMes,onClickDia:(d)=>setDiaFiltro(d===null?null:p=>p===d?null:d)}),
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:20}},
       React.createElement(SC,{label:'A pagar',val:F(totalPendente),color:'#f59e0b'}),
       React.createElement(SC,{label:'Vencidos',val:F(totalVencido),color:'#dc2626'}),
