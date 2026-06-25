@@ -1860,7 +1860,7 @@ function PedCaixa({uid,db,setDb,reload,setM}){
       let dt=hoje;
       if(g.dias>0){const d=new Date(hoje+'T12:00:00');d.setDate(d.getDate()+g.dias);dt=d.toISOString().split('T')[0];}
       rows.push({user_id:uid,tipo:'receita',descricao:'Vendas '+g.forma,valor:parseFloat(g.bruto.toFixed(2)),data:dt,venc:dt,data_pag:g.dias===0?dt:null,pago:g.dias===0,conta_id:g.contaId,categoria:'3.1 Receita de Venda de Produtos',forma_pag:g.forma,obs:'consolidado_cw'});
-      if(g.taxa>0)rows.push({user_id:uid,tipo:'despesa',descricao:'Taxa '+g.forma,valor:parseFloat(g.taxa.toFixed(2)),data:hoje,venc:hoje,data_pag:hoje,pago:true,conta_id:g.contaId,categoria:'4.2.4 Taxas',forma_pag:g.forma,obs:'consolidado_cw'});
+      if(g.taxa>0)rows.push({user_id:uid,tipo:'despesa',descricao:'Taxa '+g.forma,valor:parseFloat(g.taxa.toFixed(2)),data:dt,venc:dt,data_pag:g.dias===0?dt:null,pago:g.dias===0,conta_id:g.contaId,categoria:'4.2.4 Taxas',forma_pag:g.forma,obs:'consolidado_cw'});
     }
     if(rows.length)await sb.from('lancamentos').insert(rows);
     return rows.length;
@@ -1931,7 +1931,7 @@ function PedCaixa({uid,db,setDb,reload,setM}){
         let dt=dataCx;
         if(g.dias>0){const d=new Date(dataCx+'T12:00:00');d.setDate(d.getDate()+g.dias);dt=d.toISOString().split('T')[0];}
         rows.push({user_id:uid,tipo:'receita',descricao:'Vendas '+g.forma,valor:parseFloat(g.bruto.toFixed(2)),data:dt,venc:dt,data_pag:g.dias===0?dt:null,pago:g.dias===0,conta_id:g.contaId,categoria:'3.1 Receita de Venda de Produtos',forma_pag:g.forma,obs:'consolidado_cw'});
-        if(g.taxa>0)rows.push({user_id:uid,tipo:'despesa',descricao:'Taxa '+g.forma,valor:parseFloat(g.taxa.toFixed(2)),data:dataCx,venc:dataCx,data_pag:dataCx,pago:true,conta_id:g.contaId,categoria:'4.2.4 Taxas',forma_pag:g.forma,obs:'consolidado_cw'});
+        if(g.taxa>0)rows.push({user_id:uid,tipo:'despesa',descricao:'Taxa '+g.forma,valor:parseFloat(g.taxa.toFixed(2)),data:dt,venc:dt,data_pag:g.dias===0?dt:null,pago:g.dias===0,conta_id:g.contaId,categoria:'4.2.4 Taxas',forma_pag:g.forma,obs:'consolidado_cw'});
       }
       if(rows.length)await sb.from('lancamentos').insert(rows);
       return rows.length;
@@ -2165,7 +2165,7 @@ function PedCaixa({uid,db,setDb,reload,setM}){
         let dt=c.data;
         if(g.dias>0){const d=new Date(c.data+'T12:00:00');d.setDate(d.getDate()+g.dias);dt=d.toISOString().split('T')[0];}
         rows.push({user_id:uid,tipo:'receita',descricao:'Vendas '+g.forma,valor:parseFloat(g.bruto.toFixed(2)),data:dt,venc:dt,data_pag:g.dias===0?dt:null,pago:g.dias===0,conta_id:g.contaId,categoria:'3.1 Receita de Venda de Produtos',forma_pag:g.forma,obs:'consolidado_cw'});
-        if(g.taxa>0)rows.push({user_id:uid,tipo:'despesa',descricao:'Taxa '+g.forma,valor:parseFloat(g.taxa.toFixed(2)),data:c.data,venc:c.data,data_pag:c.data,pago:true,conta_id:g.contaId,categoria:'4.2.4 Taxas',forma_pag:g.forma,obs:'consolidado_cw'});
+        if(g.taxa>0)rows.push({user_id:uid,tipo:'despesa',descricao:'Taxa '+g.forma,valor:parseFloat(g.taxa.toFixed(2)),data:dt,venc:dt,data_pag:g.dias===0?dt:null,pago:g.dias===0,conta_id:g.contaId,categoria:'4.2.4 Taxas',forma_pag:g.forma,obs:'consolidado_cw'});
       }
       if(rows.length){const{error}=await sb.from('lancamentos').insert(rows);if(error){toast('Erro: '+error.message,true);return;}}
       reload();
