@@ -4777,8 +4777,8 @@ function CustomSelect({label,value,onChange,options,placeholder,acent}){
   React.useEffect(()=>{
     if(!open){setBusca('');return;}
     const h=(e)=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
-    document.addEventListener('mousedown',h);
-    return()=>document.removeEventListener('mousedown',h);
+    document.addEventListener('mousedown',h,true);
+    return()=>document.removeEventListener('mousedown',h,true);
   },[open]);
 
   React.useEffect(()=>{
@@ -4859,8 +4859,8 @@ function MiniDatePicker({value,onChange,label,acent}){
   React.useEffect(()=>{
     if(!open)return;
     const h=(e)=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
-    document.addEventListener('mousedown',h);
-    return()=>document.removeEventListener('mousedown',h);
+    document.addEventListener('mousedown',h,true);
+    return()=>document.removeEventListener('mousedown',h,true);
   },[open]);
 
   const today=TODAY();
@@ -4896,7 +4896,7 @@ function MiniDatePicker({value,onChange,label,acent}){
       React.createElement('span',{style:{fontSize:14,color:'#bbb'}})
     ),
     open&&React.createElement('div',{style:{
-      position:'absolute',top:'calc(100% + 4px)',left:0,zIndex:999,
+      position:'absolute',bottom:'calc(100% + 4px)',left:0,zIndex:999,
       background:'#fff',borderRadius:14,boxShadow:'0 8px 32px rgba(0,0,0,0.15)',
       border:'1px solid #f0f0f0',minWidth:270,padding:'14px'
     }},
@@ -6545,16 +6545,20 @@ function CatForm({uid,grupo,tipo,reload,close}){
 
 
 function gerarCashback(uid, contaId, valor, data, contas){
-  // Busca conta e verifica se tem cashback configurado
   const conta=(contas||[]).find(c=>c.id===contaId);
-  if(!conta||!conta.cashback_pct||!conta.cashback_conta_id)return Promise.resolve(null);
-  const cbVal=parseFloat((valor*conta.cashback_pct/100).toFixed(2));
+  if(!conta)return Promise.resolve(null);
+  // Lê cashback do banco (se existir) ou do localStorage
+  const cbCfgDB=conta.cashback_pct>0&&conta.cashback_conta_id?{pct:conta.cashback_pct,conta_id:conta.cashback_conta_id}:null;
+  const cbCfgLS=(()=>{try{const r=localStorage.getItem('cb_'+contaId);return r?JSON.parse(r):null;}catch(e){return null;}})();
+  const cbCfg=cbCfgDB||cbCfgLS;
+  if(!cbCfg||!cbCfg.pct||!cbCfg.conta_id)return Promise.resolve(null);
+  const cbVal=parseFloat((valor*cbCfg.pct/100).toFixed(2));
   if(cbVal<=0)return Promise.resolve(null);
   return sb.from('lancamentos').insert({
     user_id:uid,tipo:'receita',
-    descricao:'Cashback '+conta.nome+' ('+conta.cashback_pct+'%)',
+    descricao:'Cashback '+conta.nome+' ('+(cbCfg.pct)+'%)',
     valor:cbVal,data,venc:data,data_pag:data,pago:true,
-    conta_id:conta.cashback_conta_id,
+    conta_id:cbCfg.conta_id,
     categoria:'3.1 Receita de Venda de Produtos',
     obs:'cashback_despesa'
   });
@@ -6567,8 +6571,14 @@ function ContaForm({uid,reload,close,conta,contas}){
   const[cor,setCor]=React.useState(conta?.cor||'#dc2626');
   const[saldo,setSaldo]=React.useState(String((conta&&conta.saldo_inicial!=null?conta.saldo_inicial:(conta&&conta.saldo!=null?conta.saldo:'0'))));
   const[dataSaldo,setDataSaldo]=React.useState(conta?.data_saldo_inicial||TODAY());
-  const[cashbackPct,setCashbackPct]=React.useState(String(conta?.cashback_pct||''));
-  const[cashbackContaId,setCashbackContaId]=React.useState(conta?.cashback_conta_id||'');
+  const[cashbackPct,setCashbackPct]=React.useState(()=>{
+    if(conta?.cashback_pct)return String(conta.cashback_pct);
+    try{const r=localStorage.getItem('cb_'+(conta?.id||''));return r?String(JSON.parse(r).pct||''):'';}catch(e){return '';}
+  });
+  const[cashbackContaId,setCashbackContaId]=React.useState(()=>{
+    if(conta?.cashback_conta_id)return conta.cashback_conta_id;
+    try{const r=localStorage.getItem('cb_'+(conta?.id||''));return r?JSON.parse(r).conta_id||'':'';}catch(e){return '';}
+  });
   const[ld,setLd]=React.useState(false);
   const isEdit=!!(conta?.id);
 
@@ -6587,17 +6597,16 @@ function ContaForm({uid,reload,close,conta,contas}){
         nome,tipo,banco,cor,
         saldo_inicial:vl,
         data_saldo_inicial:dataSaldo,
-        ativo:true,
-        cashback_pct:parseFloat(cashbackPct)||0,
-        cashback_conta_id:cashbackContaId||null
+        ativo:true
       }).eq('id',conta.id);
+      // Salva cashback em localStorage (colunas opcionais no banco)
+      if(cashbackPct||cashbackContaId){const k='cb_'+conta.id;localStorage.setItem(k,JSON.stringify({pct:parseFloat(cashbackPct)||0,conta_id:cashbackContaId||''}));}
       error=e;
       if(!e)toast('Conta atualizada!',false,true);
     }else{
       const{error:e}=await sb.from('contas_bancarias').insert({
         user_id:uid,nome,tipo,banco,cor,
-        saldo_inicial:vl,data_saldo_inicial:dataSaldo,saldo:vl,ativo:true,
-        cashback_pct:parseFloat(cashbackPct)||0,cashback_conta_id:cashbackContaId||null
+        saldo_inicial:vl,data_saldo_inicial:dataSaldo,saldo:vl,ativo:true
       });
       error=e;
       if(!e)toast('Conta criada!',false,true);
@@ -6952,7 +6961,7 @@ function App(){
   return React.createElement(React.Fragment,null,
     React.createElement('div',{style:{display:'flex',height:'100vh',background:'#f4f4f5',overflow:'hidden'}},
       React.createElement(Sidebar,{page,setPage,user,logout,col,setCol}),
-      React.createElement('main',{style:{flex:1,overflow:'auto',background:'#f4f4f5'}},React.createElement(PC))
+      React.createElement('main',{style:{flex:1,overflow:'auto',background:'#f4f4f5'}},PC())
     ),
     React.createElement(Modal,{m:modal,close:()=>setModal(null)}),
     React.createElement(Toasts)
