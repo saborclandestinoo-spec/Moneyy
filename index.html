@@ -6371,78 +6371,79 @@ const GRUPOS_PADRAO=[
 
 function FinCategorias({uid,db,reload,setM}){
   const{categorias_fin}=db;
-  const[expandido,setExpandido]=React.useState(()=>{
-    const e={};GRUPOS_PADRAO.forEach(g=>e[g.grupo]=true);return e;
-  });
-  const toggle=(g)=>setExpandido(p=>({...p,[g]:!p[g]}));
+  const COR={receita:'#16a34a',despesa:'#dc2626',ativo:'#2563eb',passivo:'#7c3aed'};
+  const BG_HEADER={receita:'#dcfce7',despesa:'#fee2e2',ativo:'#dbeafe',passivo:'#ede9fe'};
 
-  const novaCategoria=(grupo,tipo)=>setM({title:'Nova Conta — '+grupo,body:React.createElement(CatForm,{uid,grupo,tipo,reload,close:()=>setM(null)})});
+  const editarCat=(c)=>setM({title:'Editar — '+c.nome,body:React.createElement(CatForm,{uid,grupo:c.grupo,tipo:c.tipo,inicial:c,reload,close:()=>setM(null)})});
+  const novaCategoria=(tipo)=>setM({title:'Nova Conta',body:React.createElement(CatForm,{uid,grupo:'',tipo,reload,close:()=>setM(null)})});
   const excluirCat=async(id,nome)=>{
-    if(!confirm('Excluir "'+nome+'"?'))return;
     await sb.from('categorias_fin').delete().eq('id',id);
     toast('Excluída!',false,true);reload();
   };
 
-  const catsPorGrupo={};
+  // Merge PLANO_CONTAS + categorias_fin custom
+  const customByParent={};
   (categorias_fin||[]).forEach(c=>{
-    if(!catsPorGrupo[c.grupo])catsPorGrupo[c.grupo]=[];
-    catsPorGrupo[c.grupo].push(c);
+    const key=c.grupo||'4';
+    if(!customByParent[key])customByParent[key]=[];
+    customByParent[key].push(c);
   });
 
-  const COR={receita:'#16a34a',despesa:'#dc2626',ativo:'#2563eb',passivo:'#7c3aed'};
-  const BG={receita:'#f0fdf4',despesa:'#fff5f5',ativo:'#eff6ff',passivo:'#faf5ff'};
-  const DOT={receita:'#16a34a',despesa:'#dc2626',ativo:'#2563eb',passivo:'#7c3aed'};
+  const nivelStyle=[
+    {fontSize:15,fontWeight:900,color:'#111',paddingLeft:0,paddingTop:10,paddingBottom:6,borderTop:'2px solid #111',marginTop:8},
+    {fontSize:13,fontWeight:700,color:'#444',paddingLeft:20,paddingTop:6,paddingBottom:4,borderTop:'1px solid #e5e5e5',marginTop:2},
+    {fontSize:12,fontWeight:400,color:'#555',paddingLeft:44,paddingTop:4,paddingBottom:4},
+    {fontSize:11,fontWeight:400,color:'#888',paddingLeft:68,paddingTop:3,paddingBottom:3},
+  ];
 
-  return React.createElement(PW,{title:'Plano de Contas',sub:'Estrutura contábil padrão Moneyy — confeitarias',
-    actions:[React.createElement('button',{key:'n',style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:()=>novaCategoria(GRUPOS_PADRAO[0].grupo,'despesa')},'+ Nova Conta')]},
+  // Build rows: PLANO_CONTAS + insert custom after parent
+  const rows=[];
+  PLANO_CONTAS.forEach(item=>{
+    rows.push({...item,custom:false});
+    // After each nivel>=1 item, insert custom children
+    if(item.nivel>=1){
+      const customs=(customByParent[item.cod+' '+item.nome]||customByParent[item.nome]||[]);
+      customs.forEach(c=>rows.push({cod:'',nome:c.nome,tipo:c.tipo||item.tipo,nivel:item.nivel+1,custom:true,id:c.id,grupo:c.grupo,catObj:c}));
+    }
+  });
+  // Custom without parent
+  (categorias_fin||[]).filter(c=>!rows.find(r=>r.custom&&r.id===c.id)).forEach(c=>{
+    rows.push({cod:'',nome:c.nome,tipo:c.tipo||'despesa',nivel:2,custom:true,id:c.id,grupo:c.grupo,catObj:c});
+  });
 
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(340px,1fr))',gap:14}},
-      GRUPOS_PADRAO.map(g=>{
-        const custom=catsPorGrupo[g.grupo]||[];
-        const exp=expandido[g.grupo];
-        const cor=COR[g.tipo]||'#555';
-        const bg=BG[g.tipo]||'#fafafa';
-        const allSubs=[...g.subs,...custom.map(c=>({custom:true,id:c.id,nome:c.nome}))];
-
-        return React.createElement('div',{key:g.grupo,style:{background:'#fff',borderRadius:16,boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden'}},
-          // Header
-          React.createElement('div',{
-            onClick:()=>toggle(g.grupo),
-            style:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 16px',cursor:'pointer',background:exp?bg:'#fff',borderBottom:exp?'1px solid #f0f0f0':'none',transition:'background 0.15s'}
-          },
-            React.createElement('div',{style:{display:'flex',alignItems:'center',gap:9}},
-              React.createElement('div',{style:{width:10,height:10,borderRadius:'50%',background:cor,flexShrink:0}}),
-              React.createElement('span',{style:{fontWeight:700,fontSize:13,color:'#111'}},g.grupo),
-              React.createElement('span',{style:{fontSize:11,color:'#ccc',fontWeight:500}},allSubs.length+' contas')
-            ),
-            React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10}},
-              React.createElement('button',{
-                onClick:e=>{e.stopPropagation();novaCategoria(g.grupo,g.tipo);},
-                style:{fontSize:12,color:cor,background:bg,border:'none',cursor:'pointer',fontWeight:700,padding:'3px 10px',borderRadius:20}
-              },'+ Add'),
-              React.createElement('span',{style:{fontSize:13,color:'#ccc',transform:exp?'rotate(90deg)':'rotate(0deg)',display:'inline-block',transition:'transform 0.2s',lineHeight:1}},'›')
-            )
+  return React.createElement(PW,{title:'Plano de Contas',sub:'Clique duplo para editar uma conta personalizada',
+    actions:[
+      React.createElement('button',{key:'r',style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:()=>novaCategoria('despesa')},'+ Despesa'),
+      React.createElement('button',{key:'re',style:{background:'#16a34a',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',marginLeft:8},onClick:()=>novaCategoria('receita')},'+ Receita'),
+    ]},
+    React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'8px 16px 16px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+      // Table header
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'90px 1fr 100px',gap:0,padding:'8px 0 4px',borderBottom:'2px solid #111',marginBottom:4}},
+        ['CÓD','CONTAS','TIPO'].map((h,i)=>React.createElement('div',{key:h,style:{fontSize:10,fontWeight:800,color:'#fff',background:'#1e293b',padding:'6px 10px',textAlign:i===2?'center':'left'}},h))
+      ),
+      rows.map((item,i)=>{
+        const ns=nivelStyle[Math.min(item.nivel,3)]||nivelStyle[3];
+        const cor=COR[item.tipo]||'#555';
+        const isGroup=item.nivel<=1;
+        return React.createElement('div',{key:item.custom?item.id:item.cod||i,
+          onDoubleClick:item.custom?()=>editarCat(item.catObj):undefined,
+          style:{display:'grid',gridTemplateColumns:'90px 1fr 100px',gap:0,
+            borderBottom:'1px solid '+(isGroup?'#e5e5e5':'#f5f5f5'),
+            background:isGroup&&item.nivel===0?BG_HEADER[item.tipo]+'44':'transparent',
+            cursor:item.custom?'pointer':'default',
+            transition:'background 0.1s'}},
+          // Cod
+          React.createElement('div',{style:{...ns,paddingLeft:Math.max(4,(item.nivel)*16),fontSize:ns.fontSize-1,color:isGroup?cor:'#bbb',fontWeight:isGroup?700:400,fontFamily:'monospace',paddingTop:ns.paddingTop,paddingBottom:ns.paddingBottom}},
+            item.cod||(item.custom?'*':'')),
+          // Nome
+          React.createElement('div',{style:{...ns,display:'flex',alignItems:'center',gap:6}},
+            item.custom&&React.createElement('span',{style:{fontSize:8,background:cor,color:'#fff',borderRadius:3,padding:'1px 4px',fontWeight:700,flexShrink:0}},'CUSTOM'),
+            React.createElement('span',null,item.nome),
+            item.custom&&React.createElement('button',{onClick:e=>{e.stopPropagation();excluirCat(item.id,item.nome);},style:{marginLeft:'auto',fontSize:10,color:'#dc2626',background:'#fee2e2',border:'none',borderRadius:4,padding:'1px 6px',cursor:'pointer'}},'×')
           ),
-          // Subcategorias
-          exp&&React.createElement('div',{style:{padding:'6px 0'}},
-            allSubs.map((s,i)=>{
-              const isCustom=typeof s==='object'&&s.custom;
-              const label=isCustom?s.nome:s;
-              const isLast=i===allSubs.length-1;
-              return React.createElement('div',{
-                key:isCustom?s.id:i,
-                style:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'7px 16px',borderBottom:isLast?'none':'1px solid #fafafa'}
-              },
-                React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10}},
-                  React.createElement('div',{style:{width:5,height:5,borderRadius:'50%',background:isCustom?cor:'#e0e0e0',flexShrink:0}}),
-                  React.createElement('span',{style:{fontSize:13,color:isCustom?'#111':'#555',fontWeight:isCustom?500:400}},label)
-                ),
-                isCustom
-                  ? React.createElement('button',{onClick:()=>excluirCat(s.id,s.nome),style:{fontSize:11,color:'#dc2626',background:'#fee2e2',border:'none',borderRadius:6,padding:'2px 8px',cursor:'pointer',fontWeight:600}},'×')
-                  : React.createElement('span',{style:{fontSize:10,color:'#ddd',fontWeight:600,letterSpacing:'1px'}},'PADRÃO')
-              );
-            })
-          )
+          // Tipo
+          React.createElement('div',{style:{...ns,textAlign:'center',fontSize:10,color:cor,fontWeight:isGroup?700:400,textTransform:'uppercase',letterSpacing:'0.5px'}},
+            isGroup?item.tipo:'')
         );
       })
     )
