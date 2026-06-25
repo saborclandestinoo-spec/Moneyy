@@ -1781,11 +1781,11 @@ function PedCaixa({uid,db,setDb,reload,setM}){
     });
   },[pedidos_cw]);
 
-  const caixaHoje=(caixas||[]).find(c=>c.status==='aberto')||(caixas||[]).find(c=>c.data===hoje)||(caixas||[]).find(c=>c.fechado_em&&c.fechado_em.startsWith(hoje))||(caixas||[]).sort((a,b)=>(b.fechado_em||b.aberto_em||'').localeCompare(a.fechado_em||a.aberto_em||''))[0]||null;
+  const caixaHoje=(caixas||[]).find(c=>c.status==='aberto')||(caixas||[]).find(c=>c.data===hoje)||(caixas||[]).find(c=>c.fechado_em&&c.fechado_em.startsWith(hoje))||null;
   const caixaAberto=caixaHoje&&caixaHoje.status==='aberto';
   const caixaFechado=caixaHoje&&caixaHoje.status==='fechado';
 
-  const dataCaixa=caixaHoje&&caixaHoje.data||hoje;
+  const dataCaixa=hoje; // sempre filtra pedidos de hoje
   const pedidosHoje=(pedidosLocal||[]).filter(p=>{
     if((p.data_pedido||'').startsWith(dataCaixa))return true;
     const r=p.raw||{};
