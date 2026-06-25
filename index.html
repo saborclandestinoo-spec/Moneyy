@@ -4755,8 +4755,8 @@ function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas,refreshEst
             React.createElement('span',{style:{fontSize:11,color:'#aaa'}},l.forma_pag||'—'),
             React.createElement('div',null,
               React.createElement('span',{style:{fontWeight:700,fontSize:14,
-                color:(l.categoria==='Transferencia'||l.forma_pag==='Transferencia')?'#2563eb':l.tipo==='receita'?'#16a34a':'#dc2626'}},
-                (l.categoria==='Transferencia'||l.forma_pag==='Transferencia')?'⇄ '+F(l.valor):(l.tipo==='receita'?'+':'-')+F(l.valor))
+                color:(l.categoria==='Transferencia'||l.forma_pag==='Transferencia')?(l.tipo==='receita'?'#16a34a':'#dc2626'):l.tipo==='receita'?'#16a34a':'#dc2626'}},
+                (l.categoria==='Transferencia'||l.forma_pag==='Transferencia')?(l.tipo==='receita'?'⇄ +':('⇄ -'))+F(l.valor):(l.tipo==='receita'?'+':'-')+F(l.valor))
             ),
             React.createElement(Badge,{t:isV?'Vencido':isH?'Vence hoje':l.pago?'Pago':'Pendente',c:isV?'red':isH?'amber':l.pago?'green':'amber'}),
             React.createElement('div',{style:{display:'flex',gap:4}},
