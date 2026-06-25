@@ -4420,7 +4420,7 @@ function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas,refreshEst
   novoLancFormRef.current=(t)=>{
     const titlesM={receita:'+ Nova Receita',despesa:'+ Nova Despesa',transferencia:'+ Transferência'};
     const rcM=async()=>{if(refreshLanc)await refreshLanc();if(refreshContas)await refreshContas();if(refreshEstoque)await refreshEstoque();};
-    setM({wide:true,title:titlesM[t]||'+ Lançamento',body:React.createElement(LancForm,{uid,tipo:t,db:dbRef.current,reload:rcM,close:()=>setM(null),onLancarOutro:()=>novoLancFormRef.current(t)})});
+    setM({wide:true,title:titlesM[t]||'+ Lançamento',body:React.createElement(LancForm,{key:Date.now(),uid,tipo:t,db:dbRef.current,reload:rcM,close:()=>setM(null),onLancarOutro:()=>novoLancFormRef.current(t)})});
   };
 
   const{lancamentos,contas}=db;
