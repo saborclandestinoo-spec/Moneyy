@@ -4849,13 +4849,16 @@ function CustomSelect({label,value,onChange,options,placeholder,acent}){
               const v=o.v!==undefined?o.v:o;
               const l=o.l!==undefined?o.l:o;
               const active=v===value;
+              const indent=o.indent||0;
+              const bold=o.bold||false;
               return React.createElement('div',{
                 key:v||i,
                 onClick:()=>{onChange(v);setOpen(false);},
-                style:{padding:'10px 14px',fontSize:13,cursor:'pointer',
-                  color:active?cor:'#111',fontWeight:active?700:400,
-                  background:active?cor+'10':'#fff',
-                  borderBottom:i<optionsFiltradas.length-1?'1px solid #fafafa':'none',
+                style:{padding:'8px 14px 8px '+(14+indent)+'px',fontSize:bold?13:12,cursor:'pointer',
+                  color:active?cor:bold?'#111':'#555',fontWeight:active?700:bold?700:400,
+                  background:active?cor+'10':bold&&indent===0?'#f9f9f9':'#fff',
+                  borderBottom:'1px solid #fafafa',
+                  borderTop:bold&&indent===0&&i>0?'1px solid #eee':'none',
                   transition:'background 0.1s'}
               },l);
             })
@@ -5732,7 +5735,7 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){
   const jv=parseFloat(juros||0);const mv=parseFloat(multa||0);const dv=parseFloat(desconto||0);
   const totalFinal=v+jv+mv-dv;
 
-  const catsPadrao=PLANO_CONTAS.filter(c=>c.nivel>=2&&(isRec?c.tipo==='receita':c.tipo==='despesa')).map(c=>({v:c.cod+' '+c.nome,l:c.cod+' '+c.nome}));
+  const catsPadrao=PLANO_CONTAS.filter(c=>c.nivel>=2&&(isRec?c.tipo==='receita':c.tipo==='despesa')).map(c=>({v:c.cod+' '+c.nome,l:c.cod+' '+c.nome,indent:(c.nivel-2)*14,bold:c.nivel===2}));
   const catsCustom=(categorias_fin||[]).filter(c=>isRec?c.tipo==='receita':c.tipo==='despesa').map(c=>({v:c.nome,l:c.nome}));
   const cats=[...catsPadrao,...catsCustom];
 
