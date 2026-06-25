@@ -5749,9 +5749,9 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){
 
   // Field and SelField are defined at module level below
 
-  const salvar=async(mode)=>{console.log('SALVAR CALLED mode=',mode);
+  const salvar=async(mode)=>{
     const afterSave=async()=>{
-      if(mode==='novo'){console.log('NOVO MODE',{onLancarOutro:!!onLancarOutro});close();if(onLancarOutro){console.log('CALLING onLancarOutro');onLancarOutro();}else{console.log('NO onLancarOutro');}reload();toast('✅ Salvo!',false,true);}
+      if(mode==='novo'){close();if(onLancarOutro)onLancarOutro();reload();toast('✅ Salvo!',false,true);}
       else{await reload();close();}
     };
     if(!desc||!valor){toast('Preencha descricao e valor',true);return;}
@@ -5836,7 +5836,7 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){
       }
     }
     const msg=inicial&&inicial.id?'Lançamento atualizado!':tipoLanc==='Unico'?'Lancamento criado!':tipoLanc==='Parcelado'?numParc+' parcelas!':numRep+' recorrencias!';
-    toast(msg+(vincularEstoque?' Estoque atualizado!':''),false,true);reload();close();setLd(false);
+    toast(msg+(vincularEstoque?' Estoque atualizado!':''),false,true);await afterSave();setLd(false);
   };
 
   const acentBg=isRec?'#f0fdf4':isTransf?'#eff6ff':'#fff5f5';
