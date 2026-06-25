@@ -1767,10 +1767,10 @@ function PedCaixa({uid,db,setDb,reload,setM}){
     const fn=async()=>{
       // Busca por data_pedido (hoje em diante)
       const{data:p1}=await sb.from('pedidos_cw').select('*').eq('user_id',uid).gte('data_pedido',hoje).order('data_pedido',{ascending:false});
-      // Busca por created_at do dia (para pedidos sem data_pedido)
+      // Busca por created_at do dia (complementar)
       const amanha=new Date(hoje+'T12:00:00');amanha.setDate(amanha.getDate()+1);
       const amanhaStr=amanha.toISOString().split('T')[0];
-      const{data:p2}=await sb.from('pedidos_cw').select('*').eq('user_id',uid).is('data_pedido',null).gte('created_at',hoje+'T03:00:00Z').lt('created_at',amanhaStr+'T03:00:00Z');
+      const{data:p2}=await sb.from('pedidos_cw').select('*').eq('user_id',uid).gte('created_at',hoje+'T03:00:00Z').lt('created_at',amanhaStr+'T03:00:00Z');
       const seen=new Set((p1||[]).map(p=>p.id));
       const merged=[...(p1||[]),...(p2||[]).filter(p=>!seen.has(p.id))];
       if(merged.length>0)setPedidosLocal(merged);
@@ -1798,7 +1798,15 @@ function PedCaixa({uid,db,setDb,reload,setM}){
   const pedAtivos=pedidosHoje.filter(p=>!['canceled','closed','delivered'].includes(p.status));
 
   const agruparPag=(lista,excluirIfoodOnline=false)=>{const g={};lista.forEach(p=>{(p.pagamentos||[]).forEach(pg=>{const k=(pg.payment_method||'').toLowerCase();const isOnline=pg.payment_type==='online';if(excluirIfoodOnline&&k==='ifood'&&isOnline)return;if(excluirIfoodOnline&&k==='online_credit_card')return;if(k==='ifood'&&isOnline)return;const n=PM_MAP_CW[k]||k;g[n]=(g[n]||0)+Number(pg.value||pg.total||0);});});return g;};
-  const agruparPagTodos=(lista)=>{const g={};lista.forEach(p=>{(p.pagamentos||[]).forEach(pg=>{const k=(pg.payment_method||'').toLowerCase();const n=k==='ifood'?'iFood Online':PM_MAP_CW[k]||k;g[n]=(g[n]||0)+Number(pg.value||pg.total||0);});});return g;};
+  const agruparPagTodos=(lista)=>{const g={};lista.forEach(p=>{
+    const pgs=p.pagamentos||(p.raw&&p.raw.payments)||[];
+    if(pgs.length>0){
+      pgs.forEach(pg=>{const k=(pg.payment_method||pg.method||pg.type||'').toLowerCase();const n=k==='ifood'?'iFood Online':PM_MAP_CW[k]||k||'Outros';g[n]=(g[n]||0)+Number(pg.value||pg.amount||pg.total||0);});
+    } else if(p.total){
+      // Fallback: sem info de pagamento, usa total do pedido como "A definir"
+      const n='A definir';g[n]=(g[n]||0)+Number(p.total||0);
+    }
+  });return g;};
   const vendasPrincipais=agruparPagTodos(pedNaoCancelados);
   const totalPrincipal=Object.values(vendasPrincipais).reduce((s,v)=>s+v,0);
   const vendasDelivery=agruparPag(pedDelivery,true);
