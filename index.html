@@ -6417,33 +6417,36 @@ function FinCategorias({uid,db,reload,setM}){
       React.createElement('button',{key:'re',style:{background:'#16a34a',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',marginLeft:8},onClick:()=>novaCategoria('receita')},'+ Receita'),
     ]},
     React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'8px 16px 16px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
-      // Table header
-      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'90px 1fr 100px',gap:0,padding:'8px 0 4px',borderBottom:'2px solid #111',marginBottom:4}},
-        ['CÓD','CONTAS','TIPO'].map((h,i)=>React.createElement('div',{key:h,style:{fontSize:10,fontWeight:800,color:'#fff',background:'#1e293b',padding:'6px 10px',textAlign:i===2?'center':'left'}},h))
-      ),
       rows.map((item,i)=>{
-        const ns=nivelStyle[Math.min(item.nivel,3)]||nivelStyle[3];
         const cor=COR[item.tipo]||'#555';
-        const isGroup=item.nivel<=1;
+        const indent=item.nivel*20;
+        const isTop=item.nivel===0;
+        const isSub=item.nivel===1;
         return React.createElement('div',{key:item.custom?item.id:item.cod||i,
           onDoubleClick:item.custom?()=>editarCat(item.catObj):undefined,
-          style:{display:'grid',gridTemplateColumns:'90px 1fr 100px',gap:0,
-            borderBottom:'1px solid '+(isGroup?'#e5e5e5':'#f5f5f5'),
-            background:isGroup&&item.nivel===0?BG_HEADER[item.tipo]+'44':'transparent',
-            cursor:item.custom?'pointer':'default',
-            transition:'background 0.1s'}},
+          style:{display:'flex',alignItems:'center',gap:12,
+            paddingLeft:8+indent,paddingRight:12,
+            paddingTop:isTop?10:isSub?6:4,
+            paddingBottom:isTop?10:isSub?6:4,
+            borderTop:isTop?'2px solid #e5e5e5':isSub?'1px solid #f0f0f0':'none',
+            marginTop:isTop?8:0,
+            cursor:item.custom?'pointer':'default'}},
           // Cod
-          React.createElement('div',{style:{...ns,paddingLeft:Math.max(4,(item.nivel)*16),fontSize:ns.fontSize-1,color:isGroup?cor:'#bbb',fontWeight:isGroup?700:400,fontFamily:'monospace',paddingTop:ns.paddingTop,paddingBottom:ns.paddingBottom}},
-            item.cod||(item.custom?'*':'')),
+          React.createElement('span',{style:{
+            fontFamily:'monospace',fontSize:isTop?14:isSub?12:11,
+            color:isTop?cor:isSub?cor+'aa':'#ccc',
+            fontWeight:isTop?900:isSub?700:400,
+            minWidth:isTop?20:isSub?36:52,flexShrink:0}},
+            item.cod||(item.custom?'—':'')),
           // Nome
-          React.createElement('div',{style:{...ns,display:'flex',alignItems:'center',gap:6}},
-            item.custom&&React.createElement('span',{style:{fontSize:8,background:cor,color:'#fff',borderRadius:3,padding:'1px 4px',fontWeight:700,flexShrink:0}},'CUSTOM'),
-            React.createElement('span',null,item.nome),
-            item.custom&&React.createElement('button',{onClick:e=>{e.stopPropagation();excluirCat(item.id,item.nome);},style:{marginLeft:'auto',fontSize:10,color:'#dc2626',background:'#fee2e2',border:'none',borderRadius:4,padding:'1px 6px',cursor:'pointer'}},'×')
-          ),
-          // Tipo
-          React.createElement('div',{style:{...ns,textAlign:'center',fontSize:10,color:cor,fontWeight:isGroup?700:400,textTransform:'uppercase',letterSpacing:'0.5px'}},
-            isGroup?item.tipo:'')
+          React.createElement('span',{style:{
+            fontSize:isTop?15:isSub?13:12,
+            fontWeight:isTop?900:isSub?700:400,
+            color:isTop?'#111':isSub?'#222':'#666',flex:1}},
+            item.nome),
+          // Custom badge + delete
+          item.custom&&React.createElement('button',{onClick:e=>{e.stopPropagation();excluirCat(item.id,item.nome);},
+            style:{fontSize:10,color:'#dc2626',background:'#fee2e2',border:'none',borderRadius:4,padding:'2px 7px',cursor:'pointer',opacity:0.7}},'×')
         );
       })
     )
