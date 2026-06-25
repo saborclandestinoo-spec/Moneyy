@@ -1869,7 +1869,7 @@ function PedCaixa({uid,db,setDb,reload,setM}){
 
   const abrirCaixa=()=>setM({title:'🔓 Abrir Caixa',body:React.createElement(AbrirCaixaModal,{uid,reload,close:()=>setM(null)})});
   const fecharCaixa=()=>{
-    if(pedAtivos.length>0&&!confirm(pedAtivos.length+' pedido(s) em aberto. Fechar mesmo assim?'))return;
+    if(pedAtivos.length>0)toast('⚠️ '+pedAtivos.length+' pedido(s) ainda em andamento',false,false);
     setM({title:'Fechar Caixa',wide:true,body:React.createElement(FecharCaixaModal,{
       uid,caixa:caixaHoje,vendasPrincipais,abertura,suprimentos,sangrias,
       gerarLancamentos,reload,close:()=>setM(null),setLd
