@@ -5740,7 +5740,8 @@ function LancForm({uid,tipo,db,reload,close,inicial}){
 
   // Field and SelField are defined at module level below
 
-  const salvar=async()=>{
+  const salvar=async(mode)=>{
+    const afterSave=async()=>{await reload();if(mode==='novo'){setDesc('');setValor('');setCat('');setFornecedor('');setFormaPag('');setCentroCusto('');setJuros('');setMulta('');setDesconto('');setPago(false);setVenc(TODAY());setCompetencia('');setTipoLanc('Unico');toast('✅ Salvo! Pronto para novo.',false,true);}else{close();}};
     if(!desc||!valor){toast('Preencha descricao e valor',true);return;}
     setLd(true);
     const estQtdTotal=vincularEstoque&&estoqueId?(()=>{const it=(estoque||[]).find(e=>e.id===estoqueId);return(parseFloat(estoqueQtdEmb)||0)*((it&&it.qtd_embalagem)||1);})():null;
@@ -5783,7 +5784,7 @@ function LancForm({uid,tipo,db,reload,close,inicial}){
       const cO=contas.find(c=>c.id===contaId);const cD=contas.find(c=>c.id===contaDestId);
       if(cO)await sb.from('contas_bancarias').update({saldo:Number(cO.saldo)-vl}).eq('id',contaId);
       if(cD)await sb.from('contas_bancarias').update({saldo:Number(cD.saldo)+vl}).eq('id',contaDestId);
-      toast('Transferencia realizada!',false,true);reload();close();setLd(false);return;
+      toast('Transferencia realizada!',false,true);await afterSave();setLd(false);return;
     }
     let error;
     if(inicial&&inicial.id&&rows.length===1){
@@ -5953,11 +5954,15 @@ function LancForm({uid,tipo,db,reload,close,inicial}){
       numRep+' repeticoes '+freqRec+' a partir de '+FD(venc)
     ),
     // ── BOTOES ──
-    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:4}},
+    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:4,flexWrap:'wrap'}},
       React.createElement('button',{style:{background:'#f5f5f5',color:'#555',padding:'10px 20px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'},onClick:close},'Cancelar'),
+      !inicial?.id&&!isTransf&&React.createElement('button',{
+        style:{background:'#f5f5f5',color:acent,padding:'10px 18px',borderRadius:10,fontSize:12,fontWeight:600,border:'1.5px solid '+acent,cursor:'pointer'},
+        onClick:()=>salvar('novo')
+      },'Salvar e lançar outro'),
       React.createElement('button',{
         style:{background:acent,color:'#fff',padding:'10px 24px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer',boxShadow:'0 3px 10px rgba(0,0,0,0.12)'},
-        onClick:salvar
+        onClick:()=>salvar('close')
       },ld?React.createElement('div',{style:{width:14,height:14,border:'2px solid rgba(255,255,255,0.3)',borderTopColor:'#fff',borderRadius:'50%',animation:'spin 0.7s linear infinite',display:'inline-block'}}):
         isTransf?'Transferir':inicial&&inicial.id?'Salvar alterações':tipoLanc==='Unico'?'Salvar':tipoLanc==='Parcelado'?'Criar '+numParc+'x':'Criar '+numRep+'x'
       )
@@ -6685,7 +6690,7 @@ function ContaForm({uid,reload,close,conta,contas}){
       if(!e)toast('Conta criada!',false,true);
     }
     if(error){toast('Erro: '+error.message,true);setLd(false);return;}
-    reload();close();setLd(false);
+    await afterSave();setLd(false);
   };
 
   const lbS={fontSize:10,color:'#aaa',fontWeight:700,letterSpacing:'1.5px',textTransform:'uppercase',display:'block',marginBottom:5,marginTop:10};
