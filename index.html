@@ -5751,7 +5751,7 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){
 
   const salvar=async(mode)=>{
     const afterSave=async()=>{
-      if(mode==='novo'){close();if(onLancarOutro)onLancarOutro();reload();toast('✅ Salvo!',false,true);}
+      if(mode==='novo'){console.log('NOVO MODE',{onLancarOutro:!!onLancarOutro});close();if(onLancarOutro){console.log('CALLING onLancarOutro');onLancarOutro();}else{console.log('NO onLancarOutro');}reload();toast('✅ Salvo!',false,true);}
       else{await reload();close();}
     };
     if(!desc||!valor){toast('Preencha descricao e valor',true);return;}
