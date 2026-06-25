@@ -4851,7 +4851,7 @@ function CustomSelect({label,value,onChange,options,placeholder,acent}){
 
 
 // ── MINI DATE PICKER ──
-function MiniDatePicker({value,onChange,label,acent}){
+function MiniDatePicker({value,onChange,label,acent,dropup}){
   const[open,setOpen]=React.useState(false);
   const ref=React.useRef(null);
   const cor=acent||'#dc2626';
@@ -4896,7 +4896,7 @@ function MiniDatePicker({value,onChange,label,acent}){
       React.createElement('span',{style:{fontSize:14,color:'#bbb'}})
     ),
     open&&React.createElement('div',{style:{
-      position:'absolute',bottom:'calc(100% + 4px)',left:0,zIndex:999,
+      position:'absolute',...(dropup?{bottom:'calc(100% + 4px)'}:{top:'calc(100% + 4px)'}),left:0,zIndex:999,
       background:'#fff',borderRadius:14,boxShadow:'0 8px 32px rgba(0,0,0,0.15)',
       border:'1px solid #f0f0f0',minWidth:270,padding:'14px'
     }},
@@ -5840,7 +5840,7 @@ function LancForm({uid,tipo,db,reload,close,inicial}){
     ),
     // ── LINHA DATA PAG + JUROS + MULTA + DESCONTO + TOTAL ──
     pago&&React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1.2fr 1fr 1fr 1fr 1fr',gap:10,marginBottom:14}},
-      React.createElement(MiniDatePicker,{label:'Data de pagamento *',value:dataPag,onChange:setDataPag,acent}),
+      React.createElement(MiniDatePicker,{label:'Data de pagamento *',value:dataPag,onChange:setDataPag,acent,dropup:true}),
       React.createElement(FloatInput,{label:'Juros',acent,type:'number',step:'0.01',value:juros,onChange:e=>setJuros(e.target.value)}),
       React.createElement(FloatInput,{label:'Multa',acent,type:'number',step:'0.01',value:multa,onChange:e=>setMulta(e.target.value)}),
       React.createElement(FloatInput,{label:'Desconto',acent,type:'number',step:'0.01',value:desconto,onChange:e=>setDesconto(e.target.value)}),
