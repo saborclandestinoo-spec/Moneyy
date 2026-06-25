@@ -1764,7 +1764,17 @@ function PedCaixa({uid,db,setDb,reload,setM}){
 
   React.useEffect(()=>{setPedidosLocal(pedidos_cw||[]);},[pedidos_cw]);
   React.useEffect(()=>{
-    const fn=()=>sb.from('pedidos_cw').select('*').eq('user_id',uid).gte('data_pedido',hoje).order('data_pedido',{ascending:false}).then(({data})=>{if(data)setPedidosLocal(data);});
+    const fn=async()=>{
+      // Busca por data_pedido (hoje em diante)
+      const{data:p1}=await sb.from('pedidos_cw').select('*').eq('user_id',uid).gte('data_pedido',hoje).order('data_pedido',{ascending:false});
+      // Busca por created_at do dia (para pedidos sem data_pedido)
+      const amanha=new Date(hoje+'T12:00:00');amanha.setDate(amanha.getDate()+1);
+      const amanhaStr=amanha.toISOString().split('T')[0];
+      const{data:p2}=await sb.from('pedidos_cw').select('*').eq('user_id',uid).is('data_pedido',null).gte('created_at',hoje+'T03:00:00Z').lt('created_at',amanhaStr+'T03:00:00Z');
+      const seen=new Set((p1||[]).map(p=>p.id));
+      const merged=[...(p1||[]),...(p2||[]).filter(p=>!seen.has(p.id))];
+      if(merged.length>0)setPedidosLocal(merged);
+    };
     fn();const t=setInterval(fn,30000);return()=>clearInterval(t);
   },[uid,hoje]);
 
@@ -1963,19 +1973,7 @@ function PedCaixa({uid,db,setDb,reload,setM}){
 
   return React.createElement(PW,{title:'Caixa',sub:new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',timeZone:'America/Sao_Paulo'}),
     actions:[
-      React.createElement('button',{key:'lmp',type:'button',style:{background:'#fee2e2',color:'#dc2626',padding:'8px 14px',borderRadius:9,fontSize:12,fontWeight:700,border:'none',cursor:'pointer'},onClick:()=>setM({title:'⚠️ Limpar Lançamentos do Caixa',body:React.createElement('div',null,
-        React.createElement('div',{style:{fontSize:13,color:'#555',marginBottom:16,lineHeight:1.7}},'Isso vai excluir TODOS os lançamentos com obs=consolidado_cw do banco. Use para limpar lançamentos duplicados/errados.'),
-        React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
-          React.createElement('button',{style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'},onClick:()=>setM(null)},'Cancelar'),
-          React.createElement('button',{style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:async()=>{
-            setM(null);setLd(true);
-            const{error,count}=await sb.from('lancamentos').delete({count:'exact'}).eq('user_id',uid).eq('obs','consolidado_cw');
-            setLd(false);
-            if(error)toast('Erro: '+error.message,true);
-            else{reload();toast('✅ Lançamentos consolidado_cw excluídos!',false,true);}
-          }},'🗑 Limpar tudo')
-        )
-      )})},ld?'...':'🗑 Limpar CW'),
+
       caixaAberto&&React.createElement('div',{key:'st',style:{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#16a34a',fontWeight:700,padding:'6px 12px',background:'#f0fdf4',borderRadius:20,border:'1px solid #bbf7d0'}},React.createElement('div',{style:{width:6,height:6,borderRadius:'50%',background:'#16a34a',animation:'pulse 1.5s infinite'}}),'Aberto '+horaCaixa(caixaHoje&&caixaHoje.aberto_em)),
       caixaFechado&&React.createElement('div',{key:'st',style:{fontSize:12,color:'#6b7280',fontWeight:600,padding:'6px 12px',background:'#f5f5f5',borderRadius:20}},'Fechado '+horaCaixa(caixaHoje&&caixaHoje.fechado_em)),
       caixaAberto&&React.createElement('button',{key:'sup',type:'button',onClick:()=>abrirMov('suprimento'),style:{background:'#f0fdf4',color:'#16a34a',padding:'8px 14px',borderRadius:9,fontSize:12,fontWeight:700,border:'none',cursor:'pointer'}},'➕ Suprimento'),
