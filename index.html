@@ -5651,7 +5651,7 @@ function DescAutoComplete({label,acent,value,onChange,lancamentos,tipo}){
   };
 
   const pick=(l)=>{
-    onChange(l.descricao);
+    onChange(l.descricao,l);
     setShow(false);setSugs([]);
   };
 
@@ -5831,7 +5831,16 @@ function LancForm({uid,tipo,db,reload,close,inicial}){
   return React.createElement('div',{style:{minWidth:500}},
     // ── LINHA 1: Descricao + Valor ──
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1.8fr 1fr',gap:10,marginBottom:0}},
-      React.createElement(DescAutoComplete,{label:'Descricao *',acent,value:desc,onChange:setDesc,lancamentos,tipo}),
+      React.createElement(DescAutoComplete,{label:'Descricao *',acent,value:desc,onChange:(v,l)=>{
+        setDesc(v);
+        if(l){
+          if(l.conta_id)setContaId(l.conta_id);
+          if(l.forma_pag)setFormaPag(l.forma_pag);
+          if(l.categoria)setCat(l.categoria);
+          if(l.centro_custo)setCentroCusto(l.centro_custo);
+          if(l.fornecedor)setFornecedor(l.fornecedor);
+        }
+      },lancamentos,tipo}),
       React.createElement(FloatInput,{label:'Valor *',acent,type:'number',step:'0.01',value:valor,onChange:e=>setValor(e.target.value)})
     ),
     // ── LINHA 2: Conta + Vencimento + Competencia ──
