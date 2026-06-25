@@ -1760,16 +1760,26 @@ function PedCaixa({uid,db,setDb,reload,setM}){
   const hoje=TODAY();
   const[ld,setLd]=React.useState(false);
   const[aba,setAba]=React.useState('hoje');
-  const[pedidosLocal,setPedidosLocal]=React.useState(pedidos_cw||[]);
+  const[pedidosLocal,setPedidosLocal]=React.useState([]);
 
-  React.useEffect(()=>{setPedidosLocal(pedidos_cw||[]);},[pedidos_cw]);
+  // Carrega pedidos do dia no mount e a cada 30s
   React.useEffect(()=>{
     const fn=async()=>{
-      const{data}=await sb.from('pedidos_cw').select('*').eq('user_id',uid).gte('data_pedido',hoje).order('data_pedido',{ascending:false});
-      if(data&&data.length>0)setPedidosLocal(data);
+      try{
+        const{data}=await sb.from('pedidos_cw').select('*').eq('user_id',uid).gte('data_pedido',hoje).order('criado_em',{ascending:false});
+        if(data)setPedidosLocal(data);
+      }catch(e){}
     };
     fn();const t=setInterval(fn,30000);return()=>clearInterval(t);
   },[uid,hoje]);
+
+  // Também usa pedidos do db state quando atualizados por realtime
+  React.useEffect(()=>{
+    if(pedidos_cw&&pedidos_cw.length>0)setPedidosLocal(prev=>{
+      const seen=new Set(pedidos_cw.map(p=>p.id));
+      return [...pedidos_cw,...prev.filter(p=>!seen.has(p.id))];
+    });
+  },[pedidos_cw]);
 
   const caixaHoje=(caixas||[]).find(c=>c.status==='aberto')||(caixas||[]).find(c=>c.data===hoje)||(caixas||[]).find(c=>c.fechado_em&&c.fechado_em.startsWith(hoje))||(caixas||[]).sort((a,b)=>(b.fechado_em||b.aberto_em||'').localeCompare(a.fechado_em||a.aberto_em||''))[0]||null;
   const caixaAberto=caixaHoje&&caixaHoje.status==='aberto';
