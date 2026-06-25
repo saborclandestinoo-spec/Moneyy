@@ -1765,15 +1765,8 @@ function PedCaixa({uid,db,setDb,reload,setM}){
   React.useEffect(()=>{setPedidosLocal(pedidos_cw||[]);},[pedidos_cw]);
   React.useEffect(()=>{
     const fn=async()=>{
-      // Busca por data_pedido (hoje em diante)
-      const{data:p1}=await sb.from('pedidos_cw').select('*').eq('user_id',uid).gte('data_pedido',hoje).order('data_pedido',{ascending:false});
-      // Busca por created_at do dia (complementar)
-      const amanha=new Date(hoje+'T12:00:00');amanha.setDate(amanha.getDate()+1);
-      const amanhaStr=amanha.toISOString().split('T')[0];
-      const{data:p2}=await sb.from('pedidos_cw').select('*').eq('user_id',uid).gte('created_at',hoje+'T03:00:00Z').lt('created_at',amanhaStr+'T03:00:00Z');
-      const seen=new Set((p1||[]).map(p=>p.id));
-      const merged=[...(p1||[]),...(p2||[]).filter(p=>!seen.has(p.id))];
-      if(merged.length>0)setPedidosLocal(merged);
+      const{data}=await sb.from('pedidos_cw').select('*').eq('user_id',uid).gte('data_pedido',hoje).order('data_pedido',{ascending:false});
+      if(data&&data.length>0)setPedidosLocal(data);
     };
     fn();const t=setInterval(fn,30000);return()=>clearInterval(t);
   },[uid,hoje]);
