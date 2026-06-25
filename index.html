@@ -3898,6 +3898,11 @@ function FinPagar({uid,db,reload,setM}){
   const hoje=TODAY();
   const[fil,setFil]=React.useState('pendentes');
   const[busca,setBusca]=React.useState('');
+  const[diaFiltro,setDiaFiltro]=React.useState(null);
+  const hoje2=new Date(hoje+'T12:00:00');
+  const[calAno,setCalAno]=React.useState(hoje2.getFullYear());
+  const[calMes,setCalMes]=React.useState(hoje2.getMonth());
+  const mesStr=calAno+'-'+String(calMes+1).padStart(2,'0');
 
   // A Pagar = lançamentos despesa não pagos
   const aPagar=React.useMemo(()=>(lancamentos||[]).filter(l=>
@@ -3905,7 +3910,6 @@ function FinPagar({uid,db,reload,setM}){
   ),[lancamentos]);
 
   const aPagarMes=aPagar.filter(l=>(l.venc||l.data||'').startsWith(mesStr));
-  console.log('DEBUG:',{mesStr,aPagarLen:aPagar.length,aPagarMesLen:aPagarMes.length,primeiroVenc:aPagar[0]&&(aPagar[0].venc||aPagar[0].data)});
 
   const list=React.useMemo(()=>{
     let r=diaFiltro?aPagar.filter(l=>(l.venc||l.data)===diaFiltro):aPagarMes;
@@ -3931,12 +3935,6 @@ function FinPagar({uid,db,reload,setM}){
   };
 
   const badgeStyle=(v,ativo)=>({padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,background:ativo?'#dc2626':'#f5f5f5',color:ativo?'#fff':'#666',border:'none',cursor:'pointer'});
-
-  const[diaFiltro,setDiaFiltro]=React.useState(null);
-  const hoje2=new Date(hoje+'T12:00:00');
-  const[calAno,setCalAno]=React.useState(hoje2.getFullYear());
-  const[calMes,setCalMes]=React.useState(hoje2.getMonth());
-  const mesStr=calAno+'-'+String(calMes+1).padStart(2,'0');
 
   return React.createElement(PW,{title:'A Pagar',sub:'Lançamentos de despesa pendentes de pagamento'},
     React.createElement(CalendarioPagar,{lancamentos:aPagar,hoje,calAno,calMes,setCalAno,setCalMes,onClickDia:(d)=>setDiaFiltro(d===null?null:p=>p===d?null:d)}),
