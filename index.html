@@ -6580,14 +6580,29 @@ function ContaForm({uid,reload,close,conta,contas}){
     if(!nome){toast('Informe o nome',true);return;}
     setLd(true);
     const vl=parseFloat(String(saldo).replace(',','.'))||0;
-    const payload={user_id:uid,nome,tipo,banco,cor,saldo_inicial:vl,data_saldo_inicial:dataSaldo,saldo:vl,ativo:true,cashback_pct:parseFloat(cashbackPct)||0,cashback_conta_id:cashbackContaId||null};
+    let error;
     if(isEdit){
-      await sb.from('contas_bancarias').update(payload).eq('id',conta.id);
-      toast('Conta atualizada!',false,true);
+      // Não sobrescreve saldo corrente — só atualiza saldo_inicial e data_saldo_inicial
+      const{error:e}=await sb.from('contas_bancarias').update({
+        nome,tipo,banco,cor,
+        saldo_inicial:vl,
+        data_saldo_inicial:dataSaldo,
+        ativo:true,
+        cashback_pct:parseFloat(cashbackPct)||0,
+        cashback_conta_id:cashbackContaId||null
+      }).eq('id',conta.id);
+      error=e;
+      if(!e)toast('Conta atualizada!',false,true);
     }else{
-      await sb.from('contas_bancarias').insert(payload);
-      toast('Conta criada!',false,true);
+      const{error:e}=await sb.from('contas_bancarias').insert({
+        user_id:uid,nome,tipo,banco,cor,
+        saldo_inicial:vl,data_saldo_inicial:dataSaldo,saldo:vl,ativo:true,
+        cashback_pct:parseFloat(cashbackPct)||0,cashback_conta_id:cashbackContaId||null
+      });
+      error=e;
+      if(!e)toast('Conta criada!',false,true);
     }
+    if(error){toast('Erro: '+error.message,true);setLd(false);return;}
     reload();close();setLd(false);
   };
 
