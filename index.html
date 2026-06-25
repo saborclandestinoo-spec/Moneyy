@@ -2008,7 +2008,7 @@ function PedCaixa({uid,db,setDb,reload,setM}){
     (!caixaHoje||caixaFechado)&&React.createElement('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'60px 20px',textAlign:'center'}},
       React.createElement('div',{style:{fontSize:72,marginBottom:16,opacity:0.3}},'🏧'),
       React.createElement('div',{style:{fontSize:22,fontWeight:900,color:'#555',letterSpacing:'2px',marginBottom:24}},'CAIXA FECHADO'),
-      caixaFechado?React.createElement('button',{type:'button',onClick:reabrirCaixa,style:{background:'#f5f5f5',color:'#555',padding:'12px 32px',borderRadius:12,fontSize:14,fontWeight:700,border:'none',cursor:'pointer',marginBottom:32}},'↩ Reabrir Caixa'):React.createElement('button',{type:'button',onClick:abrirCaixa,style:{background:'#7c3aed',color:'#fff',padding:'12px 32px',borderRadius:12,fontSize:14,fontWeight:800,border:'none',cursor:'pointer',marginBottom:32}},'ABRIR CAIXA'),
+      React.createElement('button',{type:'button',onClick:abrirCaixa,style:{background:'#7c3aed',color:'#fff',padding:'12px 32px',borderRadius:12,fontSize:14,fontWeight:800,border:'none',cursor:'pointer',marginBottom:32}},'ABRIR CAIXA'),
       React.createElement('div',{style:{maxWidth:480,background:'#fff',borderRadius:12,padding:'18px 20px',textAlign:'left',boxShadow:'0 1px 8px rgba(0,0,0,0.07)',border:'1px solid #f0f0f0'}},
         React.createElement('div',{style:{fontWeight:700,fontSize:13,color:'#111',marginBottom:10}},'Informações sobre o caixa'),
         React.createElement('div',{style:{fontSize:12,color:'#555',lineHeight:1.8}},
@@ -2053,6 +2053,7 @@ function PedCaixa({uid,db,setDb,reload,setM}){
     ),
 
     // Delivery + Retirada + iFood
+    caixaFechado&&React.createElement('div',{style:{background:'#fef9c3',borderRadius:10,padding:'8px 14px',marginBottom:10,fontSize:12,color:'#92400e',fontWeight:600}},'📋 Dados do último caixa · Fechado em '+horaCaixa(caixaHoje&&caixaHoje.fechado_em)),
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:14,marginBottom:14}},
       React.createElement(CardVendas,{title:'Delivery',grupos:vendasDelivery,total:totalDelivery,taxaEntrega:taxaEntregaDelivery}),
       React.createElement(CardVendas,{title:'Retirada',grupos:vendasRetirada,total:totalRetirada}),
