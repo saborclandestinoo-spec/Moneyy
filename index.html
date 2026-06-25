@@ -5750,7 +5750,10 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){
   // Field and SelField are defined at module level below
 
   const salvar=async(mode)=>{
-    const afterSave=async()=>{await reload();if(mode==='novo'){await reload();toast('✅ Salvo!',false,true);if(onLancarOutro)onLancarOutro();else{setDesc('');setValor('');setCat('');setFornecedor('');setFormaPag('');setCentroCusto('');setJuros('');setMulta('');setDesconto('');setPago(false);setVenc(TODAY());setCompetencia('');}}else{close();}};
+    const afterSave=async()=>{
+      if(mode==='novo'){close();if(onLancarOutro)onLancarOutro();reload();toast('✅ Salvo!',false,true);}
+      else{await reload();close();}
+    };
     if(!desc||!valor){toast('Preencha descricao e valor',true);return;}
     setLd(true);
     const estQtdTotal=vincularEstoque&&estoqueId?(()=>{const it=(estoque||[]).find(e=>e.id===estoqueId);return(parseFloat(estoqueQtdEmb)||0)*((it&&it.qtd_embalagem)||1);})():null;
