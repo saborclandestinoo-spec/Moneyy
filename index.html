@@ -3700,15 +3700,16 @@ function FinDRE({uid,db,reload,setM}){
 
   const margemLiquida=receitaBruta>0?(lucroLiquido/receitaBruta*100):0;
 
-  const Linha=({label,valor,bold,bigHeader,highlight,cor,indent,pct,sub,noBorder})=>React.createElement('div',{style:{
-    display:'grid',gridTemplateColumns:'minmax(0px,1fr) 120px 55px',
-    padding:bigHeader?'0px 12px':bold?'9px 12px':'4px 12px',
-    paddingLeft:12+(indent||0)*18,
-    borderTop:bigHeader?'1px solid #111':(bold&&!noBorder)?'1.5px solid #111':'none',
-    borderBottom:bigHeader?'2.5px solid #111':'none',
-    marginTop:bigHeader?4:bold?4:0,
-    background:'transparent'
-  }},
+  const Linha=({label,valor,bold,bigHeader,highlight,cor,indent,pct,sub,noBorder})=>{
+    const pl=bigHeader?12:12+(indent||0)*18;
+    return React.createElement('div',{style:{
+      display:'grid',gridTemplateColumns:'minmax(0px,1fr) 120px 55px',
+      padding:bigHeader?('0px 12px 0px '+pl+'px'):'0px 12px 0px '+(12+(indent||0)*18)+'px',
+      borderTop:bigHeader?'1px solid #111':(bold&&!noBorder)?'1.5px solid #111':'none',
+      borderBottom:bigHeader?'2.5px solid #111':'none',
+      marginTop:4,
+      background:'transparent'
+    }},
     React.createElement('span',{style:{fontSize:bigHeader?15:bold?13:12,fontWeight:bigHeader?800:bold?700:400,color:'#111'}},label),
     React.createElement('span',{style:{textAlign:'right',fontSize:bigHeader?15:bold?13:12,fontWeight:bigHeader?800:bold?700:400,color:'#111'}},
       valor<0?'('+F(Math.abs(valor))+')':F(valor)
@@ -3716,7 +3717,7 @@ function FinDRE({uid,db,reload,setM}){
     React.createElement('span',{style:{textAlign:'right',fontSize:bigHeader?13:11,color:'#555',fontWeight:bigHeader?700:bold?600:400}},
       pct!=null?pct.toFixed(1)+'%':''
     )
-  );
+  );};
 
   return React.createElement(PW,{title:'DRE',sub:'Demonstração do Resultado do Exercício',
     actions:[React.createElement(DateRangePicker,{key:'drp',dtIni,dtFim,onChangeDtIni:setDtIni,onChangeDtFim:setDtFim})]},
