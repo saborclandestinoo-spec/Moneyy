@@ -3755,10 +3755,9 @@ function FinDRE({uid,db,reload,setM}){
       ...buildDREHierarchy(periodo,'despesa','4.2',receitaBruta,Linha),
       React.createElement(Linha,{label:'(-) Despesas Administrativas',isDespesa:true,isDespesaHeader:true,valor:-despAdm,bold:true,pct:receitaBruta>0?despAdm/receitaBruta*100:0}),
       ...buildDREHierarchy(periodo,'despesa','4.3',receitaBruta,Linha),
-      React.createElement(Linha,{label:'(=) Lucro Operacional (EBIT)',valor:lucroOperacional,bold:true,pct:receitaBruta>0?lucroOperacional/receitaBruta*100:0}),
-
       React.createElement(Linha,{label:'(-) Despesas Financeiras',isDespesa:true,isDespesaHeader:true,valor:-despFin,bold:true,pct:receitaBruta>0?despFin/receitaBruta*100:0}),
       ...buildDREHierarchy(periodo,'despesa','4.4',receitaBruta,Linha),
+      React.createElement(Linha,{label:'(=) Lucro Operacional (EBIT)',valor:lucroOperacional,bold:true,bigHeader:true,pct:receitaBruta>0?lucroOperacional/receitaBruta*100:0}),
       React.createElement('div',{style:{marginTop:8,paddingTop:8}},
         React.createElement(Linha,{label:'(=) LUCRO LÍQUIDO DO PERÍODO',valor:lucroLiquido,bold:true,bigHeader:true,pct:receitaBruta>0?margemLiquida:0})
       )
