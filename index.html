@@ -3559,7 +3559,7 @@ function buildDREHierarchy(periodo, tipo, prefixo, receitaBruta, Linha){
       return cod===item.cod||cod.startsWith(item.cod+'.');
     });
     if(total===0&&!hasChildren)return;
-    const indent=item.nivel;
+    const indent=isReceita?item.nivel+1:item.nivel;
     rows.push(React.createElement(Linha,{key:item.cod,
       label:item.nome,valor:isReceita?total:-total,
       bold:isReceita?item.nivel===1:item.nivel===2,noBorder:!isReceita&&item.nivel===2,isDespesa:!isReceita,indent,
@@ -3762,7 +3762,7 @@ function FinDRE({uid,db,reload,setM}){
       ),
       React.createElement(Linha,{label:'(=) Receita Bruta de Vendas',valor:receitaBruta,bold:true,bigHeader:true,pct:100}),
       // Detalhes por forma de pagamento
-      React.createElement(Linha,{label:'Receita de Venda de Produtos',valor:receitaBruta,bold:true,noBorder:true,indent:1,pct:100}),
+      React.createElement(Linha,{label:'Receita de Venda de Produtos',valor:receitaBruta,bold:true,noBorder:true,indent:2,pct:100}),
       ...buildDREHierarchy(periodo,'receita','3.1',receitaBruta,Linha),
       React.createElement(Linha,{label:'(-) Deduções de Vendas',valor:-deducoes,bold:true,noBorder:true,isDespesa:true,pct:receitaBruta>0?deducoes/receitaBruta*100:0}),
       ...buildDREHierarchy(periodo,'despesa','3.2',receitaBruta,Linha),
