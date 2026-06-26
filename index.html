@@ -3533,13 +3533,14 @@ function buildDREHierarchy(periodo, tipo, prefixo, receitaBruta, Linha){
     const catCod=(k.split(' ')[0]||'');
     return s+(catCod===cod||catCod.startsWith(cod+'.')?v:0);
   },0);
+  const isReceita=tipo==='receita';
 
   hierItems.forEach(item=>{
     const total=sumNode(item.cod);
     if(total===0&&!Object.keys(bycat).some(k=>(k.split(' ')[0]||'').startsWith(item.cod)))return;
     const indent=item.nivel;
     rows.push(React.createElement(Linha,{key:item.cod,
-      label:item.nome,valor:-total,
+      label:item.nome,valor:isReceita?total:-total,
       bold:item.nivel===2,noBorder:item.nivel===2,isDespesa:true,indent,
       pct:receitaBruta>0?total/receitaBruta*100:0
     }));
@@ -3731,7 +3732,7 @@ function FinDRE({uid,db,reload,setM}){
       React.createElement(SC,{label:'Margem Líquida',val:margemLiquida.toFixed(1)+'%',color:margemLiquida>=0?'#16a34a':'#dc2626'})
     ),
 
-    React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'16px 0',boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden',maxWidth:800,margin:'0 auto'}},
+    React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'16px 0',boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden',maxWidth:950,margin:'0 auto'}},
       // Header
       React.createElement('div',{style:{display:'grid',gridTemplateColumns:'minmax(0,1fr) 120px 55px',padding:'8px 12px',background:'#111',marginBottom:8}},
         React.createElement('span',{style:{fontSize:11,fontWeight:700,color:'#fff',letterSpacing:'1px'}},'DRE'),
@@ -3740,9 +3741,7 @@ function FinDRE({uid,db,reload,setM}){
       ),
       React.createElement(Linha,{label:'(=) Receita Bruta de Vendas',valor:receitaBruta,bold:true,bigHeader:true,pct:100}),
       // Detalhes por forma de pagamento
-      ...periodo.filter(l=>l.tipo==='receita'&&(l.categoria||'').startsWith('3.1')&&!isRepasse(l)).reduce((acc,l)=>{
-        const k=(l.forma_pag||(l.descricao&&l.descricao.replace('Vendas ',''))||'Outros').replace(/^\d+(\.\d+)*\s*/,'');if(!acc.find(x=>x.k===k))acc.push({k,v:0});acc.find(x=>x.k===k).v+=Number(l.valor||0);return acc;
-      },[]).sort((a,b)=>b.v-a.v).map(g=>React.createElement(Linha,{key:g.k,label:g.k.replace(/^\d+(\.\d+)*\s*/,''),valor:g.v,indent:2,pct:receitaBruta>0?g.v/receitaBruta*100:0})),
+      ...buildDREHierarchy(periodo,'receita','3.1',receitaBruta,Linha),
       React.createElement(Linha,{label:'(-) Deduções de Vendas',valor:-deducoes,bold:true,noBorder:true,isDespesa:true,pct:receitaBruta>0?deducoes/receitaBruta*100:0}),
       ...buildDREHierarchy(periodo,'despesa','3.2',receitaBruta,Linha),
       React.createElement(Linha,{label:'(=) Receita Líquida',valor:receitaLiquida,bold:true,bigHeader:true,pct:receitaBruta>0?receitaLiquida/receitaBruta*100:0}),
