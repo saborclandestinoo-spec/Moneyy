@@ -6465,8 +6465,8 @@ function FinCategorias({uid,db,reload,setM}){
             React.createElement('button',{
               onClick:()=>setM({title:'+ Subcategoria em '+(item.cod||item.nome),body:React.createElement(CatForm,{uid,grupo:(item.cod?item.cod+' ':'')+item.nome,tipo:item.tipo,fixGrupo:true,reload,close:()=>setM(null)})}),
               style:{fontSize:11,color:'#16a34a',background:'#f0fdf4',border:'none',borderRadius:4,padding:'2px 8px',cursor:'pointer',fontWeight:700}},'+'),
-            item.custom&&React.createElement('button',{
-              onClick:e=>{e.stopPropagation();excluirCat(item.id,item.nome);},
+            React.createElement('button',{
+              onClick:e=>{e.stopPropagation();if(item.custom)excluirCat(item.id,item.nome);else toast('Contas padrão não podem ser excluídas',true);},
               style:{fontSize:10,color:'#dc2626',background:'#fee2e2',border:'none',borderRadius:4,padding:'2px 7px',cursor:'pointer'}},'×')
           )
         );
