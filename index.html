@@ -5853,9 +5853,31 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){
   const jv=parseFloat(juros||0);const mv=parseFloat(multa||0);const dv=parseFloat(desconto||0);
   const totalFinal=v+jv+mv-dv;
 
-  const catsPadrao=PLANO_CONTAS.filter(c=>c.nivel>=2&&(isRec?c.tipo==='receita':c.tipo==='despesa')).map(c=>({v:c.cod+' '+c.nome,l:c.cod+' '+c.nome,indent:(c.nivel-2)*14,bold:c.nivel===2}));
-  const catsCustom=(categorias_fin||[]).filter(c=>isRec?c.tipo==='receita':c.tipo==='despesa').map(c=>({v:c.nome,l:c.nome}));
-  const cats=[...catsPadrao,...catsCustom];
+  // Build hierarchical category list matching Plano de Contas structure
+  const tipoFiltro=isRec?'receita':'despesa';
+  const customByParent2={};
+  (categorias_fin||[]).filter(c=>c.tipo===tipoFiltro).forEach(c=>{
+    const k=c.grupo||'';
+    if(!customByParent2[k])customByParent2[k]=[];
+    customByParent2[k].push(c);
+  });
+  const cats=[];
+  PLANO_CONTAS.filter(c=>c.nivel>=1&&c.tipo===tipoFiltro).forEach(item=>{
+    const indent=(item.nivel-1)*14;
+    const bold=item.nivel<=2;
+    cats.push({v:item.cod+' '+item.nome,l:item.cod+' '+item.nome,indent,bold});
+    // Insert custom children after this item's standard children
+    const key=item.cod+' '+item.nome;
+    const stdChildCount=PLANO_CONTAS.filter(c=>c.tipo===tipoFiltro&&c.nivel===item.nivel+1&&c.cod.startsWith(item.cod+'.')).length;
+    (customByParent2[key]||[]).forEach((c,ci)=>{
+      const autoCode=item.cod+'.'+(stdChildCount+ci+1);
+      cats.push({v:c.nome,l:autoCode+' '+c.nome,indent:(item.nivel)*14,bold:false,custom:true});
+    });
+  });
+  // Custom without parent
+  (categorias_fin||[]).filter(c=>c.tipo===tipoFiltro&&!cats.find(x=>x.custom&&x.v===c.nome)).forEach(c=>{
+    cats.push({v:c.nome,l:c.nome,indent:14,bold:false,custom:true});
+  });
 
   const FREQS=[{v:'semanal',l:'Semanal'},{v:'quinzenal',l:'Quinzenal'},{v:'mensal',l:'Mensal'},{v:'bimestral',l:'Bimestral'},{v:'trimestral',l:'Trimestral'},{v:'semestral',l:'Semestral'},{v:'anual',l:'Anual'}];
   const FORMAS=['PIX','Cartao Debito','Cartao Credito','Dinheiro','Transferencia','Boleto','Cheque','Outro'];
