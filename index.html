@@ -5853,7 +5853,7 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){
   const jv=parseFloat(juros||0);const mv=parseFloat(multa||0);const dv=parseFloat(desconto||0);
   const totalFinal=v+jv+mv-dv;
 
-  // Build hierarchical category list matching Plano de Contas structure
+  // Build hierarchical category list
   const tipoFiltro=isRec?'receita':'despesa';
   const customByParent2={};
   (categorias_fin||[]).filter(c=>c.tipo===tipoFiltro).forEach(c=>{
@@ -5861,23 +5861,51 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){
     if(!customByParent2[k])customByParent2[k]=[];
     customByParent2[k].push(c);
   });
+  const stdItems=PLANO_CONTAS.filter(c=>c.nivel>=1&&c.tipo===tipoFiltro);
   const cats=[];
-  PLANO_CONTAS.filter(c=>c.nivel>=1&&c.tipo===tipoFiltro).forEach(item=>{
+  stdItems.forEach((item,idx)=>{
     const indent=(item.nivel-1)*14;
-    const bold=item.nivel<=2;
+    const bold=item.nivel===1; // só nível 1 em bold
     cats.push({v:item.cod+' '+item.nome,l:item.cod+' '+item.nome,indent,bold});
-    // Insert custom children after this item's standard children
-    const key=item.cod+' '+item.nome;
-    const stdChildCount=PLANO_CONTAS.filter(c=>c.tipo===tipoFiltro&&c.nivel===item.nivel+1&&c.cod.startsWith(item.cod+'.')).length;
-    (customByParent2[key]||[]).forEach((c,ci)=>{
-      const autoCode=item.cod+'.'+(stdChildCount+ci+1);
-      cats.push({v:c.nome,l:autoCode+' '+c.nome,indent:(item.nivel)*14,bold:false,custom:true});
+    // Check if next item is same level or higher (parent done) → insert customs
+    const nextItem=stdItems[idx+1];
+    const isLastChildOfParent=!nextItem||nextItem.nivel<=item.nivel;
+    if(isLastChildOfParent){
+      const key=item.nivel===1?item.cod+' '+item.nome:stdItems.find(p=>p.nivel===item.nivel-1&&item.cod.startsWith(p.cod+'.'))?.cod+' '+stdItems.find(p=>p.nivel===item.nivel-1&&item.cod.startsWith(p.cod+'.'))?.nome||'';
+      // Actually insert customs per parent after ALL its children
+    }
+  });
+  // Better: two-pass - add customs after each parent's last std child
+  const cats2=[];
+  stdItems.forEach(item=>{
+    cats2.push({v:item.cod+' '+item.nome,l:item.cod+' '+item.nome,indent:(item.nivel-1)*14,bold:item.nivel===1});
+  });
+  // Insert customs after last child of each parent
+  const stdByParent={};
+  stdItems.forEach(item=>{
+    const parentCod=item.cod.split('.').slice(0,-1).join('.');
+    const parent=stdItems.find(p=>p.cod===parentCod);
+    if(parent){
+      const k=parent.cod+' '+parent.nome;
+      if(!stdByParent[k])stdByParent[k]=[];
+      stdByParent[k].push(item);
+    }
+  });
+  Object.entries(customByParent2).forEach(([parentKey,customs])=>{
+    const lastStdChild=stdByParent[parentKey]?.[stdByParent[parentKey].length-1];
+    if(!lastStdChild)return;
+    const insertAfterIdx=cats2.findLastIndex(c=>c.v===lastStdChild.cod+' '+lastStdChild.nome);
+    const parentItem=stdItems.find(p=>p.cod+' '+p.nome===parentKey);
+    const parentNivel=parentItem?.nivel||1;
+    const stdChildCount=stdByParent[parentKey]?.length||0;
+    customs.forEach((c,ci)=>{
+      const autoCode=(parentItem?.cod||'')+('.'+(stdChildCount+ci+1));
+      cats2.splice(insertAfterIdx+1+ci,0,{v:c.nome,l:autoCode+' '+c.nome,indent:parentNivel*14,bold:false,custom:true});
     });
   });
   // Custom without parent
-  (categorias_fin||[]).filter(c=>c.tipo===tipoFiltro&&!cats.find(x=>x.custom&&x.v===c.nome)).forEach(c=>{
-    cats.push({v:c.nome,l:c.nome,indent:14,bold:false,custom:true});
-  });
+  (categorias_fin||[]).filter(c=>c.tipo===tipoFiltro&&!cats2.find(x=>x.custom&&x.v===c.nome)).forEach(c=>cats2.push({v:c.nome,l:c.nome,indent:14,bold:false,custom:true}));
+  const cats=cats2;
 
   const FREQS=[{v:'semanal',l:'Semanal'},{v:'quinzenal',l:'Quinzenal'},{v:'mensal',l:'Mensal'},{v:'bimestral',l:'Bimestral'},{v:'trimestral',l:'Trimestral'},{v:'semestral',l:'Semestral'},{v:'anual',l:'Anual'}];
   const FORMAS=['PIX','Cartao Debito','Cartao Credito','Dinheiro','Transferencia','Boleto','Cheque','Outro'];
