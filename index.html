@@ -3734,7 +3734,7 @@ function FinDRE({uid,db,reload,setM}){
         React.createElement('span',{style:{fontSize:11,fontWeight:700,color:'#fff',textAlign:'right'}},'VALOR (R$)'),
         React.createElement('span',{style:{fontSize:11,fontWeight:700,color:'#fff',textAlign:'right'}},'%')
       ),
-      React.createElement(Linha,{label:'Receita Bruta de Vendas',valor:receitaBruta,bold:true,pct:100}),
+      React.createElement(Linha,{label:'(=) Receita Bruta de Vendas',valor:receitaBruta,bold:true,pct:100}),
       // Detalhes por forma de pagamento
       ...periodo.filter(l=>l.tipo==='receita'&&(l.categoria||'').startsWith('3.1')&&!isRepasse(l)).reduce((acc,l)=>{
         const k=(l.forma_pag||(l.descricao&&l.descricao.replace('Vendas ',''))||'Outros').replace(/^\d+(\.\d+)*\s*/,'');if(!acc.find(x=>x.k===k))acc.push({k,v:0});acc.find(x=>x.k===k).v+=Number(l.valor||0);return acc;
