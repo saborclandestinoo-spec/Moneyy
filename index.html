@@ -3541,7 +3541,7 @@ function buildDREHierarchy(periodo, tipo, prefixo, receitaBruta, Linha){
 
   // Build hierarchy from PLANO_CONTAS matching this prefix
   // For receitas: include nivel 1 (parent like 3.1). For despesas: skip nivel 1 (already shown as header)
-  const hierItems=PLANO_CONTAS.filter(p=>p.cod&&p.cod.startsWith(prefixo.split(' ')[0])&&p.nivel>=(isReceita?1:2));
+  const hierItems=PLANO_CONTAS.filter(p=>p.cod&&p.cod.startsWith(prefixo.split(' ')[0])&&p.nivel>=2);
   const rows=[];
 
   // Helper: sum all lançamentos under a node
@@ -3762,6 +3762,7 @@ function FinDRE({uid,db,reload,setM}){
       ),
       React.createElement(Linha,{label:'(=) Receita Bruta de Vendas',valor:receitaBruta,bold:true,bigHeader:true,pct:100}),
       // Detalhes por forma de pagamento
+      React.createElement(Linha,{label:'Receita de Venda de Produtos',valor:receitaBruta,bold:true,noBorder:true,indent:1,pct:100}),
       ...buildDREHierarchy(periodo,'receita','3.1',receitaBruta,Linha),
       React.createElement(Linha,{label:'(-) Deduções de Vendas',valor:-deducoes,bold:true,noBorder:true,isDespesa:true,pct:receitaBruta>0?deducoes/receitaBruta*100:0}),
       ...buildDREHierarchy(periodo,'despesa','3.2',receitaBruta,Linha),
