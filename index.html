@@ -3696,7 +3696,7 @@ function FinDRE({uid,db,reload,setM}){
   // DRE por competência: usa l.competencia quando disponível, senão l.data
   const periodo=React.useMemo(()=>(lancamentos||[]).filter(l=>{
     const dtComp=l.competencia||l.data||'';
-    return dtComp>=dtIni&&dtComp<=dtFim&&l.obs!=='compra_estoque'&&l.obs!=='producao_interna';
+    return dtComp>=dtIni&&dtComp<=dtFim&&l.obs!=='compra_estoque';
   }),[lancamentos,dtIni,dtFim]);
 
   const isRepasse=(l)=>(l.descricao||'').toLowerCase().includes('repasse')||(l.obs||'').includes('repasse');
