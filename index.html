@@ -3512,7 +3512,7 @@ function FichaForm({uid,db,reload,close,ficha,setM}){
 // ── DRE (Demonstração do Resultado do Exercício) ──
 
 
-function buildDREHierarchy(periodo, tipo, prefixo, receitaBruta, Linha, noBold=false, indentOffset=0){
+function buildDREHierarchy(periodo, tipo, prefixo, receitaBruta, Linha, noBold=false, indentOffset=0, showEmpty=false){
   // Get all lançamentos matching this prefix
   const lancItems=periodo.filter(l=>(tipo===null||l.tipo===tipo)&&(l.categoria||'').startsWith(prefixo));
   if(!lancItems.length)return[];
@@ -3558,7 +3558,7 @@ function buildDREHierarchy(periodo, tipo, prefixo, receitaBruta, Linha, noBold=f
       const cod=(k.split(' ')[0]||'');
       return cod===item.cod||cod.startsWith(item.cod+'.');
     });
-    if(total===0&&!hasChildren)return;
+    if(total===0&&!hasChildren&&!showEmpty)return;
     const indent=(isReceita?item.nivel+1:item.nivel)+indentOffset;
     rows.push(React.createElement(Linha,{key:item.cod,
       label:item.nome,valor:isReceita?total:-total,
@@ -3780,7 +3780,7 @@ function FinDRE({uid,db,reload,setM}){
       React.createElement(Linha,{label:'(=) Receita Líquida',valor:receitaLiquida,bold:true,bigHeader:true,pct:receitaBruta>0?receitaLiquida/receitaBruta*100:0}),
 
       React.createElement(Linha,{label:'(-) Custo de Mercadoria Vendida (CMV)',valor:-cmv,bold:true,cmv:true,isDespesaHeader:true,pct:receitaBruta>0?cmv/receitaBruta*100:0}),
-      ...buildDREHierarchy(periodo,'despesa','4.1',receitaBruta,Linha),
+      ...buildDREHierarchy(periodo,'despesa','4.1',receitaBruta,Linha,false,0,true),
       React.createElement(Linha,{label:'(=) Lucro Bruto',valor:lucroBruto,bold:true,bigHeader:true,pct:receitaBruta>0?lucroBruto/receitaBruta*100:0}),
 
       React.createElement(Linha,{label:'(-) Despesas com Vendas',isDespesa:true,isDespesaHeader:true,valor:-despVendas,bold:true,pct:receitaBruta>0?despVendas/receitaBruta*100:0}),
