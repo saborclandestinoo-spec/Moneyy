@@ -3738,15 +3738,13 @@ function FinDRE({uid,db,reload,setM}){
       // Detalhes por forma de pagamento
       ...periodo.filter(l=>l.tipo==='receita'&&(l.categoria||'').startsWith('3.1')&&!isRepasse(l)).reduce((acc,l)=>{
         const k=(l.forma_pag||(l.descricao&&l.descricao.replace('Vendas ',''))||'Outros').replace(/^\d+(\.\d+)*\s*/,'');if(!acc.find(x=>x.k===k))acc.push({k,v:0});acc.find(x=>x.k===k).v+=Number(l.valor||0);return acc;
-      },[]).sort((a,b)=>b.v-a.v).map(g=>React.createElement(Linha,{key:g.k,label:g.k.replace(/^\d+(\.\d+)*\s*/,''),valor:g.v,indent:1,pct:receitaBruta>0?g.v/receitaBruta*100:0})),
+      },[]).sort((a,b)=>b.v-a.v).map(g=>React.createElement(Linha,{key:g.k,label:g.k.replace(/^\d+(\.\d+)*\s*/,''),valor:g.v,indent:2,pct:receitaBruta>0?g.v/receitaBruta*100:0})),
       React.createElement(Linha,{label:'(-) Deduções de Vendas',valor:-deducoes,bold:true,pct:receitaBruta>0?deducoes/receitaBruta*100:0}),
       ...buildDREHierarchy(periodo,'despesa','3.2',receitaBruta,Linha),
       React.createElement(Linha,{label:'(=) Receita Líquida',valor:receitaLiquida,bold:true,pct:receitaBruta>0?receitaLiquida/receitaBruta*100:0}),
 
       React.createElement(Linha,{label:'(-) Custo de Mercadoria Vendida (CMV)',valor:-cmv,bold:true,pct:receitaBruta>0?cmv/receitaBruta*100:0}),
-      ...periodo.filter(l=>l.tipo==='despesa'&&(l.categoria||'').startsWith('4.1')).reduce((acc,l)=>{
-        const k=l.categoria||'Outros';if(!acc.find(x=>x.k===k))acc.push({k,v:0});acc.find(x=>x.k===k).v+=Number(l.valor||0);return acc;
-      },[]).sort((a,b)=>b.v-a.v).map(g=>React.createElement(Linha,{key:g.k,label:g.k,valor:-g.v,indent:2,cor:'#dc2626',pct:receitaBruta>0?g.v/receitaBruta*100:0})),
+      ...buildDREHierarchy(periodo,'despesa','4.1',receitaBruta,Linha),
       React.createElement(Linha,{label:'(=) Lucro Bruto',valor:lucroBruto,bold:true,pct:receitaBruta>0?lucroBruto/receitaBruta*100:0}),
 
       React.createElement(Linha,{label:'(-) Despesas com Vendas',valor:-despVendas,bold:true,pct:receitaBruta>0?despVendas/receitaBruta*100:0}),
