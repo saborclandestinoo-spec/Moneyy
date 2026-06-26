@@ -3656,15 +3656,21 @@ function FinDRE({uid,db,reload,setM}){
 
   const margemLiquida=receitaBruta>0?(lucroLiquido/receitaBruta*100):0;
 
-  const Linha=({label,valor,bold,cor,indent,pct})=>React.createElement('div',{style:{
-    display:'flex',justifyContent:'space-between',alignItems:'center',
-    padding:bold?'12px 0':'8px 0',borderBottom:bold?'2px solid #111':'1px solid #f5f5f5',
-    paddingLeft:indent?indent*16:0
+  const Linha=({label,valor,bold,highlight,cor,indent,pct,sub})=>React.createElement('div',{style:{
+    display:'grid',gridTemplateColumns:'1fr 130px 70px',
+    padding:bold?'10px 12px':'5px 12px',
+    paddingLeft:12+(indent||0)*20,
+    borderTop:bold?'2px solid '+(highlight||'#111'):'none',
+    borderBottom:sub?'none':'1px solid #f5f5f5',
+    background:highlight?highlight+'11':'transparent',
+    marginTop:bold?6:0
   }},
-    React.createElement('span',{style:{fontSize:bold?14:13,fontWeight:bold?800:400,color:cor||'#333'}},label),
-    React.createElement('div',{style:{display:'flex',gap:10,alignItems:'center'}},
-      pct!=null&&React.createElement('span',{style:{fontSize:11,color:'#aaa'}},pct.toFixed(1)+'%'),
-      React.createElement('span',{style:{fontSize:bold?15:13,fontWeight:bold?800:600,color:cor||'#111'}},F(valor))
+    React.createElement('span',{style:{fontSize:bold?14:12,fontWeight:bold?800:sub?400:400,color:bold?(highlight||'#111'):'#444'}},label),
+    React.createElement('span',{style:{textAlign:'right',fontSize:bold?14:12,fontWeight:bold?800:400,color:cor||(valor<0?'#dc2626':'#111')}},
+      valor<0?'('+F(Math.abs(valor))+')':F(valor)
+    ),
+    React.createElement('span',{style:{textAlign:'right',fontSize:11,color:'#888',fontWeight:bold?700:400}},
+      pct!=null?pct.toFixed(1)+'%':''
     )
   );
 
@@ -3678,32 +3684,38 @@ function FinDRE({uid,db,reload,setM}){
       React.createElement(SC,{label:'Margem Líquida',val:margemLiquida.toFixed(1)+'%',color:margemLiquida>=0?'#16a34a':'#dc2626'})
     ),
 
-    React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'24px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
-      React.createElement(Linha,{label:'Receita Bruta de Vendas',valor:receitaBruta,pct:100}),
+    React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'16px 0',boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden'}},
+      // Header
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 130px 70px',padding:'8px 12px',background:'#1e293b',marginBottom:4}},
+        React.createElement('span',{style:{fontSize:11,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'1px'}},'DESCRIÇÃO'),
+        React.createElement('span',{style:{fontSize:11,fontWeight:700,color:'#94a3b8',textAlign:'right'}},'VALOR (R$)'),
+        React.createElement('span',{style:{fontSize:11,fontWeight:700,color:'#94a3b8',textAlign:'right'}},'%')
+      ),
+      React.createElement(Linha,{label:'Receita Bruta de Vendas',valor:receitaBruta,bold:true,pct:100}),
       // Detalhes por forma de pagamento
       ...periodo.filter(l=>l.tipo==='receita'&&(l.categoria||'').startsWith('3.1')&&!isRepasse(l)).reduce((acc,l)=>{
         const k=l.forma_pag||(l.descricao&&l.descricao.replace('Vendas ',''))||l.categoria||'Outros';if(!acc.find(x=>x.k===k))acc.push({k,v:0});acc.find(x=>x.k===k).v+=Number(l.valor||0);return acc;
       },[]).sort((a,b)=>b.v-a.v).map(g=>React.createElement(Linha,{key:g.k,label:g.k,valor:g.v,indent:1,cor:'#16a34a',pct:receitaBruta>0?g.v/receitaBruta*100:0})),
-      React.createElement(Linha,{label:'(-) Deduções de Vendas',valor:-deducoes,cor:'#dc2626',indent:1,pct:receitaBruta>0?deducoes/receitaBruta*100:0}),
-      React.createElement(Linha,{label:'= Receita Líquida',valor:receitaLiquida,bold:true,pct:receitaBruta>0?receitaLiquida/receitaBruta*100:0}),
+      React.createElement(Linha,{label:'(-) Deduções de Vendas',valor:-deducoes,bold:true,pct:receitaBruta>0?deducoes/receitaBruta*100:0}),
+      React.createElement(Linha,{label:'(=) Receita Líquida',valor:receitaLiquida,bold:true,highlight:'#16a34a',pct:receitaBruta>0?receitaLiquida/receitaBruta*100:0}),
 
-      React.createElement(Linha,{label:'(-) CMV (Custo da Mercadoria Vendida)',valor:-cmv,cor:'#dc2626',indent:1,pct:receitaBruta>0?cmv/receitaBruta*100:0}),
+      React.createElement(Linha,{label:'(-) Custo de Mercadoria Vendida (CMV)',valor:-cmv,bold:true,highlight:'#dc2626',pct:receitaBruta>0?cmv/receitaBruta*100:0}),
       ...periodo.filter(l=>l.tipo==='despesa'&&(l.categoria||'').startsWith('4.1')).reduce((acc,l)=>{
         const k=l.categoria||'Outros';if(!acc.find(x=>x.k===k))acc.push({k,v:0});acc.find(x=>x.k===k).v+=Number(l.valor||0);return acc;
       },[]).sort((a,b)=>b.v-a.v).map(g=>React.createElement(Linha,{key:g.k,label:g.k,valor:-g.v,indent:2,cor:'#dc2626',pct:receitaBruta>0?g.v/receitaBruta*100:0})),
-      React.createElement(Linha,{label:'= Lucro Bruto',valor:lucroBruto,bold:true,cor:lucroBruto>=0?'#111':'#dc2626',pct:receitaBruta>0?lucroBruto/receitaBruta*100:0}),
+      React.createElement(Linha,{label:'(=) Lucro Bruto',valor:lucroBruto,bold:true,highlight:lucroBruto>=0?'#2563eb':'#dc2626',pct:receitaBruta>0?lucroBruto/receitaBruta*100:0}),
 
-      React.createElement(Linha,{label:'(-) Despesas com Vendas',valor:-despVendas,cor:'#dc2626',indent:1,pct:receitaBruta>0?despVendas/receitaBruta*100:0}),
-      React.createElement(Linha,{label:'(-) Despesas Administrativas',valor:-despAdm,cor:'#dc2626',indent:1,pct:receitaBruta>0?despAdm/receitaBruta*100:0}),
-      React.createElement(Linha,{label:'= Lucro Operacional (EBIT)',valor:lucroOperacional,bold:true,cor:lucroOperacional>=0?'#111':'#dc2626',pct:receitaBruta>0?lucroOperacional/receitaBruta*100:0}),
+      React.createElement(Linha,{label:'(-) Despesas com Vendas',valor:-despVendas,bold:true,pct:receitaBruta>0?despVendas/receitaBruta*100:0}),
+      React.createElement(Linha,{label:'(-) Despesas Administrativas',valor:-despAdm,bold:true,pct:receitaBruta>0?despAdm/receitaBruta*100:0}),
+      React.createElement(Linha,{label:'(=) Lucro Operacional (EBIT)',valor:lucroOperacional,bold:true,highlight:lucroOperacional>=0?'#2563eb':'#dc2626',pct:receitaBruta>0?lucroOperacional/receitaBruta*100:0}),
 
-      React.createElement(Linha,{label:'(-) Despesas Financeiras',valor:-despFin,cor:'#dc2626',indent:1,pct:receitaBruta>0?despFin/receitaBruta*100:0}),
+      React.createElement(Linha,{label:'(-) Despesas Financeiras',valor:-despFin,bold:true,pct:receitaBruta>0?despFin/receitaBruta*100:0}),
       React.createElement('div',{style:{marginTop:8,paddingTop:8}},
-        React.createElement(Linha,{label:'= LUCRO LÍQUIDO DO PERÍODO',valor:lucroLiquido,bold:true,cor:lucroLiquido>=0?'#16a34a':'#dc2626',pct:receitaBruta>0?margemLiquida:0})
+        React.createElement(Linha,{label:'(=) LUCRO LÍQUIDO DO PERÍODO',valor:lucroLiquido,bold:true,highlight:lucroLiquido>=0?'#16a34a':'#dc2626',pct:receitaBruta>0?margemLiquida:0})
       )
     ),
 
-    React.createElement('div',{style:{fontSize:11,color:'#aaa',marginTop:12}},
+    React.createElement('div',{style:{fontSize:11,color:'#aaa',marginTop:8}},
       '📊 Regime de competência — inclui receitas e despesas do período independente de pagamento. Compras de estoque entram como CMV apenas quando consumidas em Produção.'
     )
   );
