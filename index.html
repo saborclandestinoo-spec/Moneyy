@@ -3702,11 +3702,11 @@ function FinDRE({uid,db,reload,setM}){
 
   const Linha=({label,valor,bold,bigHeader,highlight,cor,indent,pct,sub,noBorder})=>React.createElement('div',{style:{
     display:'grid',gridTemplateColumns:'1fr 120px 55px',
-    padding:bigHeader?'10px 12px':bold?'9px 12px':'4px 12px',
+    padding:bigHeader?'7px 12px':bold?'9px 12px':'4px 12px',
     paddingLeft:12+(indent||0)*18,
     borderTop:bigHeader?'1px solid #111':(bold&&!noBorder)?'1.5px solid #111':'none',
     borderBottom:bigHeader?'2.5px solid #111':'none',
-    marginTop:bigHeader?8:bold?4:0,
+    marginTop:bigHeader?4:bold?4:0,
     background:'transparent'
   }},
     React.createElement('span',{style:{fontSize:bigHeader?15:bold?13:12,fontWeight:bigHeader?800:bold?700:400,color:'#111'}},label),
@@ -3735,7 +3735,7 @@ function FinDRE({uid,db,reload,setM}){
         React.createElement('span',{style:{fontSize:11,fontWeight:700,color:'#fff',textAlign:'right'}},'VALOR (R$)'),
         React.createElement('span',{style:{fontSize:11,fontWeight:700,color:'#fff',textAlign:'right'}},'%')
       ),
-      React.createElement(Linha,{label:'Receita Bruta de Vendas',valor:receitaBruta,bold:true,bigHeader:true,pct:100}),
+      React.createElement(Linha,{label:'(=) Receita Bruta de Vendas',valor:receitaBruta,bold:true,bigHeader:true,pct:100}),
       // Detalhes por forma de pagamento
       ...periodo.filter(l=>l.tipo==='receita'&&(l.categoria||'').startsWith('3.1')&&!isRepasse(l)).reduce((acc,l)=>{
         const k=(l.forma_pag||(l.descricao&&l.descricao.replace('Vendas ',''))||'Outros').replace(/^\d+(\.\d+)*\s*/,'');if(!acc.find(x=>x.k===k))acc.push({k,v:0});acc.find(x=>x.k===k).v+=Number(l.valor||0);return acc;
