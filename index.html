@@ -3540,7 +3540,8 @@ function buildDREHierarchy(periodo, tipo, prefixo, receitaBruta, Linha){
   });
 
   // Build hierarchy from PLANO_CONTAS matching this prefix
-  const hierItems=PLANO_CONTAS.filter(p=>p.cod&&p.cod.startsWith(prefixo.split(' ')[0])&&p.nivel>=2); // skip nivel 0,1 (already shown as header)
+  // For receitas: include nivel 1 (parent like 3.1). For despesas: skip nivel 1 (already shown as header)
+  const hierItems=PLANO_CONTAS.filter(p=>p.cod&&p.cod.startsWith(prefixo.split(' ')[0])&&p.nivel>=(isReceita?1:2));
   const rows=[];
 
   // Helper: sum all lançamentos under a node
@@ -3556,7 +3557,7 @@ function buildDREHierarchy(periodo, tipo, prefixo, receitaBruta, Linha){
     const indent=item.nivel;
     rows.push(React.createElement(Linha,{key:item.cod,
       label:item.nome,valor:isReceita?total:-total,
-      bold:item.nivel===2,noBorder:item.nivel===2,isDespesa:true,indent,
+      bold:isReceita?item.nivel===1:item.nivel===2,noBorder:!isReceita&&item.nivel===2,isDespesa:!isReceita,indent,
       pct:receitaBruta>0?total/receitaBruta*100:0
     }));
   });
