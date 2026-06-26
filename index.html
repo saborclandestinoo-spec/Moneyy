@@ -3510,6 +3510,117 @@ function FichaForm({uid,db,reload,close,ficha,setM}){
 }
 
 // ── DRE (Demonstração do Resultado do Exercício) ──
+
+function DateRangePicker({dtIni,dtFim,onChangeDtIni,onChangeDtFim}){
+  const[open,setOpen]=React.useState(false);
+  const[hover,setHover]=React.useState(null);
+  const[selecting,setSelecting]=React.useState(null); // first click = start
+  const hoje=TODAY();
+  const d0=new Date(hoje+'T12:00:00');
+  const[view,setView]=React.useState({y:d0.getFullYear(),m:d0.getMonth()});
+  const ref=React.useRef(null);
+
+  React.useEffect(()=>{
+    if(!open)return;
+    const h=(e)=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
+    document.addEventListener('mousedown',h,true);
+    return()=>document.removeEventListener('mousedown',h,true);
+  },[open]);
+
+  const navM=(d2)=>{
+    let m=view.m+d2,y=view.y;
+    if(m<0){m=11;y--;}else if(m>11){m=0;y++;}
+    setView({y,m});
+  };
+
+  const MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const DIAS=['D','S','T','Q','Q','S','S'];
+
+  const renderMonth=(ano,mes)=>{
+    const primeiro=new Date(ano,mes,1).getDay();
+    const total=new Date(ano,mes+1,0).getDate();
+    const cells=[];
+    for(let i=0;i<primeiro;i++)cells.push(null);
+    for(let d2=1;d2<=total;d2++)cells.push(d2);
+    const mesStr=ano+'-'+String(mes+1).padStart(2,'0');
+    const label=MESES[mes].slice(0,3)+'. de '+ano;
+
+    return React.createElement('div',{style:{flex:1}},
+      React.createElement('div',{style:{textAlign:'center',fontWeight:700,fontSize:13,marginBottom:8,color:'#111'}},label),
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(7,1fr)',marginBottom:3}},
+        DIAS.map((d2,i)=>React.createElement('div',{key:i,style:{textAlign:'center',fontSize:10,fontWeight:700,color:'#bbb',padding:'2px 0'}},d2))
+      ),
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:1}},
+        cells.map((d2,i)=>{
+          if(!d2)return React.createElement('div',{key:i});
+          const dtStr=mesStr+'-'+String(d2).padStart(2,'0');
+          const isHoje=dtStr===hoje;
+          const isIni=dtStr===dtIni;
+          const isFim=dtStr===dtFim;
+          const hov=hover||dtFim;
+          const inRange=dtIni&&hov&&dtStr>Math.min(dtIni,hov)&&dtStr<Math.max(dtIni,hov);
+          const isEnd=dtStr===hov&&dtIni&&hov!==dtIni;
+          const bg=isIni||isFim?'#dc2626':inRange?'#fee2e2':'transparent';
+          const cor=isIni||isFim?'#fff':isHoje?'#dc2626':'#333';
+          const fw=isIni||isFim?800:isHoje?700:400;
+          return React.createElement('div',{key:i,
+            onClick:()=>{
+              if(!selecting){setSelecting(dtStr);onChangeDtIni(dtStr);onChangeDtFim(dtStr);}
+              else{
+                const s=selecting,e=dtStr;
+                onChangeDtIni(s<e?s:e);onChangeDtFim(s<e?e:s);
+                setSelecting(null);setOpen(false);setHover(null);
+              }
+            },
+            onMouseEnter:()=>selecting&&setHover(dtStr),
+            style:{textAlign:'center',padding:'5px 2px',borderRadius:6,background:bg,cursor:'pointer',fontSize:12,fontWeight:fw,color:cor,border:isHoje&&!isIni&&!isFim?'1.5px solid #dc2626':'none'}
+          },d2);
+        })
+      )
+    );
+  };
+
+  const m2y=view.m===11?view.y+1:view.y;
+  const m2m=view.m===11?0:view.m+1;
+
+  const ATALHOS=[
+    {l:'Hoje',fn:()=>{onChangeDtIni(hoje);onChangeDtFim(hoje);setOpen(false);}},
+    {l:'Ontem',fn:()=>{const d=new Date(hoje+'T12:00:00');d.setDate(d.getDate()-1);const s=d.toISOString().split('T')[0];onChangeDtIni(s);onChangeDtFim(s);setOpen(false);}},
+    {l:'Esta semana',fn:()=>{const d=new Date(hoje+'T12:00:00');const dow=d.getDay();d.setDate(d.getDate()-dow);const s=d.toISOString().split('T')[0];d.setDate(d.getDate()+6);const e=d.toISOString().split('T')[0];onChangeDtIni(s);onChangeDtFim(e);setOpen(false);}},
+    {l:'Este mês',fn:()=>{const d=new Date();onChangeDtIni(new Date(d.getFullYear(),d.getMonth(),1).toISOString().split('T')[0]);onChangeDtFim(new Date(d.getFullYear(),d.getMonth()+1,0).toISOString().split('T')[0]);setOpen(false);}},
+    {l:'Mês passado',fn:()=>{const d=new Date();d.setMonth(d.getMonth()-1);onChangeDtIni(new Date(d.getFullYear(),d.getMonth(),1).toISOString().split('T')[0]);onChangeDtFim(new Date(d.getFullYear(),d.getMonth()+1,0).toISOString().split('T')[0]);setOpen(false);}},
+    {l:'Próximo mês',fn:()=>{const d=new Date();d.setMonth(d.getMonth()+1);onChangeDtIni(new Date(d.getFullYear(),d.getMonth(),1).toISOString().split('T')[0]);onChangeDtFim(new Date(d.getFullYear(),d.getMonth()+1,0).toISOString().split('T')[0]);setOpen(false);}},
+    {l:'Este ano',fn:()=>{const y=new Date().getFullYear();onChangeDtIni(y+'-01-01');onChangeDtFim(y+'-12-31');setOpen(false);}},
+    {l:'Último trimestre',fn:()=>{const d=new Date();const q=Math.floor(d.getMonth()/3);onChangeDtIni(new Date(d.getFullYear(),q*3,1).toISOString().split('T')[0]);onChangeDtFim(new Date(d.getFullYear(),q*3+3,0).toISOString().split('T')[0]);setOpen(false);}},
+  ];
+
+  return React.createElement('div',{ref,style:{position:'relative',display:'inline-block'}},
+    // Trigger button
+    React.createElement('button',{onClick:()=>{setOpen(o=>!o);setSelecting(null);},
+      style:{background:'#f5f5f5',border:'1.5px solid #e5e5e5',borderRadius:10,padding:'8px 16px',fontSize:13,fontWeight:600,color:'#333',cursor:'pointer',display:'flex',alignItems:'center',gap:8}},
+      React.createElement('span',{style:{fontSize:14}},'📅'),
+      dtIni===dtFim?FD(dtIni):FD(dtIni)+' — '+FD(dtFim)
+    ),
+    // Dropdown
+    open&&React.createElement('div',{style:{position:'absolute',top:'calc(100% + 6px)',left:0,zIndex:1000,background:'#fff',borderRadius:14,boxShadow:'0 8px 32px rgba(0,0,0,0.15)',border:'1px solid #f0f0f0',display:'flex',minWidth:620}},
+      // Sidebar
+      React.createElement('div',{style:{width:150,borderRight:'1px solid #f0f0f0',padding:'12px 8px',flexShrink:0}},
+        ATALHOS.map((a,i)=>React.createElement('button',{key:i,onClick:a.fn,style:{display:'block',width:'100%',textAlign:'left',padding:'7px 10px',borderRadius:7,border:'none',background:'transparent',fontSize:12,color:'#555',cursor:'pointer',marginBottom:2}},a.l))
+      ),
+      // Calendars
+      React.createElement('div',{style:{padding:'16px',flex:1}},
+        selecting&&React.createElement('div',{style:{fontSize:11,color:'#dc2626',marginBottom:8,fontWeight:600}},'Clique na data final'),
+        React.createElement('div',{style:{display:'flex',gap:20,alignItems:'flex-start'}},
+          React.createElement('button',{onClick:()=>navM(-1),style:{background:'none',border:'none',cursor:'pointer',fontSize:16,color:'#888',padding:'4px',marginTop:2}},'‹'),
+          renderMonth(view.y,view.m),
+          renderMonth(m2y,m2m),
+          React.createElement('button',{onClick:()=>navM(1),style:{background:'none',border:'none',cursor:'pointer',fontSize:16,color:'#888',padding:'4px',marginTop:2}},'›')
+        )
+      )
+    )
+  );
+}
+
 function FinDRE({uid,db,reload,setM}){
   const{lancamentos}=db;
   const[dtIni,setDtIni]=React.useState(()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),1).toISOString().split('T')[0];});
@@ -3556,28 +3667,8 @@ function FinDRE({uid,db,reload,setM}){
     )
   );
 
-  const PERIODOS=[
-    {l:'Este mês',fn:()=>{const d=new Date();setDtIni(new Date(d.getFullYear(),d.getMonth(),1).toISOString().split('T')[0]);setDtFim(new Date(d.getFullYear(),d.getMonth()+1,0).toISOString().split('T')[0]);}},
-    {l:'Mês passado',fn:()=>{const d=new Date();d.setMonth(d.getMonth()-1);setDtIni(new Date(d.getFullYear(),d.getMonth(),1).toISOString().split('T')[0]);setDtFim(new Date(d.getFullYear(),d.getMonth()+1,0).toISOString().split('T')[0]);}},
-    {l:'Este ano',fn:()=>{const y=new Date().getFullYear();setDtIni(y+'-01-01');setDtFim(y+'-12-31');}},
-    {l:'Último trimestre',fn:()=>{const d=new Date();const m=d.getMonth();const q=Math.floor(m/3);setDtIni(new Date(d.getFullYear(),q*3,1).toISOString().split('T')[0]);setDtFim(new Date(d.getFullYear(),q*3+3,0).toISOString().split('T')[0]);}},
-  ];
-
   return React.createElement(PW,{title:'DRE',sub:'Demonstração do Resultado do Exercício'},
-    // Date picker card
-    React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'16px 20px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)',marginBottom:20,display:'flex',alignItems:'center',gap:16,flexWrap:'wrap'}},
-      React.createElement('div',{style:{display:'flex',gap:8,flexWrap:'wrap'}},
-        PERIODOS.map(p=>React.createElement('button',{key:p.l,onClick:p.fn,style:{
-          background:'#f5f5f5',color:'#555',border:'none',borderRadius:8,padding:'6px 14px',
-          fontSize:12,fontWeight:600,cursor:'pointer'
-        }},p.l))
-      ),
-      React.createElement('div',{style:{display:'flex',gap:10,marginLeft:'auto',alignItems:'center'}},
-        React.createElement(MiniDatePicker,{label:'De',value:dtIni,onChange:setDtIni,acent:'#dc2626'}),
-        React.createElement('span',{style:{color:'#ccc'}}),'—',
-        React.createElement(MiniDatePicker,{label:'Até',value:dtFim,onChange:setDtFim,acent:'#dc2626'})
-      )
-    ),
+    React.createElement(DateRangePicker,{dtIni,dtFim,onChangeDtIni:setDtIni,onChangeDtFim:setDtFim,style:{marginBottom:20}}),
 
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}},
       React.createElement(SC,{label:'Receita Líquida',val:F(receitaLiquida),color:'#16a34a'}),
