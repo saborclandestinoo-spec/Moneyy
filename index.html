@@ -3512,9 +3512,11 @@ function FichaForm({uid,db,reload,close,ficha,setM}){
 // ── DRE (Demonstração do Resultado do Exercício) ──
 
 
-function buildDREHierarchy(periodo, tipo, prefixo, receitaBruta, Linha, noBold=false, indentOffset=0, showEmpty=false){
+function buildDREHierarchy(periodo, tipo, prefixo, receitaBruta, Linha, noBold=false, indentOffset=0, showEmpty=false, catsFin=[]){
   // Get all lançamentos matching this prefix
-  const lancItems=periodo.filter(l=>(tipo===null||l.tipo===tipo)&&(l.categoria||'').startsWith(prefixo));
+  // Custom categories whose grupo matches this prefix
+  const customCatNames=new Set((catsFin||[]).filter(c=>(c.grupo||'').split(' ')[0]===prefixo||(c.grupo||'').startsWith(prefixo+'.')).map(c=>c.nome));
+  const lancItems=periodo.filter(l=>(tipo===null||l.tipo===tipo)&&((l.categoria||'').startsWith(prefixo)||customCatNames.has(l.categoria)));
   if(!lancItems.length)return[];
 
   // Forma pag → plano de contas mapping for receitas
@@ -3688,7 +3690,7 @@ function DateRangePicker({dtIni,dtFim,onChangeDtIni,onChangeDtFim}){
 }
 
 function FinDRE({uid,db,reload,setM}){
-  const{lancamentos}=db;
+  const{lancamentos,categorias_fin}=db;
   const[dtIni,setDtIni]=React.useState(()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),1).toISOString().split('T')[0];});
   const[dtFim,setDtFim]=React.useState(()=>new Date(new Date().getFullYear(),new Date().getMonth()+1,0).toISOString().split('T')[0]);
 
@@ -3767,28 +3769,28 @@ function FinDRE({uid,db,reload,setM}){
       React.createElement(Linha,{label:'(=) Receita Bruta de Vendas',valor:receitaBruta,bold:true,bigHeader:true,pct:100}),
       // Detalhes por forma de pagamento
       React.createElement(Linha,{label:'Receita de Venda de Produtos',valor:receitaBruta,bold:true,noBorder:true,indent:2,pct:100}),
-      ...buildDREHierarchy(periodo,'receita','3.1',receitaBruta,Linha),
+      ...buildDREHierarchy(periodo,'receita','3.1',receitaBruta,Linha,categorias_fin),
       // Outras receitas não enquadradas em 3.1
       ...periodo.filter(l=>l.tipo==='receita'&&!isRepasse(l)&&!(l.categoria||'').startsWith('3.1')&&!(l.categoria||'').startsWith('3.2')).reduce((acc,l)=>{
         const k=l.categoria||l.descricao||'Outras Receitas';if(!acc.find(x=>x.k===k))acc.push({k,v:0});acc.find(x=>x.k===k).v+=Number(l.valor||0);return acc;
       },[]).map(g=>React.createElement(Linha,{key:g.k,label:g.k,valor:g.v,indent:3,pct:receitaBruta>0?g.v/receitaBruta*100:0})),
       React.createElement(Linha,{label:'(-) Deduções de Vendas',valor:-deducoes,bold:true,noBorder:true,isDespesa:true,indent:2,pct:receitaBruta>0?deducoes/receitaBruta*100:0}),
-      ...buildDREHierarchy(deducoesPeriodo,null,'3.2',receitaBruta,Linha,true,1),
+      ...buildDREHierarchy(deducoesPeriodo,null,'3.2',receitaBruta,Linha,true,1,categorias_fin),
       ...periodo.filter(l=>isDed(l)&&!(l.categoria||'').startsWith('3.2')).reduce((acc,l)=>{
         const k=l.categoria||l.descricao||'Deduções';if(!acc.find(x=>x.k===k))acc.push({k,v:0});acc.find(x=>x.k===k).v+=Number(l.valor||0);return acc;
       },[]).map(g=>React.createElement(Linha,{key:g.k,label:g.k,valor:-g.v,isDespesa:true,indent:1,pct:receitaBruta>0?g.v/receitaBruta*100:0})),
       React.createElement(Linha,{label:'(=) Receita Líquida',valor:receitaLiquida,bold:true,bigHeader:true,pct:receitaBruta>0?receitaLiquida/receitaBruta*100:0}),
 
       React.createElement(Linha,{label:'(-) Custo de Mercadoria Vendida (CMV)',valor:-cmv,bold:true,cmv:true,isDespesaHeader:true,pct:receitaBruta>0?cmv/receitaBruta*100:0}),
-      ...buildDREHierarchy(periodo,'despesa','4.1',receitaBruta,Linha,false,0,true),
+      ...buildDREHierarchy(periodo,'despesa','4.1',receitaBruta,Linha,false,0,true,categorias_fin),
       React.createElement(Linha,{label:'(=) Lucro Bruto',valor:lucroBruto,bold:true,bigHeader:true,pct:receitaBruta>0?lucroBruto/receitaBruta*100:0}),
 
       React.createElement(Linha,{label:'(-) Despesas com Vendas',isDespesa:true,isDespesaHeader:true,valor:-despVendas,bold:true,pct:receitaBruta>0?despVendas/receitaBruta*100:0}),
-      ...buildDREHierarchy(periodo,'despesa','4.2',receitaBruta,Linha),
+      ...buildDREHierarchy(periodo,'despesa','4.2',receitaBruta,Linha,categorias_fin),
       React.createElement(Linha,{label:'(-) Despesas Administrativas',isDespesa:true,isDespesaHeader:true,valor:-despAdm,bold:true,pct:receitaBruta>0?despAdm/receitaBruta*100:0}),
-      ...buildDREHierarchy(periodo,'despesa','4.3',receitaBruta,Linha),
+      ...buildDREHierarchy(periodo,'despesa','4.3',receitaBruta,Linha,categorias_fin),
       React.createElement(Linha,{label:'(-) Despesas Financeiras',isDespesa:true,isDespesaHeader:true,valor:-despFin,bold:true,pct:receitaBruta>0?despFin/receitaBruta*100:0}),
-      ...buildDREHierarchy(periodo,'despesa','4.4',receitaBruta,Linha),
+      ...buildDREHierarchy(periodo,'despesa','4.4',receitaBruta,Linha,categorias_fin),
       React.createElement(Linha,{label:'(=) Lucro Operacional (EBIT)',valor:lucroOperacional,bold:true,bigHeader:true,pct:receitaBruta>0?lucroOperacional/receitaBruta*100:0}),
       React.createElement('div',{style:{marginTop:8,paddingTop:8}},
         React.createElement(Linha,{label:'(=) LUCRO LÍQUIDO DO PERÍODO',valor:lucroLiquido,bold:true,bigHeader:true,pct:receitaBruta>0?margemLiquida:0})
