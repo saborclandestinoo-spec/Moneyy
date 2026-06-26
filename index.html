@@ -3667,8 +3667,8 @@ function FinDRE({uid,db,reload,setM}){
     )
   );
 
-  return React.createElement(PW,{title:'DRE',sub:'Demonstração do Resultado do Exercício'},
-    React.createElement(DateRangePicker,{dtIni,dtFim,onChangeDtIni:setDtIni,onChangeDtFim:setDtFim,style:{marginBottom:20}}),
+  return React.createElement(PW,{title:'DRE',sub:'Demonstração do Resultado do Exercício',
+    actions:[React.createElement(DateRangePicker,{key:'drp',dtIni,dtFim,onChangeDtIni:setDtIni,onChangeDtFim:setDtFim})]},
 
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}},
       React.createElement(SC,{label:'Receita Líquida',val:F(receitaLiquida),color:'#16a34a'}),
