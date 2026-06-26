@@ -3602,7 +3602,7 @@ function DateRangePicker({dtIni,dtFim,onChangeDtIni,onChangeDtFim}){
       dtIni===dtFim?FD(dtIni):FD(dtIni)+' — '+FD(dtFim)
     ),
     // Dropdown
-    open&&React.createElement('div',{style:{position:'absolute',top:'calc(100% + 6px)',left:0,zIndex:1000,background:'#fff',borderRadius:14,boxShadow:'0 8px 32px rgba(0,0,0,0.15)',border:'1px solid #f0f0f0',display:'flex',minWidth:620}},
+    open&&React.createElement('div',{style:{position:'absolute',top:'calc(100% + 6px)',right:0,left:'auto',zIndex:1000,background:'#fff',borderRadius:14,boxShadow:'0 8px 32px rgba(0,0,0,0.15)',border:'1px solid #f0f0f0',display:'flex',minWidth:620}},
       // Sidebar
       React.createElement('div',{style:{width:150,borderRight:'1px solid #f0f0f0',padding:'12px 8px',flexShrink:0}},
         ATALHOS.map((a,i)=>React.createElement('button',{key:i,onClick:a.fn,style:{display:'block',width:'100%',textAlign:'left',padding:'7px 10px',borderRadius:7,border:'none',background:'transparent',fontSize:12,color:'#555',cursor:'pointer',marginBottom:2}},a.l))
