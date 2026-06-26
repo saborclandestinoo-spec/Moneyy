@@ -3703,7 +3703,7 @@ function FinDRE({uid,db,reload,setM}){
   const Linha=({label,valor,bold,bigHeader,highlight,cor,indent,pct,sub,noBorder,cmv,isDespesa,isDespesaHeader})=>{
     const pl=bigHeader?12:12+(indent||0)*18;
     return React.createElement('div',{style:{
-      display:'grid',gridTemplateColumns:'minmax(0px,1fr) 120px 55px',
+      display:'grid',gridTemplateColumns:'minmax(0px,1fr) 120px 75px',
       padding:bigHeader?('0px 0px 0px '+pl+'px'):'0px 12px 0px '+(12+(indent||0)*18)+'px',
       borderTop:'none',
       borderBottom:'none',
