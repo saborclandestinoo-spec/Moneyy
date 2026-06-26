@@ -3700,7 +3700,7 @@ function FinDRE({uid,db,reload,setM}){
 
   const margemLiquida=receitaBruta>0?(lucroLiquido/receitaBruta*100):0;
 
-  const Linha=({label,valor,bold,bigHeader,highlight,cor,indent,pct,sub,noBorder,cmv,isDespesa})=>{
+  const Linha=({label,valor,bold,bigHeader,highlight,cor,indent,pct,sub,noBorder,cmv,isDespesa,isDespesaHeader})=>{
     const pl=bigHeader?12:12+(indent||0)*18;
     return React.createElement('div',{style:{
       display:'grid',gridTemplateColumns:'minmax(0px,1fr) 120px 55px',
@@ -3710,13 +3710,13 @@ function FinDRE({uid,db,reload,setM}){
       margin:bigHeader?'4px 12px 5px':'0',
       alignItems:'center',
       boxShadow:bigHeader?'0 -1px 0 0 #111, 0 2.5px 0 0 #111':'none',
-      background:cmv?'#dc2626':'transparent'
+      background:(cmv||isDespesaHeader)?'#e60000':'transparent'
     }},
-    React.createElement('span',{style:{fontSize:bigHeader?15:bold?13:12,fontWeight:bigHeader?800:bold?700:400,color:cmv?'#fff':'#111'}},label),
-    React.createElement('span',{style:{textAlign:'right',fontSize:bigHeader?15:bold?13:12,fontWeight:bigHeader?800:bold?700:400,color:cmv?'#fff':isDespesa?'#dc2626':'#111'}},
+    React.createElement('span',{style:{fontSize:bigHeader?15:bold?13:12,fontWeight:bigHeader?800:bold?700:400,color:(cmv||isDespesaHeader)?'#fff':'#111'}},label),
+    React.createElement('span',{style:{textAlign:'right',fontSize:bigHeader?15:bold?13:12,fontWeight:bigHeader?800:bold?700:400,color:(cmv||isDespesaHeader)?'#fff':isDespesa?'#e60000':'#111'}},
       valor<0?'('+F(Math.abs(valor))+')':F(valor)
     ),
-    React.createElement('span',{style:{textAlign:'right',fontSize:bigHeader?13:11,color:cmv?'#fff':isDespesa?'#dc2626':'#555',fontWeight:bigHeader?700:bold?600:400,display:'flex',alignItems:'center',justifyContent:'flex-end'}},
+    React.createElement('span',{style:{textAlign:'right',fontSize:bigHeader?13:11,color:(cmv||isDespesaHeader)?'#fff':isDespesa?'#e60000':'#555',fontWeight:bigHeader?700:bold?600:400,display:'flex',alignItems:'center',justifyContent:'flex-end'}},
       pct!=null?pct.toFixed(1)+'%':''
     )
   );};
@@ -3747,17 +3747,17 @@ function FinDRE({uid,db,reload,setM}){
       ...buildDREHierarchy(periodo,'despesa','3.2',receitaBruta,Linha),
       React.createElement(Linha,{label:'(=) Receita Líquida',valor:receitaLiquida,bold:true,bigHeader:true,pct:receitaBruta>0?receitaLiquida/receitaBruta*100:0}),
 
-      React.createElement(Linha,{label:'(-) Custo de Mercadoria Vendida (CMV)',valor:-cmv,bold:true,cmv:true,pct:receitaBruta>0?cmv/receitaBruta*100:0}),
+      React.createElement(Linha,{label:'(-) Custo de Mercadoria Vendida (CMV)',valor:-cmv,bold:true,cmv:true,isDespesaHeader:true,pct:receitaBruta>0?cmv/receitaBruta*100:0}),
       ...buildDREHierarchy(periodo,'despesa','4.1',receitaBruta,Linha),
       React.createElement(Linha,{label:'(=) Lucro Bruto',valor:lucroBruto,bold:true,bigHeader:true,pct:receitaBruta>0?lucroBruto/receitaBruta*100:0}),
 
-      React.createElement(Linha,{label:'(-) Despesas com Vendas',isDespesa:true,valor:-despVendas,bold:true,pct:receitaBruta>0?despVendas/receitaBruta*100:0}),
+      React.createElement(Linha,{label:'(-) Despesas com Vendas',isDespesa:true,isDespesaHeader:true,valor:-despVendas,bold:true,pct:receitaBruta>0?despVendas/receitaBruta*100:0}),
       ...buildDREHierarchy(periodo,'despesa','4.2',receitaBruta,Linha),
-      React.createElement(Linha,{label:'(-) Despesas Administrativas',isDespesa:true,valor:-despAdm,bold:true,pct:receitaBruta>0?despAdm/receitaBruta*100:0}),
+      React.createElement(Linha,{label:'(-) Despesas Administrativas',isDespesa:true,isDespesaHeader:true,valor:-despAdm,bold:true,pct:receitaBruta>0?despAdm/receitaBruta*100:0}),
       ...buildDREHierarchy(periodo,'despesa','4.3',receitaBruta,Linha),
       React.createElement(Linha,{label:'(=) Lucro Operacional (EBIT)',valor:lucroOperacional,bold:true,pct:receitaBruta>0?lucroOperacional/receitaBruta*100:0}),
 
-      React.createElement(Linha,{label:'(-) Despesas Financeiras',isDespesa:true,valor:-despFin,bold:true,pct:receitaBruta>0?despFin/receitaBruta*100:0}),
+      React.createElement(Linha,{label:'(-) Despesas Financeiras',isDespesa:true,isDespesaHeader:true,valor:-despFin,bold:true,pct:receitaBruta>0?despFin/receitaBruta*100:0}),
       ...buildDREHierarchy(periodo,'despesa','4.4',receitaBruta,Linha),
       React.createElement('div',{style:{marginTop:8,paddingTop:8}},
         React.createElement(Linha,{label:'(=) LUCRO LÍQUIDO DO PERÍODO',valor:lucroLiquido,bold:true,bigHeader:true,pct:receitaBruta>0?margemLiquida:0})
