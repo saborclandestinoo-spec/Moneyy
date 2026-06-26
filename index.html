@@ -6450,7 +6450,7 @@ function FinCategorias({uid,db,reload,setM}){
               onClick:()=>setM({title:'Editar — '+item.nome,body:React.createElement(CatForm,{uid,grupo:item.catObj.grupo,tipo:item.catObj.tipo,inicial:item.catObj,reload,close:()=>setM(null)})}),
               style:{fontSize:11,color:'#555',background:'#f5f5f5',border:'none',borderRadius:4,padding:'2px 8px',cursor:'pointer'}},'✏'),
             React.createElement('button',{
-              onClick:()=>setM({title:'+ Subcategoria em '+(item.cod||item.nome),body:React.createElement(CatForm,{uid,grupo:item.cod?' '+item.cod+' '+item.nome:item.nome,tipo:item.tipo,reload,close:()=>setM(null)})}),
+              onClick:()=>setM({title:'+ Subcategoria em '+(item.cod||item.nome),body:React.createElement(CatForm,{uid,grupo:(item.cod?item.cod+' ':'')+item.nome,tipo:item.tipo,fixGrupo:true,reload,close:()=>setM(null)})}),
               style:{fontSize:11,color:'#16a34a',background:'#f0fdf4',border:'none',borderRadius:4,padding:'2px 8px',cursor:'pointer',fontWeight:700}},'+'),
             item.custom&&React.createElement('button',{
               onClick:e=>{e.stopPropagation();excluirCat(item.id,item.nome);},
@@ -6730,7 +6730,7 @@ function CentroForm({uid,reload,close}){
 }
 
 
-function CatForm({uid,grupo,tipo,reload,close,inicial,parentLabel}){
+function CatForm({uid,grupo,tipo,reload,close,inicial,fixGrupo}){
   const[nome,setNome]=React.useState(inicial?.nome||'');
   const[grp,setGrp]=React.useState(inicial?.grupo||grupo||GRUPOS_PADRAO[0].grupo);
   const[tip,setTip]=React.useState(inicial?.tipo||tipo||'despesa');
@@ -6748,11 +6748,15 @@ function CatForm({uid,grupo,tipo,reload,close,inicial,parentLabel}){
           React.createElement('option',{value:'despesa'},'Despesa')
         )
       ),
-      React.createElement('div',null,
+      !fixGrupo&&React.createElement('div',null,
         React.createElement('label',{style:lbS},'Grupo'),
         React.createElement('select',{style:inpS,value:grp,onChange:e=>setGrp(e.target.value)},
           GRUPOS_PADRAO.map(g=>React.createElement('option',{key:g.grupo,value:g.grupo},g.grupo))
         )
+      ),
+      fixGrupo&&React.createElement('div',null,
+        React.createElement('label',{style:lbS},'Subcategoria de'),
+        React.createElement('div',{style:{...inpS,color:'#888',background:'#f0f0f0'}},grp)
       )
     ),
     React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
