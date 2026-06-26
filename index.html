@@ -3701,7 +3701,7 @@ function FinDRE({uid,db,reload,setM}){
   const margemLiquida=receitaBruta>0?(lucroLiquido/receitaBruta*100):0;
 
   const Linha=({label,valor,bold,bigHeader,highlight,cor,indent,pct,sub,noBorder})=>React.createElement('div',{style:{
-    display:'grid',gridTemplateColumns:'minmax(200px,55%) 110px 52px auto',
+    display:'grid',gridTemplateColumns:'minmax(0,1fr) 120px 55px',
     padding:bigHeader?'7px 12px':bold?'9px 12px':'4px 12px',
     paddingLeft:12+(indent||0)*18,
     borderTop:bigHeader?'1px solid #111':(bold&&!noBorder)?'1.5px solid #111':'none',
@@ -3728,9 +3728,9 @@ function FinDRE({uid,db,reload,setM}){
       React.createElement(SC,{label:'Margem Líquida',val:margemLiquida.toFixed(1)+'%',color:margemLiquida>=0?'#16a34a':'#dc2626'})
     ),
 
-    React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'16px 0',boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden'}},
+    React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'16px 0',boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden',maxWidth:800,margin:'0 auto'}},
       // Header
-      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'minmax(200px,55%) 110px 52px auto',padding:'8px 12px',background:'#111',marginBottom:8}},
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'minmax(0,1fr) 120px 55px',padding:'8px 12px',background:'#111',marginBottom:8}},
         React.createElement('span',{style:{fontSize:11,fontWeight:700,color:'#fff',letterSpacing:'1px'}},'DRE'),
         React.createElement('span',{style:{fontSize:11,fontWeight:700,color:'#fff',textAlign:'right'}},'VALOR (R$)'),
         React.createElement('span',{style:{fontSize:11,fontWeight:700,color:'#fff',textAlign:'right'}},'%')
