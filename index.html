@@ -4399,7 +4399,7 @@ function AddDropdown({novo}){
 }
 
 
-function DateRangePicker({dtIni,dtFim,onChange,onClose}){
+function DateRangePickerLegacy({dtIni,dtFim,onChange,onClose}){
   const hoje=TODAY();
   const parse=(s)=>{const p=s.split('-');return{y:+p[0],m:+p[1]-1,d:+p[2]};};
   const fmt=(y,m,d)=>y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
@@ -4875,7 +4875,7 @@ function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas,refreshEst
           React.createElement('span',{style:{fontSize:13,color:'#555',whiteSpace:'nowrap',background:showPicker?'#fff5f5':'transparent',borderRadius:8,padding:'2px 8px',fontWeight:600}},periodoLabel)
         ),
         showPicker&&React.createElement('div',{style:{position:'absolute',top:'calc(100% + 6px)',left:0,zIndex:1000}},
-          React.createElement(DateRangePicker,{
+          React.createElement(DateRangePickerLegacy,{
             dtIni,dtFim,
             onChange:(i,f)=>{setDtIni(i);setDtFim(f);},
             onClose:()=>setShowPicker(false)
