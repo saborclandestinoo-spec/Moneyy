@@ -3701,8 +3701,8 @@ function FinDRE({uid,db,reload,setM}){
   const margemLiquida=receitaBruta>0?(lucroLiquido/receitaBruta*100):0;
 
   const Linha=({label,valor,bold,bigHeader,highlight,cor,indent,pct,sub,noBorder})=>React.createElement('div',{style:{
-    display:'grid',gridTemplateColumns:'minmax(0,1fr) 120px 55px',
-    padding:bigHeader?'7px 12px':bold?'9px 12px':'4px 12px',
+    display:'grid',gridTemplateColumns:'minmax(0px,1fr) 120px 55px',
+    padding:bigHeader?'0px 12px':bold?'9px 12px':'4px 12px',
     paddingLeft:12+(indent||0)*18,
     borderTop:bigHeader?'1px solid #111':(bold&&!noBorder)?'1.5px solid #111':'none',
     borderBottom:bigHeader?'2.5px solid #111':'none',
