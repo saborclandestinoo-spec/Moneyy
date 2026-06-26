@@ -3517,10 +3517,25 @@ function buildDREHierarchy(periodo, tipo, prefixo, receitaBruta, Linha){
   const lancItems=periodo.filter(l=>l.tipo===tipo&&(l.categoria||'').startsWith(prefixo));
   if(!lancItems.length)return[];
 
-  // Sum by exact category
+  // Forma pag → plano de contas mapping for receitas
+  const FORMA_TO_CAT={
+    'pix':'3.1.1 Pix','dinheiro':'3.1.2 Dinheiro',
+    'cartao credito':'3.1.3 Cartão de Crédito','cartão crédito':'3.1.3 Cartão de Crédito','cartao de credito':'3.1.3 Cartão de Crédito',
+    'cartao debito':'3.1.4 Cartão de Débito','cartão débito':'3.1.4 Cartão de Débito','cartao de debito':'3.1.4 Cartão de Débito',
+    'ifood':'3.1.5 iFood','ifood online':'3.1.5 iFood','i food':'3.1.5 iFood',
+    'a definir':'3.1.6 Outras Formas de Pagamento'
+  };
+  const normF=s=>(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+
+  // Sum by exact category (with forma_pag fallback for receitas)
   const bycat={};
   lancItems.forEach(l=>{
-    const k=l.categoria||'Sem categoria';
+    let k=l.categoria||'Sem categoria';
+    // If categoria is a parent (not specific enough), use forma_pag mapping
+    if(tipo==='receita'&&l.forma_pag){
+      const mapped=FORMA_TO_CAT[normF(l.forma_pag)];
+      if(mapped&&k.startsWith(prefixo))k=mapped;
+    }
     bycat[k]=(bycat[k]||0)+Number(l.valor||0);
   });
 
