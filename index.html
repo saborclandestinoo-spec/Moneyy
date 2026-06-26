@@ -3555,7 +3555,7 @@ function buildDREHierarchy(periodo, tipo, prefixo, receitaBruta, Linha){
     if(total===0&&!Object.keys(bycat).some(k=>(k.split(' ')[0]||'').startsWith(item.cod)))return;
     const indent=item.nivel;
     rows.push(React.createElement(Linha,{key:item.cod,
-      label:(isReceita&&item.cod?item.cod+' ':'')+item.nome,valor:isReceita?total:-total,
+      label:item.nome,valor:isReceita?total:-total,
       bold:item.nivel===2,noBorder:item.nivel===2,isDespesa:true,indent,
       pct:receitaBruta>0?total/receitaBruta*100:0
     }));
