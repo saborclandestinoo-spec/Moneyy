@@ -3512,7 +3512,7 @@ function FichaForm({uid,db,reload,close,ficha,setM}){
 // ── DRE (Demonstração do Resultado do Exercício) ──
 
 
-function buildDREHierarchy(periodo, tipo, prefixo, receitaBruta, Linha){
+function buildDREHierarchy(periodo, tipo, prefixo, receitaBruta, Linha, noBold=false){
   // Get all lançamentos matching this prefix
   const lancItems=periodo.filter(l=>(tipo===null||l.tipo===tipo)&&(l.categoria||'').startsWith(prefixo));
   if(!lancItems.length)return[];
@@ -3562,7 +3562,7 @@ function buildDREHierarchy(periodo, tipo, prefixo, receitaBruta, Linha){
     const indent=isReceita?item.nivel+1:item.nivel;
     rows.push(React.createElement(Linha,{key:item.cod,
       label:item.nome,valor:isReceita?total:-total,
-      bold:isReceita?item.nivel===1:item.nivel===2,noBorder:!isReceita&&item.nivel===2,isDespesa:!isReceita,indent,
+      bold:!noBold&&(isReceita?item.nivel===1:item.nivel===2),noBorder:!noBold&&!isReceita&&item.nivel===2,isDespesa:!isReceita,indent,
       pct:receitaBruta>0?total/receitaBruta*100:0
     }));
   });
@@ -3773,7 +3773,7 @@ function FinDRE({uid,db,reload,setM}){
         const k=l.categoria||l.descricao||'Outras Receitas';if(!acc.find(x=>x.k===k))acc.push({k,v:0});acc.find(x=>x.k===k).v+=Number(l.valor||0);return acc;
       },[]).map(g=>React.createElement(Linha,{key:g.k,label:g.k,valor:g.v,indent:3,pct:receitaBruta>0?g.v/receitaBruta*100:0})),
       React.createElement(Linha,{label:'(-) Deduções de Vendas',valor:-deducoes,bold:true,noBorder:true,isDespesa:true,pct:receitaBruta>0?deducoes/receitaBruta*100:0}),
-      ...buildDREHierarchy(deducoesPeriodo,null,'3.2',receitaBruta,Linha),
+      ...buildDREHierarchy(deducoesPeriodo,null,'3.2',receitaBruta,Linha,true),
       ...periodo.filter(l=>isDed(l)&&!(l.categoria||'').startsWith('3.2')).reduce((acc,l)=>{
         const k=l.categoria||l.descricao||'Deduções';if(!acc.find(x=>x.k===k))acc.push({k,v:0});acc.find(x=>x.k===k).v+=Number(l.valor||0);return acc;
       },[]).map(g=>React.createElement(Linha,{key:g.k,label:g.k,valor:-g.v,isDespesa:true,indent:1,pct:receitaBruta>0?g.v/receitaBruta*100:0})),
