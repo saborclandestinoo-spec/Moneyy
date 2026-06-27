@@ -3695,8 +3695,12 @@ function FinDRE({uid,db,reload,setM}){
   // DRE por competência — inclui todos os lançamentos do período (pagos e a receber)
   // DRE por competência: usa l.competencia quando disponível, senão l.data
   const periodo=React.useMemo(()=>(lancamentos||[]).filter(l=>{
-    const dtComp=l.competencia||l.data||'';
-    return dtComp>=dtIni&&dtComp<=dtFim&&l.obs!=='compra_estoque';
+    const raw=l.competencia||l.data||'';
+    // YYYY-MM format → expand to YYYY-MM-01 for comparison
+    const dtComp=raw.match(/^\d{4}-\d{2}$/)?(raw+'-01'):raw;
+    const mesIni=dtIni.slice(0,7)+'-01';
+    const mesFim=dtFim.slice(0,7)+'-28';
+    return dtComp>=mesIni&&dtComp<=mesFim&&l.obs!=='compra_estoque';
   }),[lancamentos,dtIni,dtFim]);
 
   const isRepasse=(l)=>(l.descricao||'').toLowerCase().includes('repasse')||(l.obs||'').includes('repasse');
