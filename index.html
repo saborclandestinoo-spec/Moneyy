@@ -4268,46 +4268,64 @@ function FinMovs({uid,db,reload,setM}){
     return dp.startsWith(mesStr)&&l.pago;
   });
 
-  const valDia=(tipo,cat,dia)=>{
-    const dtDia=mesStr+'-'+String(dia).padStart(2,'0');
-    return pagos.filter(l=>l.tipo===tipo&&(l.categoria||'').replace(/^\d+(\.\d+)*\s*/,'')===cat&&l.data_pag===dtDia)
-      .reduce((s,l)=>s+Number(l.valor||0),0);
+  const catLabel=(cat)=>(cat||'Outros').replace(/^\d+(\.\d+)*\s*/,'');
+  const catsDia=(tipo,cat,dia)=>{
+    const dt=mesStr+'-'+String(dia).padStart(2,'0');
+    return pagos.filter(l=>l.tipo===tipo&&catLabel(l.categoria)===cat&&l.data_pag===dt).reduce((s,l)=>s+Number(l.valor||0),0);
   };
-
-  const totalDia=(tipo,dia)=>{
-    const dtDia=mesStr+'-'+String(dia).padStart(2,'0');
-    return pagos.filter(l=>l.tipo===tipo&&l.data_pag===dtDia).reduce((s,l)=>s+Number(l.valor||0),0);
+  const tipoDia=(tipo,dia)=>{
+    const dt=mesStr+'-'+String(dia).padStart(2,'0');
+    return pagos.filter(l=>l.tipo===tipo&&l.data_pag===dt).reduce((s,l)=>s+Number(l.valor||0),0);
   };
+  const catTotal=(tipo,cat)=>pagos.filter(l=>l.tipo===tipo&&catLabel(l.categoria)===cat).reduce((s,l)=>s+Number(l.valor||0),0);
+  const tipoTotal=(tipo)=>pagos.filter(l=>l.tipo===tipo).reduce((s,l)=>s+Number(l.valor||0),0);
 
-  // Get unique categories per tipo
-  const uniqueCats=(tipo)=>[...new Set(pagos.filter(l=>l.tipo===tipo).map(l=>(l.categoria||'Outros').replace(/^\d+(\.\d+)*\s*/,'')))].sort();
+  const uniqueCats=(tipo)=>[...new Set(pagos.filter(l=>l.tipo===tipo).map(l=>catLabel(l.categoria)))].sort();
   const catsEnt=uniqueCats('receita');
   const catsSai=uniqueCats('despesa');
 
-  const totalGeral=(tipo)=>pagos.filter(l=>l.tipo===tipo).reduce((s,l)=>s+Number(l.valor||0),0);
+  // Saldo inicial = saldo total das contas antes do mês
+  const saldoContas=(contas||[]).reduce((s,c)=>s+Number(c.saldo||0),0);
+  const totalEnt=tipoTotal('receita');
+  const totalSai=tipoTotal('despesa');
+  const saldoFinal=saldoContas; // current saldo = saldo total
 
-  const thS={background:'#1e293b',color:'#fff',fontSize:10,fontWeight:700,padding:'6px 8px',textAlign:'center',whiteSpace:'nowrap',position:'sticky',top:0,zIndex:2};
-  const th0={...thS,textAlign:'left',position:'sticky',left:0,zIndex:3,minWidth:160};
-  const tdS={fontSize:11,padding:'4px 6px',textAlign:'right',borderBottom:'1px solid #f5f5f5',borderRight:'1px solid #f5f5f5',minWidth:52};
-  const tdL={...tdS,textAlign:'left',fontWeight:500,color:'#555',position:'sticky',left:0,background:'#fff',zIndex:1};
-  const secH=(label,bg='#dbeafe',color='#1e40af')=>React.createElement('tr',null,
-    React.createElement('td',{colSpan:diasMes+2,style:{background:bg,color,fontWeight:800,fontSize:12,padding:'6px 10px'}},'▸ '+label)
-  );
-  const totalRow=(label,tipo,bg='#f0f9ff',fw=700)=>React.createElement('tr',{style:{background:bg}},
-    React.createElement('td',{style:{...tdL,background:bg,fontWeight:fw,color:'#111'}},label),
-    dias.map(d=>{const v=totalDia(tipo,d);return React.createElement('td',{key:d,style:{...tdS,fontWeight:fw,background:bg,color:v>0?'#111':'#ccc'}},v>0?F(v):'—');}),
-    React.createElement('td',{style:{...tdS,fontWeight:800,background:bg,color:'#111',borderLeft:'2px solid #e5e5e5'}},F(totalGeral(tipo)))
-  );
-  const fluxoRow=()=>{
-    const rowStyle={background:'#fef9c3'};
-    return React.createElement('tr',{style:rowStyle},
-      React.createElement('td',{style:{...tdL,background:'#fef9c3',fontWeight:700,color:'#92400e'}},'= Entradas - Saídas'),
-      dias.map(d=>{const v=totalDia('receita',d)-totalDia('despesa',d);return React.createElement('td',{key:d,style:{...tdS,background:'#fef9c3',fontWeight:700,color:v>0?'#16a34a':v<0?'#dc2626':'#ccc'}},v!==0?F(Math.abs(v)):'—');}),
-      React.createElement('td',{style:{...tdS,fontWeight:800,background:'#fef9c3',color:totalGeral('receita')-totalGeral('despesa')>=0?'#16a34a':'#dc2626',borderLeft:'2px solid #e5e5e5'}},F(totalGeral('receita')-totalGeral('despesa')))
-    );
+  // Accumulated saldo per day
+  const saldoInicialDia=(dia)=>{
+    // Sum all paid before this day in this month
+    let s=0;
+    for(let d=1;d<dia;d++){s+=tipoDia('receita',d)-tipoDia('despesa',d);}
+    return s;
   };
 
-  return React.createElement(PW,{title:'Fluxo de Caixa',sub:'Planilha de Fluxo de Caixa Diário'},
+  const thS={background:'#1e293b',color:'#fff',fontSize:10,fontWeight:700,padding:'6px 8px',textAlign:'center',whiteSpace:'nowrap',position:'sticky',top:0,zIndex:2,borderRight:'1px solid #334155'};
+  const th0={...thS,textAlign:'left',position:'sticky',left:0,zIndex:3,minWidth:220};
+  const tdS={fontSize:11,padding:'5px 6px',textAlign:'right',borderBottom:'1px solid #f5f5f5',borderRight:'1px solid #f5f5f5'};
+  const tdL=(bg='#fff',fw=400,col='#555')=>({...tdS,textAlign:'left',fontWeight:fw,color:col,position:'sticky',left:0,background:bg,zIndex:1,borderRight:'2px solid #e5e5e5'});
+  const totS=(bg,col)=>({...tdS,fontWeight:700,background:bg,color:col,borderRight:'1px solid #e5e5e5'});
+
+  const Fval=(v,col)=>React.createElement('td',{style:{...tdS,color:v===0?'#ddd':col,fontWeight:v===0?400:500}},v===0?'':F(v));
+
+  const secRow=(label,bg,col)=>React.createElement('tr',{style:{background:bg}},
+    React.createElement('td',{colSpan:diasMes+2,style:{padding:'8px 12px',fontWeight:700,fontSize:13,color:col,borderLeft:'4px solid '+col}},'▸ '+label)
+  );
+  const catRow=(tipo,cat,bg,col)=>React.createElement('tr',{key:cat,style:{background:bg}},
+    React.createElement('td',{style:tdL(bg,500,'#444')},React.createElement('span',{style:{marginLeft:16}},cat)),
+    dias.map(d=>{const v=catsDia(tipo,cat,d);return React.createElement('td',{key:d,style:{...tdS,color:v===0?'#ddd':col,background:bg}},v===0?'':F(v));}),
+    React.createElement('td',{style:{...totS(bg,col),borderLeft:'2px solid #e5e5e5'}},catTotal(tipo,cat)?F(catTotal(tipo,cat)):'')
+  );
+  const totRow=(label,tipo,bg,col)=>React.createElement('tr',{style:{background:bg}},
+    React.createElement('td',{style:tdL(bg,700,col)},label),
+    dias.map(d=>{const v=tipoDia(tipo,d);return React.createElement('td',{key:d,style:{...totS(bg,col)}},v>0?F(v):'');}),
+    React.createElement('td',{style:{...totS(bg,col),borderLeft:'2px solid #e5e5e5',fontSize:13}},F(tipoTotal(tipo)))
+  );
+  const saldoRow=(label,fn,bg,col)=>React.createElement('tr',{style:{background:bg}},
+    React.createElement('td',{style:tdL(bg,700,col)},label),
+    dias.map(d=>{const v=fn(d);return React.createElement('td',{key:d,style:{...totS(bg,v>=0?'#16a34a':'#dc2626')}},v!==0?F(v):'');}),
+    React.createElement('td',{style:{...totS(bg,totalEnt-totalSai>=0?'#16a34a':'#dc2626'),borderLeft:'2px solid #e5e5e5',fontSize:13}},F(totalEnt-totalSai))
+  );
+
+  return React.createElement(PW,{title:'Fluxo de Caixa',sub:'Movimentações diárias por categoria'},
     React.createElement('div',{style:{display:'flex',alignItems:'center',gap:12,marginBottom:16}},
       React.createElement('button',{onClick:()=>navM(-1),style:{background:'#f5f5f5',border:'none',borderRadius:8,width:32,height:32,cursor:'pointer',fontSize:16}},'‹'),
       React.createElement('span',{style:{fontWeight:700,fontSize:16,minWidth:160,textAlign:'center'}},MESES[mes]+' '+ano),
@@ -4315,36 +4333,39 @@ function FinMovs({uid,db,reload,setM}){
     ),
     React.createElement('div',{style:{overflowX:'auto',background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
       React.createElement('table',{style:{borderCollapse:'collapse',width:'100%',fontSize:11}},
-        React.createElement('thead',null,
-          React.createElement('tr',null,
-            React.createElement('th',{style:th0},'Categoria'),
-            dias.map(d=>React.createElement('th',{key:d,style:thS},'Dia '+d)),
-            React.createElement('th',{style:{...thS,borderLeft:'2px solid #334155'}},'TOTAL')
-          )
-        ),
+        React.createElement('thead',null,React.createElement('tr',null,
+          React.createElement('th',{style:th0},'Categoria'),
+          dias.map(d=>React.createElement('th',{key:d,style:thS},String(d).padStart(2,'0'))),
+          React.createElement('th',{style:{...thS,borderLeft:'2px solid #334155'}},MESES[mes].slice(0,3).toUpperCase())
+        )),
         React.createElement('tbody',null,
-          // ENTRADAS
-          secH('ENTRADAS','#dcfce7','#166534'),
-          ...catsEnt.map(cat=>React.createElement('tr',{key:'e_'+cat},
-            React.createElement('td',{style:tdL},cat),
-            dias.map(d=>{const v=valDia('receita',cat,d);return React.createElement('td',{key:d,style:{...tdS,color:v>0?'#16a34a':'#ddd'}},v>0?F(v):'');}),
-            React.createElement('td',{style:{...tdS,fontWeight:600,borderLeft:'2px solid #e5e5e5',color:'#16a34a'}},
-              F(pagos.filter(l=>l.tipo==='receita'&&(l.categoria||'').replace(/^\d+(\.\d+)*\s*/,'')===cat).reduce((s,l)=>s+Number(l.valor||0),0)))
-          )),
-          catsEnt.length===0&&React.createElement('tr',null,React.createElement('td',{colSpan:diasMes+2,style:{color:'#ccc',textAlign:'center',padding:12,fontSize:12}},'Sem receitas pagas neste mês')),
-          totalRow('TOTAL DAS ENTRADAS','receita','#f0fdf4',700),
-
-          // SAÍDAS
-          secH('SAÍDAS','#fee2e2','#991b1b'),
-          ...catsSai.map(cat=>React.createElement('tr',{key:'s_'+cat},
-            React.createElement('td',{style:tdL},cat),
-            dias.map(d=>{const v=valDia('despesa',cat,d);return React.createElement('td',{key:d,style:{...tdS,color:v>0?'#dc2626':'#ddd'}},v>0?F(v):'');}),
-            React.createElement('td',{style:{...tdS,fontWeight:600,borderLeft:'2px solid #e5e5e5',color:'#dc2626'}},
-              F(pagos.filter(l=>l.tipo==='despesa'&&(l.categoria||'').replace(/^\d+(\.\d+)*\s*/,'')===cat).reduce((s,l)=>s+Number(l.valor||0),0)))
-          )),
-          catsSai.length===0&&React.createElement('tr',null,React.createElement('td',{colSpan:diasMes+2,style:{color:'#ccc',textAlign:'center',padding:12,fontSize:12}},'Sem despesas pagas neste mês')),
-          totalRow('TOTAL DAS SAÍDAS','despesa','#fff5f5',700),
-          fluxoRow()
+          // Saldo inicial
+          React.createElement('tr',{style:{background:'#f8f8f8'}},
+            React.createElement('td',{style:tdL('#f8f8f8',600,'#333')},'Saldo inicial do período'),
+            dias.map(d=>React.createElement('td',{key:d,style:{...tdS,color:'#2563eb',background:'#f8f8f8'}},d===1?F(saldoContas-totalEnt+totalSai):'')),
+            React.createElement('td',{style:{...totS('#f8f8f8','#2563eb'),borderLeft:'2px solid #e5e5e5'}},F(saldoContas-totalEnt+totalSai))
+          ),
+          // Receitas
+          secRow('Total de receitas','#f0fdf4','#16a34a'),
+          ...catsEnt.map(cat=>catRow('receita',cat,'#f0fdf4','#16a34a')),
+          catsEnt.length===0&&React.createElement('tr',null,React.createElement('td',{colSpan:diasMes+2,style:{color:'#ccc',textAlign:'center',padding:10}},'Sem receitas')),
+          totRow('Total de receitas','receita','#dcfce7','#15803d'),
+          // Despesas
+          secRow('Total de despesas','#fff5f5','#dc2626'),
+          ...catsSai.map(cat=>catRow('despesa',cat,'#fff5f5','#dc2626')),
+          catsSai.length===0&&React.createElement('tr',null,React.createElement('td',{colSpan:diasMes+2,style:{color:'#ccc',textAlign:'center',padding:10}},'Sem despesas')),
+          totRow('Total de despesas','despesa','#fee2e2','#b91c1c'),
+          // Saldo final
+          React.createElement('tr',{style:{background:'#f8faff'}},
+            React.createElement('td',{style:tdL('#f8faff',700,'#2563eb')},'Saldo final do período'),
+            dias.map(d=>{const v=tipoDia('receita',d)-tipoDia('despesa',d);return React.createElement('td',{key:d,style:{...totS('#f8faff',v>=0?'#16a34a':'#dc2626')}},v!==0?F(v):'');}),
+            React.createElement('td',{style:{...totS('#f8faff',totalEnt-totalSai>=0?'#16a34a':'#dc2626'),borderLeft:'2px solid #e5e5e5',fontSize:13}},F(totalEnt-totalSai))
+          ),
+          React.createElement('tr',{style:{background:'#eff6ff'}},
+            React.createElement('td',{style:tdL('#eff6ff',800,'#1d4ed8')},'Saldo total'),
+            dias.map(d=>React.createElement('td',{key:d,style:{...totS('#eff6ff','#1d4ed8')}},d===diasMes?F(saldoContas):'')),
+            React.createElement('td',{style:{...totS('#eff6ff','#1d4ed8'),borderLeft:'2px solid #e5e5e5',fontSize:13,fontWeight:800}},F(saldoContas))
+          )
         )
       )
     )
@@ -5508,11 +5529,11 @@ function ProducaoDetalhe({producao,db,close}){
     React.createElement('div',{style:{background:'#faf5ff',borderRadius:12,padding:'16px',marginBottom:16}},
       React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}},
         React.createElement('div',null,
-          React.createElement('div',{style:{fontSize:11,color:'#7c3aed',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:4}},'Produção'),
+          React.createElement('div',{style:{fontSize:11,color:'#dc2626',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:4}},'Produção'),
           React.createElement('div',{style:{fontWeight:800,fontSize:18,color:'#111'}},producao.ficha_nome)
         ),
         React.createElement('div',{style:{textAlign:'right'}},
-          React.createElement('div',{style:{fontWeight:800,fontSize:22,color:'#7c3aed'}},producao.quantidade+' un')
+          React.createElement('div',{style:{fontWeight:800,fontSize:22,color:'#dc2626'}},producao.quantidade+' un')
         )
       ),
       React.createElement('div',{style:{display:'flex',gap:16,fontSize:12,color:'#888'}},
@@ -5538,7 +5559,7 @@ function ProducaoDetalhe({producao,db,close}){
       ))
     ),
     React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginTop:16}},
-      React.createElement('button',{onClick:()=>imprimirEtiquetas(producao),style:{background:'#faf5ff',color:'#7c3aed',padding:'9px 16px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},'🏷 Imprimir Etiquetas'),
+      React.createElement('button',{onClick:()=>imprimirEtiquetas(producao),style:{background:'#faf5ff',color:'#dc2626',padding:'9px 16px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},'🏷 Imprimir Etiquetas'),
       React.createElement('button',{onClick:close,style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'}},'Fechar')
     )
   );
@@ -5721,8 +5742,8 @@ function PlanejamentoProducao({uid,db,reload,setM}){
     actions:[
       plano.length>0&&React.createElement('button',{key:'csv',style:{background:'#f5f5f5',color:'#555',padding:'8px 14px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:exportarCSV},'⬇ Exportar .csv'),
       plano.length>0&&React.createElement('button',{key:'print',style:{background:'#f5f5f5',color:'#555',padding:'8px 14px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:imprimir},'🖨 Imprimir / PDF'),
-      React.createElement('button',{key:'sug',style:{background:'#f5f5f5',color:'#7c3aed',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:sugerirAutomatico},'✨ Sugerir automaticamente'),
-      React.createElement('button',{key:'add',style:{background:'#7c3aed',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:addItem},'+ Adicionar Produto')
+      React.createElement('button',{key:'sug',style:{background:'#f5f5f5',color:'#dc2626',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:sugerirAutomatico},'✨ Sugerir automaticamente'),
+      React.createElement('button',{key:'add',style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:addItem},'+ Adicionar Produto')
     ].filter(Boolean)},
 
     plano.length===0
@@ -5730,15 +5751,15 @@ function PlanejamentoProducao({uid,db,reload,setM}){
           React.createElement('div',{style:{fontSize:36,marginBottom:10}},'📋'),
           React.createElement('div',{style:{fontSize:14,marginBottom:16}},'Nenhum item no plano ainda'),
           React.createElement('div',{style:{display:'flex',gap:10,justifyContent:'center'}},
-            React.createElement('button',{style:{background:'#faf5ff',color:'#7c3aed',padding:'10px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:sugerirAutomatico},'✨ Sugerir automaticamente'),
-            React.createElement('button',{style:{background:'#7c3aed',color:'#fff',padding:'10px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:addItem},'+ Adicionar manualmente')
+            React.createElement('button',{style:{background:'#faf5ff',color:'#dc2626',padding:'10px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:sugerirAutomatico},'✨ Sugerir automaticamente'),
+            React.createElement('button',{style:{background:'#dc2626',color:'#fff',padding:'10px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:addItem},'+ Adicionar manualmente')
           )
         )
       :React.createElement('div',null,
-          salvando&&React.createElement('div',{style:{fontSize:11,color:'#7c3aed',marginBottom:8}},'Salvando...'),
+          salvando&&React.createElement('div',{style:{fontSize:11,color:'#dc2626',marginBottom:8}},'Salvando...'),
           // KPIs do plano
           React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}},
-            React.createElement(SC,{label:'Produtos no plano',val:plano.filter(p=>p.ficha_id).length,color:'#7c3aed'}),
+            React.createElement(SC,{label:'Produtos no plano',val:plano.filter(p=>p.ficha_id).length,color:'#dc2626'}),
             React.createElement(SC,{label:'Unidades a produzir',val:totalUnidadesPlano,color:'#111'}),
             React.createElement(SC,{label:'Custo estimado',val:F(custoTotalPlano),color:'#dc2626'}),
             React.createElement(SC,{label:'Insumos em falta',val:faltando.length,color:faltando.length>0?'#dc2626':'#16a34a'})
@@ -5753,15 +5774,15 @@ function PlanejamentoProducao({uid,db,reload,setM}){
               const qtdAtual=prod?Number(prod.qtd||0):0;
               return React.createElement('div',{key:p.id||idx,style:{display:'grid',gridTemplateColumns:'2fr 1fr 1fr 1fr auto',gap:10,marginBottom:10,alignItems:'center'}},
                 React.createElement(CustomSelect,{label:'',value:p.ficha_id,onChange:v=>updItem(idx,'ficha_id',v),
-                  options:(fichas||[]).map(f=>({v:f.id,l:f.nome})),placeholder:'— Selecione o produto —',acent:'#7c3aed'
+                  options:(fichas||[]).map(f=>({v:f.id,l:f.nome})),placeholder:'— Selecione o produto —',acent:'#dc2626'
                 }),
                 React.createElement('div',{style:{fontSize:12,color:'#888',textAlign:'center'}},'Atual: '+qtdAtual+' un'),
-                React.createElement(FloatInput,{label:'Qtd a produzir',acent:'#7c3aed',type:'number',value:p.qtd,onChange:e=>updItem(idx,'qtd',e.target.value)}),
-                React.createElement(MiniDatePicker,{label:'Data produção',value:p.data_producao,onChange:v=>updItem(idx,'data_producao',v),acent:'#7c3aed'}),
+                React.createElement(FloatInput,{label:'Qtd a produzir',acent:'#dc2626',type:'number',value:p.qtd,onChange:e=>updItem(idx,'qtd',e.target.value)}),
+                React.createElement(MiniDatePicker,{label:'Data produção',value:p.data_producao,onChange:v=>updItem(idx,'data_producao',v),acent:'#dc2626'}),
                 React.createElement('button',{onClick:()=>delItem(idx),style:{background:'#fee2e2',color:'#dc2626',border:'none',borderRadius:8,padding:'8px 10px',cursor:'pointer',fontWeight:700}},'×')
               );
             }),
-            React.createElement('button',{onClick:addItem,style:{background:'#f5f5f5',color:'#7c3aed',padding:'8px 16px',borderRadius:9,fontSize:12,fontWeight:600,border:'none',cursor:'pointer',marginTop:6}},'+ Adicionar outro produto')
+            React.createElement('button',{onClick:addItem,style:{background:'#f5f5f5',color:'#dc2626',padding:'8px 16px',borderRadius:9,fontSize:12,fontWeight:600,border:'none',cursor:'pointer',marginTop:6}},'+ Adicionar outro produto')
           ),
 
           // Necessidade de insumos
@@ -5790,7 +5811,7 @@ function PlanejamentoProducao({uid,db,reload,setM}){
 
           plano.some(p=>p.ficha_id)&&React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',marginTop:16}},
             React.createElement('button',{onClick:limparPlano,style:{background:'#f5f5f5',color:'#555',padding:'10px 18px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'}},'Limpar plano'),
-            plano.filter(p=>p.ficha_id).map(p=>React.createElement('button',{key:p.ficha_id,onClick:()=>irProduzir(p.ficha_id),style:{background:'#7c3aed',color:'#fff',padding:'10px 18px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},
+            plano.filter(p=>p.ficha_id).map(p=>React.createElement('button',{key:p.ficha_id,onClick:()=>irProduzir(p.ficha_id),style:{background:'#dc2626',color:'#fff',padding:'10px 18px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},
               'Produzir '+((fichas||[]).find(f=>f.id===p.ficha_id)||{}).nome||''
             ))
           )
@@ -6012,19 +6033,21 @@ function ProducaoForm({uid,db,reload,close,fichaIdInicial}){
   };
 
   return React.createElement('div',{style:{minWidth:480}},
-    React.createElement('div',{style:{background:'#faf5ff',borderRadius:10,padding:'12px 14px',marginBottom:16,fontSize:12,color:'#7c3aed',lineHeight:1.7}},
+    React.createElement('div',{style:{background:'#faf5ff',borderRadius:10,padding:'12px 14px',marginBottom:16,fontSize:12,color:'#dc2626',lineHeight:1.7}},
       'Selecione a ficha técnica e quantos foram produzidos. O sistema dá baixa nos ingredientes do estoque e entrada no produto acabado automaticamente.'
     ),
 
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'2fr 1fr 1fr 1fr',gap:10,marginBottom:14}},
+    React.createElement('div',{style:{marginBottom:14}},
       React.createElement(CustomSelect,{label:'Ficha Técnica *',value:fichaId,onChange:setFichaId,
-        options:(fichas||[]).map(f=>({v:f.id,l:f.nome})),placeholder:'— Selecione —',acent:'#7c3aed'
-      }),
-      React.createElement(FloatInput,{label:'Quantidade produzida',acent:'#7c3aed',type:'number',value:qtd,onChange:e=>setQtd(e.target.value)}),
-      React.createElement(MiniDatePicker,{label:'Data',value:data,onChange:setData,acent:'#7c3aed'}),
-      React.createElement(FloatInput,{label:'Hora',acent:'#7c3aed',type:'time',value:hora,onChange:e=>setHora(e.target.value)})
+        options:(fichas||[]).map(f=>({v:f.id,l:f.nome})),placeholder:'— Selecione a ficha técnica —',acent:'#dc2626'
+      })
     ),
-    React.createElement(FloatInput,{label:'Observação (opcional)',acent:'#7c3aed',value:obs,onChange:e=>setObs(e.target.value)}),
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:14}},
+      React.createElement(FloatInput,{label:'Quantidade produzida',acent:'#dc2626',type:'number',value:qtd,onChange:e=>setQtd(e.target.value)}),
+      React.createElement(MiniDatePicker,{label:'Data',value:data,onChange:setData,acent:'#dc2626'}),
+      React.createElement(FloatInput,{label:'Hora',acent:'#dc2626',type:'time',value:hora,onChange:e=>setHora(e.target.value)})
+    ),
+    React.createElement(FloatInput,{label:'Observação (opcional)',acent:'#dc2626',value:obs,onChange:e=>setObs(e.target.value)}),
 
     fichaId&&React.createElement('div',null,
       // Custo preview
@@ -6034,8 +6057,8 @@ function ProducaoForm({uid,db,reload,close,fichaIdInicial}){
           React.createElement('div',{style:{fontWeight:700,fontSize:15}},F(custoUnitario))
         ),
         React.createElement('div',{style:{background:'#faf5ff',borderRadius:9,padding:'10px 12px'}},
-          React.createElement('div',{style:{fontSize:10,color:'#7c3aed',fontWeight:700,textTransform:'uppercase',marginBottom:3}},'Custo Total da Produção'),
-          React.createElement('div',{style:{fontWeight:800,fontSize:16,color:'#7c3aed'}},F(custoTotal))
+          React.createElement('div',{style:{fontSize:10,color:'#dc2626',fontWeight:700,textTransform:'uppercase',marginBottom:3}},'Custo Total da Produção'),
+          React.createElement('div',{style:{fontWeight:800,fontSize:16,color:'#dc2626'}},F(custoTotal))
         )
       ),
 
@@ -6064,7 +6087,7 @@ function ProducaoForm({uid,db,reload,close,fichaIdInicial}){
 
     React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:8}},
       React.createElement('button',{style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'},onClick:close},'Cancelar'),
-      React.createElement('button',{style:{background:'#7c3aed',color:'#fff',padding:'9px 24px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:produzir,disabled:!fichaId||ld},
+      React.createElement('button',{style:{background:'#dc2626',color:'#fff',padding:'9px 24px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:produzir,disabled:!fichaId||ld},
         ld?'Processando...':'Registrar Produção'
       )
     )
