@@ -4252,7 +4252,7 @@ function FinPagar({uid,db,reload,setM}){
 }
 
 function FinMovs({uid,db,reload,setM}){
-  const{lancamentos,contas,movs}=db;
+  const{lancamentos,contas}=db;
   const hoje=TODAY();
   const d0=new Date(hoje+'T12:00:00');
   const[ano,setAno]=React.useState(d0.getFullYear());
@@ -4260,100 +4260,92 @@ function FinMovs({uid,db,reload,setM}){
   const MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   const navM=(d)=>{let m=mes+d,a=ano;if(m<0){m=11;a--;}else if(m>11){m=0;a++;}setMes(m);setAno(a);};
   const mesStr=ano+'-'+String(mes+1).padStart(2,'0');
-  const dtIni=mesStr+'-01';
-  const dtFim=new Date(ano,mes+1,0).toISOString().split('T')[0];
+  const diasMes=new Date(ano,mes+1,0).getDate();
+  const dias=Array.from({length:diasMes},(_,i)=>i+1);
 
-  // Lançamentos pagos no período (data_pag)
-  const pagosNoPeriodo=(lancamentos||[]).filter(l=>{
+  const pagos=(lancamentos||[]).filter(l=>{
     const dp=l.data_pag||'';
-    return dp>=dtIni&&dp<=dtFim&&l.pago;
+    return dp.startsWith(mesStr)&&l.pago;
   });
-  const entradas=pagosNoPeriodo.filter(l=>l.tipo==='receita');
-  const saidas=pagosNoPeriodo.filter(l=>l.tipo==='despesa');
-  const totalEnt=entradas.reduce((s,l)=>s+Number(l.valor||0),0);
-  const totalSai=saidas.reduce((s,l)=>s+Number(l.valor||0),0);
-  const fluxo=totalEnt-totalSai;
 
-  // Saldo das contas
-  const saldoTotal=(contas||[]).reduce((s,c)=>s+Number(c.saldo||0),0);
-
-  // Group by category
-  const groupBy=(items)=>{
-    const g={};
-    items.forEach(l=>{
-      const k=l.categoria||'Outros';
-      g[k]=(g[k]||0)+Number(l.valor||0);
-    });
-    return Object.entries(g).sort((a,b)=>b[1]-a[1]);
+  const valDia=(tipo,cat,dia)=>{
+    const dtDia=mesStr+'-'+String(dia).padStart(2,'0');
+    return pagos.filter(l=>l.tipo===tipo&&(l.categoria||'').replace(/^\d+(\.\d+)*\s*/,'')===cat&&l.data_pag===dtDia)
+      .reduce((s,l)=>s+Number(l.valor||0),0);
   };
 
-  // Day-by-day accumulated (for mini chart)
-  const diasMes=new Date(ano,mes+1,0).getDate();
-  const diasData=Array.from({length:diasMes},(_, i)=>{
-    const dia=String(i+1).padStart(2,'0');
-    const dtDia=mesStr+'-'+dia;
-    const entDia=entradas.filter(l=>l.data_pag===dtDia).reduce((s,l)=>s+Number(l.valor||0),0);
-    const saiDia=saidas.filter(l=>l.data_pag===dtDia).reduce((s,l)=>s+Number(l.valor||0),0);
-    return{dia:i+1,ent:entDia,sai:saiDia,liq:entDia-saiDia};
-  });
-  const maxVal=Math.max(...diasData.map(d=>Math.max(d.ent,d.sai)),1);
+  const totalDia=(tipo,dia)=>{
+    const dtDia=mesStr+'-'+String(dia).padStart(2,'0');
+    return pagos.filter(l=>l.tipo===tipo&&l.data_pag===dtDia).reduce((s,l)=>s+Number(l.valor||0),0);
+  };
 
-  return React.createElement(PW,{title:'Fluxo de Caixa',sub:'Entradas e saídas por período'},
+  // Get unique categories per tipo
+  const uniqueCats=(tipo)=>[...new Set(pagos.filter(l=>l.tipo===tipo).map(l=>(l.categoria||'Outros').replace(/^\d+(\.\d+)*\s*/,'')))].sort();
+  const catsEnt=uniqueCats('receita');
+  const catsSai=uniqueCats('despesa');
 
-    // Nav mês
-    React.createElement('div',{style:{display:'flex',alignItems:'center',gap:12,marginBottom:20}},
-      React.createElement('button',{onClick:()=>navM(-1),style:{background:'#f5f5f5',border:'none',borderRadius:8,width:32,height:32,cursor:'pointer',fontSize:16,color:'#555'}},'‹'),
+  const totalGeral=(tipo)=>pagos.filter(l=>l.tipo===tipo).reduce((s,l)=>s+Number(l.valor||0),0);
+
+  const thS={background:'#1e293b',color:'#fff',fontSize:10,fontWeight:700,padding:'6px 8px',textAlign:'center',whiteSpace:'nowrap',position:'sticky',top:0,zIndex:2};
+  const th0={...thS,textAlign:'left',position:'sticky',left:0,zIndex:3,minWidth:160};
+  const tdS={fontSize:11,padding:'4px 6px',textAlign:'right',borderBottom:'1px solid #f5f5f5',borderRight:'1px solid #f5f5f5',minWidth:52};
+  const tdL={...tdS,textAlign:'left',fontWeight:500,color:'#555',position:'sticky',left:0,background:'#fff',zIndex:1};
+  const secH=(label,bg='#dbeafe',color='#1e40af')=>React.createElement('tr',null,
+    React.createElement('td',{colSpan:diasMes+2,style:{background:bg,color,fontWeight:800,fontSize:12,padding:'6px 10px'}},'▸ '+label)
+  );
+  const totalRow=(label,tipo,bg='#f0f9ff',fw=700)=>React.createElement('tr',{style:{background:bg}},
+    React.createElement('td',{style:{...tdL,background:bg,fontWeight:fw,color:'#111'}},label),
+    dias.map(d=>{const v=totalDia(tipo,d);return React.createElement('td',{key:d,style:{...tdS,fontWeight:fw,background:bg,color:v>0?'#111':'#ccc'}},v>0?F(v):'—');}),
+    React.createElement('td',{style:{...tdS,fontWeight:800,background:bg,color:'#111',borderLeft:'2px solid #e5e5e5'}},F(totalGeral(tipo)))
+  );
+  const fluxoRow=()=>{
+    const rowStyle={background:'#fef9c3'};
+    return React.createElement('tr',{style:rowStyle},
+      React.createElement('td',{style:{...tdL,background:'#fef9c3',fontWeight:700,color:'#92400e'}},'= Entradas - Saídas'),
+      dias.map(d=>{const v=totalDia('receita',d)-totalDia('despesa',d);return React.createElement('td',{key:d,style:{...tdS,background:'#fef9c3',fontWeight:700,color:v>0?'#16a34a':v<0?'#dc2626':'#ccc'}},v!==0?F(Math.abs(v)):'—');}),
+      React.createElement('td',{style:{...tdS,fontWeight:800,background:'#fef9c3',color:totalGeral('receita')-totalGeral('despesa')>=0?'#16a34a':'#dc2626',borderLeft:'2px solid #e5e5e5'}},F(totalGeral('receita')-totalGeral('despesa')))
+    );
+  };
+
+  return React.createElement(PW,{title:'Fluxo de Caixa',sub:'Planilha de Fluxo de Caixa Diário'},
+    React.createElement('div',{style:{display:'flex',alignItems:'center',gap:12,marginBottom:16}},
+      React.createElement('button',{onClick:()=>navM(-1),style:{background:'#f5f5f5',border:'none',borderRadius:8,width:32,height:32,cursor:'pointer',fontSize:16}},'‹'),
       React.createElement('span',{style:{fontWeight:700,fontSize:16,minWidth:160,textAlign:'center'}},MESES[mes]+' '+ano),
-      React.createElement('button',{onClick:()=>navM(1),style:{background:'#f5f5f5',border:'none',borderRadius:8,width:32,height:32,cursor:'pointer',fontSize:16,color:'#555'}},'›')
+      React.createElement('button',{onClick:()=>navM(1),style:{background:'#f5f5f5',border:'none',borderRadius:8,width:32,height:32,cursor:'pointer',fontSize:16}},'›')
     ),
+    React.createElement('div',{style:{overflowX:'auto',background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+      React.createElement('table',{style:{borderCollapse:'collapse',width:'100%',fontSize:11}},
+        React.createElement('thead',null,
+          React.createElement('tr',null,
+            React.createElement('th',{style:th0},'Categoria'),
+            dias.map(d=>React.createElement('th',{key:d,style:thS},'Dia '+d)),
+            React.createElement('th',{style:{...thS,borderLeft:'2px solid #334155'}},'TOTAL')
+          )
+        ),
+        React.createElement('tbody',null,
+          // ENTRADAS
+          secH('ENTRADAS','#dcfce7','#166534'),
+          ...catsEnt.map(cat=>React.createElement('tr',{key:'e_'+cat},
+            React.createElement('td',{style:tdL},cat),
+            dias.map(d=>{const v=valDia('receita',cat,d);return React.createElement('td',{key:d,style:{...tdS,color:v>0?'#16a34a':'#ddd'}},v>0?F(v):'');}),
+            React.createElement('td',{style:{...tdS,fontWeight:600,borderLeft:'2px solid #e5e5e5',color:'#16a34a'}},
+              F(pagos.filter(l=>l.tipo==='receita'&&(l.categoria||'').replace(/^\d+(\.\d+)*\s*/,'')===cat).reduce((s,l)=>s+Number(l.valor||0),0)))
+          )),
+          catsEnt.length===0&&React.createElement('tr',null,React.createElement('td',{colSpan:diasMes+2,style:{color:'#ccc',textAlign:'center',padding:12,fontSize:12}},'Sem receitas pagas neste mês')),
+          totalRow('TOTAL DAS ENTRADAS','receita','#f0fdf4',700),
 
-    // KPIs
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}},
-      React.createElement(SC,{label:'Entradas',val:F(totalEnt),color:'#16a34a'}),
-      React.createElement(SC,{label:'Saídas',val:F(totalSai),color:'#dc2626'}),
-      React.createElement(SC,{label:'Fluxo Líquido',val:F(fluxo),color:fluxo>=0?'#16a34a':'#dc2626'}),
-      React.createElement(SC,{label:'Saldo em Contas',val:F(saldoTotal),color:'#2563eb'})
-    ),
-
-    // Mini bar chart
-    React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'16px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)',marginBottom:20}},
-      React.createElement('div',{style:{fontWeight:700,fontSize:13,marginBottom:12,display:'flex',gap:16}},
-        React.createElement('span',null,'Fluxo Diário'),
-        React.createElement('span',{style:{fontSize:11,color:'#16a34a',fontWeight:600}},'■ Entradas'),
-        React.createElement('span',{style:{fontSize:11,color:'#dc2626',fontWeight:600}},'■ Saídas')
-      ),
-      React.createElement('div',{style:{display:'flex',alignItems:'flex-end',gap:2,height:80}},
-        diasData.map(d=>React.createElement('div',{key:d.dia,style:{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:1,height:'100%',justifyContent:'flex-end',cursor:'default'},title:`${d.dia}/${mes+1}: +${F(d.ent)} -${F(d.sai)}`},
-          React.createElement('div',{style:{width:'100%',background:'#16a34a',borderRadius:'2px 2px 0 0',height:d.ent>0?Math.max(2,d.ent/maxVal*70)+'px':'0'}}),
-          React.createElement('div',{style:{width:'100%',background:'#dc2626',borderRadius:'0 0 2px 2px',height:d.sai>0?Math.max(2,d.sai/maxVal*70)+'px':'0'}})
-        ))
-      ),
-      React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:9,color:'#ccc',marginTop:4}},
-        React.createElement('span',null,'1'),
-        React.createElement('span',null,String(Math.round(diasMes/2))),
-        React.createElement('span',null,String(diasMes))
-      )
-    ),
-
-    // Breakdown
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}},
-      // Entradas
-      React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'16px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
-        React.createElement('div',{style:{fontWeight:700,fontSize:13,color:'#16a34a',marginBottom:12}},'Entradas — '+F(totalEnt)),
-        groupBy(entradas).map(([cat,val])=>React.createElement('div',{key:cat,style:{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid #f5f5f5',fontSize:12}},
-          React.createElement('span',{style:{color:'#555'}},cat.replace(/^\d+(\.\d+)*\s*/,'')),
-          React.createElement('span',{style:{fontWeight:600,color:'#16a34a'}},F(val))
-        )),
-        entradas.length===0&&React.createElement('div',{style:{color:'#ccc',fontSize:12,textAlign:'center',padding:'20px 0'}},'Sem entradas')
-      ),
-      // Saídas
-      React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'16px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
-        React.createElement('div',{style:{fontWeight:700,fontSize:13,color:'#dc2626',marginBottom:12}},'Saídas — '+F(totalSai)),
-        groupBy(saidas).map(([cat,val])=>React.createElement('div',{key:cat,style:{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid #f5f5f5',fontSize:12}},
-          React.createElement('span',{style:{color:'#555'}},cat.replace(/^\d+(\.\d+)*\s*/,'')),
-          React.createElement('span',{style:{fontWeight:600,color:'#dc2626'}},F(val))
-        )),
-        saidas.length===0&&React.createElement('div',{style:{color:'#ccc',fontSize:12,textAlign:'center',padding:'20px 0'}},'Sem saídas')
+          // SAÍDAS
+          secH('SAÍDAS','#fee2e2','#991b1b'),
+          ...catsSai.map(cat=>React.createElement('tr',{key:'s_'+cat},
+            React.createElement('td',{style:tdL},cat),
+            dias.map(d=>{const v=valDia('despesa',cat,d);return React.createElement('td',{key:d,style:{...tdS,color:v>0?'#dc2626':'#ddd'}},v>0?F(v):'');}),
+            React.createElement('td',{style:{...tdS,fontWeight:600,borderLeft:'2px solid #e5e5e5',color:'#dc2626'}},
+              F(pagos.filter(l=>l.tipo==='despesa'&&(l.categoria||'').replace(/^\d+(\.\d+)*\s*/,'')===cat).reduce((s,l)=>s+Number(l.valor||0),0)))
+          )),
+          catsSai.length===0&&React.createElement('tr',null,React.createElement('td',{colSpan:diasMes+2,style:{color:'#ccc',textAlign:'center',padding:12,fontSize:12}},'Sem despesas pagas neste mês')),
+          totalRow('TOTAL DAS SAÍDAS','despesa','#fff5f5',700),
+          fluxoRow()
+        )
       )
     )
   );
