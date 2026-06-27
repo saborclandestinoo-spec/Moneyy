@@ -3605,6 +3605,11 @@ function buildDREHierarchy(periodo, tipo, prefixo, receitaBruta, Linha, noBold=f
     }
   });
 
+  // Add custom children of nivel 1 items (filtered out of hierItems by nivel>=2)
+  PLANO_CONTAS.filter(p=>p.cod&&p.cod.startsWith(prefCod)&&p.nivel===1).forEach(parentItem=>{
+    pushCustomChildren(parentItem.cod+' '+parentItem.nome,parentItem.nivel+1);
+  });
+
   // Add bycat items not matched by hierarchy or catsFin
   Object.entries(bycat).forEach(([k,v])=>{
     const cod=k.split(' ')[0]||'';
