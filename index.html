@@ -3570,54 +3570,33 @@ function buildDREHierarchy(periodo, tipo, prefixo, receitaBruta, Linha, noBold=f
     }));
   });
 
-  // Recursive: add custom children immediately after their parent
-  const addCustomChildren=(parentKey,depth)=>{
-    // parentKey = nome of parent custom OR cod+' '+nome of PLANO_CONTAS item
-    const children=(catsFin||[]).filter(c=>{
-      const g=(c.grupo||'');
-      return g===parentKey||g.split(' ')[0]===parentKey.split(' ')[0];
-    });
-    children.forEach(cc=>{
+  // Build finalRows with custom categories interleaved at correct positions
+  const finalRows=[];
+
+  const pushCustomChildren=(parentNome,depth)=>{
+    const children=(catsFin||[]).filter(c=>(c.grupo||'')===parentNome||(c.grupo||'').split(' ')[0]===parentNome.split(' ')[0]&&(c.grupo||'')!==parentNome);
+    // More precise: match by exact group name
+    const exact=(catsFin||[]).filter(c=>(c.grupo||'')===parentNome);
+    exact.forEach(cc=>{
       const v=bycat[cc.nome]||0;
       if(v===0&&!showEmpty)return;
-      rows.push(React.createElement(Linha,{key:'c_'+cc.nome,
-        label:cc.nome,valor:isReceita?v:-v,
-        isDespesa:!isReceita,
-        bold:!noBold&&!isReceita&&depth===2,
-        noBorder:!isReceita&&depth===2,
+      finalRows.push(React.createElement(Linha,{key:'c_'+cc.nome,
+        label:cc.nome,valor:isReceita?v:-v,isDespesa:!isReceita,
+        bold:!noBold&&!isReceita&&depth===2,noBorder:!isReceita&&depth===2,
         indent:depth+indentOffset,
         pct:receitaBruta>0&&v>0?v/receitaBruta*100:undefined
       }));
-      addCustomChildren(cc.nome,depth+1);
+      pushCustomChildren(cc.nome,depth+1);
     });
   };
 
-  // Insert custom children after each PLANO_CONTAS item
-  // We rebuild rows with custom children interleaved
-  const finalRows=[];
   rows.forEach(row=>{
     finalRows.push(row);
-    // Find PLANO_CONTAS item for this row
     const item=hierItems.find(p=>p.cod===row.key);
     if(item){
-      const children=(catsFin||[]).filter(c=>{
-        const g=(c.grupo||'');
-        return g===item.cod+' '+item.nome||g.split(' ')[0]===item.cod;
-      });
-      children.forEach(cc=>{
-        const v=bycat[cc.nome]||0;
-        if(v===0&&!showEmpty)return;
-        finalRows.push(React.createElement(Linha,{key:'c_'+cc.nome,
-          label:cc.nome,valor:isReceita?v:-v,
-          isDespesa:!isReceita,
-          bold:!noBold&&!isReceita&&(item.nivel+1)===2,
-          noBorder:!isReceita&&(item.nivel+1)===2,
-          indent:(item.nivel+1)+indentOffset,
-          pct:receitaBruta>0&&v>0?v/receitaBruta*100:undefined
-        }));
-        // Add children of this custom category recursively
-        addCustomChildren(cc.nome,item.nivel+2);
-      });
+      // Add custom children of this PLANO_CONTAS item
+      const parentKey=item.cod+' '+item.nome;
+      pushCustomChildren(parentKey,item.nivel+1);
     }
   });
 
