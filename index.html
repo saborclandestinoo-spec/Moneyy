@@ -3622,7 +3622,7 @@ function buildDREHierarchy(periodo, tipo, prefixo, receitaBruta, Linha, noBold=f
   return finalRows;
 }
 
-function DateRangePicker({dtIni,dtFim,onChangeDtIni,onChangeDtFim}){
+function DateRangePicker({dtIni,dtFim,onChangeDtIni,onChangeDtFim,openRight=false}){
   const[open,setOpen]=React.useState(false);
   const[hover,setHover]=React.useState(null);
   const[selecting,setSelecting]=React.useState(null); // first click = start
@@ -3713,7 +3713,7 @@ function DateRangePicker({dtIni,dtFim,onChangeDtIni,onChangeDtFim}){
       dtIni===dtFim?FD(dtIni):FD(dtIni)+' — '+FD(dtFim)
     ),
     // Dropdown
-    open&&React.createElement('div',{style:{position:'absolute',top:'calc(100% + 6px)',right:0,left:'auto',zIndex:1000,background:'#fff',borderRadius:14,boxShadow:'0 8px 32px rgba(0,0,0,0.15)',border:'1px solid #f0f0f0',display:'flex',minWidth:620}},
+    open&&React.createElement('div',{style:{position:'absolute',top:'calc(100% + 6px)',right:openRight?'auto':0,left:openRight?0:'auto',zIndex:1000,background:'#fff',borderRadius:14,boxShadow:'0 8px 32px rgba(0,0,0,0.15)',border:'1px solid #f0f0f0',display:'flex',minWidth:620}},
       // Sidebar
       React.createElement('div',{style:{width:150,borderRight:'1px solid #f0f0f0',padding:'12px 8px',flexShrink:0}},
         ATALHOS.map((a,i)=>React.createElement('button',{key:i,onClick:a.fn,style:{display:'block',width:'100%',textAlign:'left',padding:'7px 10px',borderRadius:7,border:'none',background:'transparent',fontSize:12,color:'#555',cursor:'pointer',marginBottom:2}},a.l))
@@ -5869,8 +5869,8 @@ function ProducaoHistorico({uid,db,reload,setM}){
     actions:[React.createElement('button',{key:'n',style:{background:'#dc2626',color:'#fff',padding:'8px 18px',borderRadius:9,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:novaProducao},'+ Registrar Produção')]},
 
     React.createElement('div',{style:{display:'flex',gap:10,marginBottom:16,flexWrap:'wrap',alignItems:'center'}},
-      React.createElement(DateRangePicker,{dtIni,dtFim,onChangeDtIni:setDtIni,onChangeDtFim:setDtFim}),
-      React.createElement(CustomSelect,{label:'Ficha',value:fichaFil,onChange:setFichaFil,options:[{v:'',l:'Todas'},...(fichas||[]).map(f=>({v:f.id,l:f.nome}))],acent:'#dc2626'})
+      React.createElement(DateRangePicker,{dtIni,dtFim,onChangeDtIni:setDtIni,onChangeDtFim:setDtFim,openRight:true}),
+      React.createElement('div',{style:{minWidth:220}},React.createElement(CustomSelect,{label:'Ficha',value:fichaFil,onChange:setFichaFil,options:[{v:'',l:'Todas'},...(fichas||[]).map(f=>({v:f.id,l:f.nome}))],acent:'#dc2626'}))
     ),
 
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}},
