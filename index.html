@@ -3576,7 +3576,12 @@ function buildDREHierarchy(periodo, tipo, prefixo, receitaBruta, Linha, noBold=f
   const pushCustomChildren=(parentNome,depth)=>{
     const children=(catsFin||[]).filter(c=>(c.grupo||'')===parentNome||(c.grupo||'').split(' ')[0]===parentNome.split(' ')[0]&&(c.grupo||'')!==parentNome);
     // More precise: match by exact group name
-    const exact=(catsFin||[]).filter(c=>(c.grupo||'')===parentNome);
+    const prefCode=parentNome.split(' ')[0];
+    const exact=(catsFin||[]).filter(c=>{
+      const g=(c.grupo||'').trim();
+      // Match by exact name OR by code prefix (e.g., '4.2 ...' matches parentKey starting with '4.2 ')
+      return g===parentNome.trim()||g.startsWith(prefCode+' ')||g===prefCode;
+    });
     exact.forEach(cc=>{
       const v=bycat[cc.nome]||0;
       if(v===0&&!showEmpty)return;
