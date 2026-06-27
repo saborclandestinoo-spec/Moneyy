@@ -3570,11 +3570,59 @@ function buildDREHierarchy(periodo, tipo, prefixo, receitaBruta, Linha, noBold=f
     }));
   });
 
-  // Custom categories not in PLANO_CONTAS
+  // Build custom categories hierarchically - find root customs then their children recursively
+  const addCustom=(parentNome,parentCod,depth)=>{
+    const children=(catsFin||[]).filter(c=>{
+      const g=c.grupo||'';
+      // Parent is a PLANO_CONTAS item → match by cod prefix
+      // Parent is a custom category → match by nome
+      return g===parentNome||g===parentCod||g.split(' ')[0]===parentCod;
+    });
+    children.forEach(cc=>{
+      const v=bycat[cc.nome]||0;
+      const ci=depth+indentOffset;
+      rows.push(React.createElement(Linha,{key:cc.nome,
+        label:cc.nome,valor:isReceita?v:-v,
+        isDespesa:!isReceita,bold:!noBold&&!isReceita&&depth===2,
+        noBorder:!isReceita&&depth===2,indent:ci,
+        pct:receitaBruta>0&&v>0?v/receitaBruta*100:undefined
+      }));
+      // Recursively add children of this custom category
+      addCustom(cc.nome,cc.nome,depth+1);
+    });
+  };
+
+  // Add custom children for each PLANO_CONTAS item
+  hierItems.forEach(item=>{
+    const insertIdx=rows.findLastIndex(r=>r.key===item.cod);
+    if(insertIdx===-1)return;
+    const customChildren=[];
+    const addC=(parentNome,parentCod,depth)=>{
+      (catsFin||[]).filter(c=>(c.grupo||'')===parentNome||(c.grupo||'').split(' ')[0]===parentCod).forEach(cc=>{
+        const v=bycat[cc.nome]||0;
+        customChildren.push(React.createElement(Linha,{key:cc.nome,
+          label:cc.nome,valor:isReceita?v:-v,isDespesa:!isReceita,
+          bold:!noBold&&!isReceita&&depth===2,noBorder:!isReceita&&depth===2,
+          indent:depth+indentOffset,pct:receitaBruta>0&&v>0?v/receitaBruta*100:undefined
+        }));
+        addC(cc.nome,cc.nome,depth+1);
+      });
+    };
+    addC(item.cod+' '+item.nome,item.cod,item.nivel+1);
+    // Insert after the last standard child of this item
+    const lastChildIdx=rows.findLastIndex((r,i)=>i>insertIdx);
+    rows.splice((lastChildIdx===-1?insertIdx:lastChildIdx)+1,0,...customChildren);
+  });
+
+  // Also add bycat items not matched by any hierarchy
   Object.entries(bycat).forEach(([k,v])=>{
     const cod=k.split(' ')[0]||'';
     const inHier=hierItems.some(p=>p.cod===cod);
-    if(!inHier){const cc=(catsFin||[]).find(c=>c.nome===k);const ci=cc?((cc.grupo||'').split('.').length+1):2;rows.push(React.createElement(Linha,{key:k,label:isReceita?k:k.replace(/^\d+(\.\d+)*\s*/,''),valor:isReceita?v:-v,isDespesa:!isReceita,bold:!noBold&&!isReceita&&ci===2,noBorder:!isReceita&&ci===2,indent:ci+indentOffset,pct:receitaBruta>0?v/receitaBruta*100:0}));}
+    const inCustom=(catsFin||[]).some(c=>c.nome===k);
+    const inRows=rows.some(r=>r.key===k);
+    if(!inHier&&!inCustom&&!inRows){
+      rows.push(React.createElement(Linha,{key:k,label:k.replace(/^\d+(\.\d+)*\s*/,''),valor:isReceita?v:-v,isDespesa:!isReceita,indent:2+indentOffset,pct:receitaBruta>0?v/receitaBruta*100:0}));
+    }
   });
 
   return rows;
