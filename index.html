@@ -4982,12 +4982,10 @@ function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas,refreshEst
       ),
       sep,
       // Conta
-      React.createElement('div',{style:{padding:'4px 8px',minWidth:160}},
-        React.createElement(CustomSelect,{
-          value:filConta,onChange:v=>setFilConta(v),
-          options:[{v:'',l:'Todas as contas'},...(contas||[]).map(c=>({v:c.id,l:c.nome}))],
-          placeholder:'Todas as contas',acent:'#dc2626'
-        })
+      React.createElement('div',{style:{padding:'11px 14px',display:'flex',alignItems:'center'}},
+        React.createElement('select',{value:filConta,onChange:e=>setFilConta(e.target.value),style:{...barSel,color:'#111',fontWeight:500}},
+          [React.createElement('option',{key:'',value:''},'Todas as contas'),...(contas||[]).map(c=>React.createElement('option',{key:c.id,value:c.id},c.nome))]
+        )
       ),
       sep,
       // Busca
