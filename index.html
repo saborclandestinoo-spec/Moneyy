@@ -4514,17 +4514,15 @@ function DateRangePickerLegacy({dtIni,dtFim,onChange,onClose}){
   const ATALHOS=[
     ['hoje','Hoje',()=>{const t=hoje;return{ini:t,fim:t};}],
     ['ontem','Ontem',()=>{const d=new Date(hoje);d.setDate(d.getDate()-1);const t=d.toISOString().split('T')[0];return{ini:t,fim:t};}],
-    ['amanha','Amanha',()=>{const d=new Date(hoje);d.setDate(d.getDate()+1);const t=d.toISOString().split('T')[0];return{ini:t,fim:t};}],
     ['sem','Esta semana',()=>{const d=new Date(hoje);const dow=d.getDay();const ini=new Date(d);ini.setDate(d.getDate()-dow);const fim=new Date(ini);fim.setDate(ini.getDate()+6);return{ini:ini.toISOString().split('T')[0],fim:fim.toISOString().split('T')[0]};}],
     ['semp','Semana passada',()=>{const d=new Date(hoje);const dow=d.getDay();const ini=new Date(d);ini.setDate(d.getDate()-dow-7);const fim=new Date(ini);fim.setDate(ini.getDate()+6);return{ini:ini.toISOString().split('T')[0],fim:fim.toISOString().split('T')[0]};}],
-    ['semn','Proxima semana',()=>{const d=new Date(hoje);const dow=d.getDay();const ini=new Date(d);ini.setDate(d.getDate()+(7-dow));const fim=new Date(ini);fim.setDate(ini.getDate()+6);return{ini:ini.toISOString().split('T')[0],fim:fim.toISOString().split('T')[0]};}],
     ['mes','Este mes',()=>{const d=new Date();const ini=new Date(d.getFullYear(),d.getMonth(),1);const fim=new Date(d.getFullYear(),d.getMonth()+1,0);return{ini:ini.toISOString().split('T')[0],fim:fim.toISOString().split('T')[0]};}],
     ['mesp','Mes passado',()=>{const d=new Date();const ini=new Date(d.getFullYear(),d.getMonth()-1,1);const fim=new Date(d.getFullYear(),d.getMonth(),0);return{ini:ini.toISOString().split('T')[0],fim:fim.toISOString().split('T')[0]};}],
     ['mesn','Proximo mes',()=>{const d=new Date();const ini=new Date(d.getFullYear(),d.getMonth()+1,1);const fim=new Date(d.getFullYear(),d.getMonth()+2,0);return{ini:ini.toISOString().split('T')[0],fim:fim.toISOString().split('T')[0]};}],
   ];
 
   // last 3 months as shortcuts
-  const mesesAnts=Array.from({length:4},(_,i)=>{
+  const mesesAnts=Array.from({length:2},(_,i)=>{
     const d=new Date();d.setMonth(d.getMonth()-(i+1));
     const y=d.getFullYear(),m=d.getMonth();
     const ini=new Date(y,m,1).toISOString().split('T')[0];
@@ -4549,7 +4547,7 @@ function DateRangePickerLegacy({dtIni,dtFim,onChange,onClose}){
     const label=new Date(y,m,1).toLocaleDateString('pt-BR',{month:'short',year:'numeric'});
     const isL=my===lm;
 
-    return React.createElement('div',{style:{flex:1,minWidth:200}},
+    return React.createElement('div',{style:{flex:1,minWidth:170}},
       // Header do mes
       React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}},
         isL?React.createElement('button',{onClick:()=>navL(-1),style:{background:'none',border:'none',color:'#aaa',cursor:'pointer',fontSize:16,padding:'0 6px'}},'<'):React.createElement('span',{style:{width:24}}),
@@ -4984,10 +4982,12 @@ function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas,refreshEst
       ),
       sep,
       // Conta
-      React.createElement('div',{style:{padding:'11px 14px'}},
-        React.createElement('select',{value:filConta,onChange:e=>setFilConta(e.target.value),style:barSel},
-          [React.createElement('option',{key:'',value:''},'Todas as contas'),...(contas||[]).map(c=>React.createElement('option',{key:c.id,value:c.id},c.nome))]
-        )
+      React.createElement('div',{style:{padding:'4px 8px',minWidth:160}},
+        React.createElement(CustomSelect,{
+          value:filConta,onChange:v=>setFilConta(v),
+          options:[{v:'',l:'Todas as contas'},...(contas||[]).map(c=>({v:c.id,l:c.nome}))],
+          placeholder:'Todas as contas',acent:'#dc2626'
+        })
       ),
       sep,
       // Busca
