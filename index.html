@@ -4972,6 +4972,7 @@ function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas,refreshEst
         React.createElement('div',{style:{display:'flex',alignItems:'center',gap:4,padding:'11px 12px',cursor:'pointer'},onClick:()=>setShowPicker(p=>!p)},
           React.createElement('span',{style:{fontSize:13,color:'#555',whiteSpace:'nowrap',background:showPicker?'#fff5f5':'transparent',borderRadius:8,padding:'2px 8px',fontWeight:600}},periodoLabel)
         ),
+        showPicker&&React.createElement('div',{style:{position:'fixed',inset:0,zIndex:999},onClick:()=>setShowPicker(false)}),
         showPicker&&React.createElement('div',{style:{position:'absolute',top:'calc(100% + 6px)',left:0,zIndex:1000}},
           React.createElement(DateRangePickerLegacy,{
             dtIni,dtFim,
@@ -4983,9 +4984,9 @@ function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas,refreshEst
       sep,
       // Conta
       React.createElement('div',{style:{padding:'11px 14px',display:'flex',alignItems:'center'}},
-        React.createElement('select',{value:filConta,onChange:e=>setFilConta(e.target.value),style:{...barSel,color:'#111',fontWeight:500}},
-          [React.createElement('option',{key:'',value:''},'Todas as contas'),...(contas||[]).map(c=>React.createElement('option',{key:c.id,value:c.id},c.nome))]
-        )
+        React.createElement(CustomSelect,{value:filConta,onChange:v=>setFilConta(v),minimal:true,
+          options:[{v:'',l:'Todas as contas'},...(contas||[]).map(c=>({v:c.id,l:c.nome}))]
+        })
       ),
       sep,
       // Busca
@@ -5106,7 +5107,7 @@ function FinLancamentos({uid,db,reload,setM,refreshLanc,refreshContas,refreshEst
 
 
 // ── CUSTOM SELECT (dropdown proprio sem select nativo) ──
-function CustomSelect({label,value,onChange,options,placeholder,acent}){
+function CustomSelect({label,value,onChange,options,placeholder,acent,minimal}){
   const[open,setOpen]=React.useState(false);
   const[busca,setBusca]=React.useState('');
   const ref=React.useRef(null);
@@ -5134,13 +5135,16 @@ function CustomSelect({label,value,onChange,options,placeholder,acent}){
 
   const lbFloat={position:'absolute',top:7,left:14,fontSize:9,color:cor,fontWeight:700,
     letterSpacing:'1.2px',textTransform:'uppercase',pointerEvents:'none',zIndex:1};
-  const boxStyle={width:'100%',background:'#fff',border:'1.5px solid '+(open?cor:'#e2e2e2'),
+  const boxStyle=minimal?{background:'transparent',border:'none',padding:'0',fontSize:13,
+    color:'#111',cursor:'pointer',userSelect:'none',position:'relative',boxSizing:'border-box',
+    display:'flex',alignItems:'center',fontWeight:500,gap:4}
+  :{width:'100%',background:'#fff',border:'1.5px solid '+(open?cor:'#e2e2e2'),
     borderRadius:10,padding:'24px 36px 8px 14px',fontSize:13,color:isEmpty?'#bbb':'#111',
     cursor:'pointer',userSelect:'none',position:'relative',boxSizing:'border-box',
     display:'flex',alignItems:'center',minHeight:52,transition:'border-color 0.15s'};
 
-  return React.createElement('div',{ref,style:{position:'relative',marginBottom:10}},
-    React.createElement('label',{style:lbFloat},label),
+  return React.createElement('div',{ref,style:{position:'relative',marginBottom:minimal?0:10}},
+    !minimal&&React.createElement('label',{style:lbFloat},label),
     React.createElement('div',{style:boxStyle,onClick:()=>setOpen(p=>!p)},
       React.createElement('span',{style:{flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},displayLabel),
       React.createElement('span',{style:{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',
