@@ -3570,62 +3570,67 @@ function buildDREHierarchy(periodo, tipo, prefixo, receitaBruta, Linha, noBold=f
     }));
   });
 
-  // Build custom categories hierarchically - find root customs then their children recursively
-  const addCustom=(parentNome,parentCod,depth)=>{
+  // Recursive: add custom children immediately after their parent
+  const addCustomChildren=(parentKey,depth)=>{
+    // parentKey = nome of parent custom OR cod+' '+nome of PLANO_CONTAS item
     const children=(catsFin||[]).filter(c=>{
-      const g=c.grupo||'';
-      // Parent is a PLANO_CONTAS item → match by cod prefix
-      // Parent is a custom category → match by nome
-      return g===parentNome||g===parentCod||g.split(' ')[0]===parentCod;
+      const g=(c.grupo||'');
+      return g===parentKey||g.split(' ')[0]===parentKey.split(' ')[0];
     });
     children.forEach(cc=>{
       const v=bycat[cc.nome]||0;
-      const ci=depth+indentOffset;
-      rows.push(React.createElement(Linha,{key:cc.nome,
+      if(v===0&&!showEmpty)return;
+      rows.push(React.createElement(Linha,{key:'c_'+cc.nome,
         label:cc.nome,valor:isReceita?v:-v,
-        isDespesa:!isReceita,bold:!noBold&&!isReceita&&depth===2,
-        noBorder:!isReceita&&depth===2,indent:ci,
+        isDespesa:!isReceita,
+        bold:!noBold&&!isReceita&&depth===2,
+        noBorder:!isReceita&&depth===2,
+        indent:depth+indentOffset,
         pct:receitaBruta>0&&v>0?v/receitaBruta*100:undefined
       }));
-      // Recursively add children of this custom category
-      addCustom(cc.nome,cc.nome,depth+1);
+      addCustomChildren(cc.nome,depth+1);
     });
   };
 
-  // Add custom children for each PLANO_CONTAS item
-  hierItems.forEach(item=>{
-    const insertIdx=rows.findLastIndex(r=>r.key===item.cod);
-    if(insertIdx===-1)return;
-    const customChildren=[];
-    const addC=(parentNome,parentCod,depth)=>{
-      (catsFin||[]).filter(c=>(c.grupo||'')===parentNome||(c.grupo||'').split(' ')[0]===parentCod).forEach(cc=>{
-        const v=bycat[cc.nome]||0;
-        customChildren.push(React.createElement(Linha,{key:cc.nome,
-          label:cc.nome,valor:isReceita?v:-v,isDespesa:!isReceita,
-          bold:!noBold&&!isReceita&&depth===2,noBorder:!isReceita&&depth===2,
-          indent:depth+indentOffset,pct:receitaBruta>0&&v>0?v/receitaBruta*100:undefined
-        }));
-        addC(cc.nome,cc.nome,depth+1);
+  // Insert custom children after each PLANO_CONTAS item
+  // We rebuild rows with custom children interleaved
+  const finalRows=[];
+  rows.forEach(row=>{
+    finalRows.push(row);
+    // Find PLANO_CONTAS item for this row
+    const item=hierItems.find(p=>p.cod===row.key);
+    if(item){
+      const children=(catsFin||[]).filter(c=>{
+        const g=(c.grupo||'');
+        return g===item.cod+' '+item.nome||g.split(' ')[0]===item.cod;
       });
-    };
-    addC(item.cod+' '+item.nome,item.cod,item.nivel+1);
-    // Insert after the last standard child of this item
-    const lastChildIdx=rows.findLastIndex((r,i)=>i>insertIdx);
-    rows.splice((lastChildIdx===-1?insertIdx:lastChildIdx)+1,0,...customChildren);
-  });
-
-  // Also add bycat items not matched by any hierarchy
-  Object.entries(bycat).forEach(([k,v])=>{
-    const cod=k.split(' ')[0]||'';
-    const inHier=hierItems.some(p=>p.cod===cod);
-    const inCustom=(catsFin||[]).some(c=>c.nome===k);
-    const inRows=rows.some(r=>r.key===k);
-    if(!inHier&&!inCustom&&!inRows){
-      rows.push(React.createElement(Linha,{key:k,label:k.replace(/^\d+(\.\d+)*\s*/,''),valor:isReceita?v:-v,isDespesa:!isReceita,indent:2+indentOffset,pct:receitaBruta>0?v/receitaBruta*100:0}));
+      children.forEach(cc=>{
+        const v=bycat[cc.nome]||0;
+        if(v===0&&!showEmpty)return;
+        finalRows.push(React.createElement(Linha,{key:'c_'+cc.nome,
+          label:cc.nome,valor:isReceita?v:-v,
+          isDespesa:!isReceita,
+          bold:!noBold&&!isReceita&&(item.nivel+1)===2,
+          noBorder:!isReceita&&(item.nivel+1)===2,
+          indent:(item.nivel+1)+indentOffset,
+          pct:receitaBruta>0&&v>0?v/receitaBruta*100:undefined
+        }));
+        // Add children of this custom category recursively
+        addCustomChildren(cc.nome,item.nivel+2);
+      });
     }
   });
 
-  return rows;
+  // Add bycat items not matched by hierarchy or catsFin
+  Object.entries(bycat).forEach(([k,v])=>{
+    const cod=k.split(' ')[0]||'';
+    const inHier=hierItems.some(p=>p.cod===cod);
+    const inCats=(catsFin||[]).some(c=>c.nome===k);
+    if(!inHier&&!inCats){
+      finalRows.push(React.createElement(Linha,{key:k,label:k.replace(/^\d+(\.\d+)*\s*/,''),valor:isReceita?v:-v,isDespesa:!isReceita,indent:2+indentOffset,pct:receitaBruta>0?v/receitaBruta*100:0}));
+    }
+  });
+  return finalRows;
 }
 
 function DateRangePicker({dtIni,dtFim,onChangeDtIni,onChangeDtFim}){
