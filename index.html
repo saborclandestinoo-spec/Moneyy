@@ -4359,9 +4359,9 @@ function FinMovs({uid,db,reload,setM}){
 
   return React.createElement(PW,{title:'Fluxo de Caixa',sub:'Movimentações diárias por categoria'},
     React.createElement('div',{style:{display:'flex',alignItems:'center',gap:12,marginBottom:16}},
-      React.createElement('button',{onClick:()=>navM(-1),style:{background:'#f5f5f5',border:'none',borderRadius:8,width:32,height:32,cursor:'pointer',fontSize:16}},'‹'),
+      React.createElement('button',{onClick:()=>navM(-1),style:{background:'#fff',border:'none',borderRadius:8,width:32,height:32,cursor:'pointer',fontSize:16}},'‹'),
       React.createElement('span',{style:{fontWeight:700,fontSize:16,minWidth:160,textAlign:'center'}},MESES[mes]+' '+ano),
-      React.createElement('button',{onClick:()=>navM(1),style:{background:'#f5f5f5',border:'none',borderRadius:8,width:32,height:32,cursor:'pointer',fontSize:16}},'›')
+      React.createElement('button',{onClick:()=>navM(1),style:{background:'#fff',border:'none',borderRadius:8,width:32,height:32,cursor:'pointer',fontSize:16}},'›')
     ),
     React.createElement('div',{style:{overflowX:'auto',background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
       React.createElement('table',{style:{borderCollapse:'collapse',width:'100%',fontSize:11}},
@@ -4372,9 +4372,9 @@ function FinMovs({uid,db,reload,setM}){
         )),
         React.createElement('tbody',null,
           // Saldo inicial
-          React.createElement('tr',{style:{background:'#f5f5f5'}},
+          React.createElement('tr',{style:{background:'#fff'}},
             React.createElement('td',{style:tdL('#f8f8f8',600,'#333')},'Saldo inicial do período'),
-            dias.map(d=>React.createElement('td',{key:d,style:{...tdS,color:'#111',background:'#f5f5f5'}},d===1?F(saldoContas-totalEnt+totalSai):'')),
+            dias.map(d=>React.createElement('td',{key:d,style:{...tdS,color:'#111',background:'#fff'}},d===1?F(saldoContas-totalEnt+totalSai):'')),
             React.createElement('td',{style:{...totS('#f8f8f8','#2563eb'),borderLeft:'2px solid #e5e5e5'}},F(saldoContas-totalEnt+totalSai))
           ),
           // Receitas
@@ -4383,37 +4383,37 @@ function FinMovs({uid,db,reload,setM}){
           ),
           !collapsed.ent&&React.createElement(React.Fragment,null,...catsEnt.flatMap(({grupo,cats})=>[
             React.createElement('tr',{key:'g_'+grupo,style:{background:'#fff',cursor:'pointer'},onClick:()=>toggleGroup('r_'+grupo)},
-              React.createElement('td',{style:{...tdL('#f0fdf4',700,'#15803d'),paddingLeft:8}},(collGroups['r_'+grupo]?'▶ ':'▼ ')+grupo),
-              dias.map(d=>{const v=groupDia('receita',grupo,d);return React.createElement('td',{key:d,style:{...totS('#f0fdf4',v>0?'#111':'#ccc')}},v>0?F(v):'');}),
-              React.createElement('td',{style:{...totS('#f0fdf4','#16a34a'),borderLeft:'2px solid #e5e5e5'}},F(groupTotal('receita',grupo)))
+              React.createElement('td',{style:{...tdL('#fff',700,'#111'),paddingLeft:8}},(collGroups['r_'+grupo]?'▶ ':'▼ ')+grupo),
+              dias.map(d=>{const v=groupDia('receita',grupo,d);return React.createElement('td',{key:d,style:{...totS('#fff',v>0?'#111':'#ccc')}},v>0?F(v):'');}),
+              React.createElement('td',{style:{...totS('#fff','#111'),borderLeft:'2px solid #e5e5e5'}},F(groupTotal('receita',grupo)))
             ),
-            ...(!collGroups['r_'+grupo]?cats.map(cat=>catRow('receita',cat,'#f7fef9','#16a34a')):[])
+            ...(!collGroups['r_'+grupo]?cats.map(cat=>catRow('receita',cat,'#fff','#111')):[])
           ]),
           ),
           catsEnt.length===0&&!collapsed.ent&&React.createElement('tr',null,React.createElement('td',{colSpan:diasMes+2,style:{color:'#ccc',textAlign:'center',padding:10}},'Sem receitas')),
-          totRow('Total de receitas','receita','#dcfce7','#15803d'),
+          totRow('Total de receitas','receita','#f5f5f5','#111'),
           // Despesas
           React.createElement('tr',{style:{background:'#fff',cursor:'pointer'},onClick:()=>toggleSec('sai')},
             React.createElement('td',{colSpan:diasMes+2,style:{padding:'8px 12px',fontWeight:700,fontSize:13,color:'#111',borderLeft:'3px solid #111',userSelect:'none'}},(collapsed.sai?'▶':'▼')+' Total de despesas')
           ),
           !collapsed.sai&&React.createElement(React.Fragment,null,...catsSai.flatMap(({grupo,cats})=>[
             React.createElement('tr',{key:'g_'+grupo,style:{background:'#fff',cursor:'pointer'},onClick:()=>toggleGroup('s_'+grupo)},
-              React.createElement('td',{style:{...tdL('#fff5f5',700,'#b91c1c'),paddingLeft:8}},(collGroups['s_'+grupo]?'▶ ':'▼ ')+grupo),
-              dias.map(d=>{const v=groupDia('despesa',grupo,d);return React.createElement('td',{key:d,style:{...totS('#fff5f5',v>0?'#111':'#ccc')}},v>0?F(v):'');}),
-              React.createElement('td',{style:{...totS('#fff5f5','#dc2626'),borderLeft:'2px solid #e5e5e5'}},F(groupTotal('despesa',grupo)))
+              React.createElement('td',{style:{...tdL('#fff',700,'#111'),paddingLeft:8}},(collGroups['s_'+grupo]?'▶ ':'▼ ')+grupo),
+              dias.map(d=>{const v=groupDia('despesa',grupo,d);return React.createElement('td',{key:d,style:{...totS('#fff',v>0?'#111':'#ccc')}},v>0?F(v):'');}),
+              React.createElement('td',{style:{...totS('#fff','#111'),borderLeft:'2px solid #e5e5e5'}},F(groupTotal('despesa',grupo)))
             ),
-            ...(!collGroups['s_'+grupo]?cats.map(cat=>catRow('despesa',cat,'#fffafa','#dc2626')):[])
+            ...(!collGroups['s_'+grupo]?cats.map(cat=>catRow('despesa',cat,'#fff','#111')):[])
           ]),
           ),
           catsSai.length===0&&!collapsed.sai&&React.createElement('tr',null,React.createElement('td',{colSpan:diasMes+2,style:{color:'#ccc',textAlign:'center',padding:10}},'Sem despesas')),
-          totRow('Total de despesas','despesa','#fee2e2','#b91c1c'),
+          totRow('Total de despesas','despesa','#f5f5f5','#111'),
           // Saldo final
-          React.createElement('tr',{style:{background:'#f5f5f5'}},
+          React.createElement('tr',{style:{background:'#fff'}},
             React.createElement('td',{style:tdL('#f8faff',700,'#2563eb')},'Saldo final do período'),
             dias.map(d=>{const v=tipoDia('receita',d)-tipoDia('despesa',d);return React.createElement('td',{key:d,style:{...totS('#f8faff',v>=0?'#111':'#555')}},v!==0?F(v):'');}),
             React.createElement('td',{style:{...totS('#f8faff','#111'),borderLeft:'2px solid #e5e5e5',fontSize:13}},F(totalEnt-totalSai))
           ),
-          React.createElement('tr',{style:{background:'#ebebeb'}},
+          React.createElement('tr',{style:{background:'#fff'}},
             React.createElement('td',{style:tdL('#eff6ff',800,'#1d4ed8')},'Saldo total'),
             dias.map(d=>React.createElement('td',{key:d,style:{...totS('#eff6ff','#1d4ed8')}},d===diasMes?F(saldoContas):'')),
             React.createElement('td',{style:{...totS('#eff6ff','#1d4ed8'),borderLeft:'2px solid #e5e5e5',fontSize:13,fontWeight:800}},F(saldoContas))
