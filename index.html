@@ -4305,7 +4305,7 @@ function FinMovs({uid,db,reload,setM}){
       if(!groups[grp])groups[grp]={cats:new Set(),total:0};
       groups[grp].cats.add(catLabel(fullCat));
     });
-    return Object.entries(groups).map(([g,v])=>({grupo:g,cats:[...v.cats].sort()}));
+    return Object.entries(groups).map(([g,v])=>({grupo:g,cats:[...v.cats].sort()})).sort((a,b)=>{if(a.grupo.toLowerCase().includes('venda'))return -1;if(b.grupo.toLowerCase().includes('venda'))return 1;if(a.grupo==='Outros')return 1;if(b.grupo==='Outros')return -1;return a.grupo.localeCompare(b.grupo);});
   };
   const catsEnt=groupedCats('receita');
   const catsSai=groupedCats('despesa');
@@ -4332,7 +4332,7 @@ function FinMovs({uid,db,reload,setM}){
 
   const thS={background:'#1e293b',color:'#fff',fontSize:10,fontWeight:700,padding:'6px 8px',textAlign:'center',whiteSpace:'nowrap',position:'sticky',top:0,zIndex:2,borderRight:'1px solid #334155'};
   const th0={...thS,textAlign:'left',position:'sticky',left:0,zIndex:3,minWidth:220};
-  const tdS={fontSize:11,padding:'4px 6px',textAlign:'right',border:'1px solid #d0d0d0'};
+  const tdS={fontSize:11,padding:'4px 8px',textAlign:'right',border:'1px solid #d0d0d0',whiteSpace:'nowrap'};
   const tdL=(bg='#fff',fw=400,col='#555')=>({...tdS,textAlign:'left',fontWeight:fw,color:col,position:'sticky',left:0,background:bg,zIndex:1,borderRight:'2px solid #e5e5e5'});
   const totS=(bg,col)=>({...tdS,fontWeight:700,background:bg,color:col,borderRight:'1px solid #e5e5e5'});
 
@@ -4348,12 +4348,12 @@ function FinMovs({uid,db,reload,setM}){
   );
   const totRow=(label,tipo,bg,col)=>React.createElement('tr',{style:{background:bg}},
     React.createElement('td',{style:tdL(bg,700,col)},label),
-    dias.map(d=>{const v=tipoDia(tipo,d);return React.createElement('td',{key:d,style:{...totS(bg,col)}},v>0?F(v):'');}),
+    dias.map(d=>{const v=tipoDia(tipo,d);return React.createElement('td',{key:d,style:{...totS(bg,col)}},F(v));}),
     React.createElement('td',{style:{...totS(bg,col),borderLeft:'2px solid #e5e5e5',fontSize:13}},F(tipoTotal(tipo)))
   );
   const saldoRow=(label,fn,bg,col)=>React.createElement('tr',{style:{background:bg}},
     React.createElement('td',{style:tdL(bg,700,col)},label),
-    dias.map(d=>{const v=fn(d);return React.createElement('td',{key:d,style:{...totS(bg,v>=0?'#111':'#555')}},v!==0?F(v):'');}),
+    dias.map(d=>{const v=fn(d);return React.createElement('td',{key:d,style:{...totS(bg,v>=0?'#111':'#555')}},F(v));}),
     React.createElement('td',{style:{...totS(bg,'#111'),borderLeft:'2px solid #e5e5e5',fontSize:13}},F(totalEnt-totalSai))
   );
 
@@ -4374,7 +4374,7 @@ function FinMovs({uid,db,reload,setM}){
           // Saldo inicial
           React.createElement('tr',{style:{background:'#fff'}},
             React.createElement('td',{style:tdL('#f8f8f8',600,'#333')},'Saldo inicial do período'),
-            dias.map(d=>React.createElement('td',{key:d,style:{...tdS,color:'#111',background:'#fff'}},d===1?F(saldoContas-totalEnt+totalSai):'')),
+            dias.map(d=>React.createElement('td',{key:d,style:{...tdS,color:'#111',background:'#fff'}},F(saldoContas-totalEnt+totalSai))),
             React.createElement('td',{style:{...totS('#f8f8f8','#2563eb'),borderLeft:'2px solid #e5e5e5'}},F(saldoContas-totalEnt+totalSai))
           ),
           // Receitas
@@ -4384,7 +4384,7 @@ function FinMovs({uid,db,reload,setM}){
           !collapsed.ent&&React.createElement(React.Fragment,null,...catsEnt.flatMap(({grupo,cats})=>[
             React.createElement('tr',{key:'g_'+grupo,style:{background:'#fff',cursor:'pointer'},onClick:()=>toggleGroup('r_'+grupo)},
               React.createElement('td',{style:{...tdL('#fff',700,'#111'),paddingLeft:8}},(collGroups['r_'+grupo]?'▶ ':'▼ ')+grupo),
-              dias.map(d=>{const v=groupDia('receita',grupo,d);return React.createElement('td',{key:d,style:{...totS('#fff',v>0?'#111':'#ccc')}},v>0?F(v):'');}),
+              dias.map(d=>{const v=groupDia('receita',grupo,d);return React.createElement('td',{key:d,style:{...totS('#fff',v>0?'#111':'#ccc')}},F(v));}),
               React.createElement('td',{style:{...totS('#fff','#111'),borderLeft:'2px solid #e5e5e5'}},F(groupTotal('receita',grupo)))
             ),
             ...(!collGroups['r_'+grupo]?cats.map(cat=>catRow('receita',cat,'#fff','#111')):[])
@@ -4399,7 +4399,7 @@ function FinMovs({uid,db,reload,setM}){
           !collapsed.sai&&React.createElement(React.Fragment,null,...catsSai.flatMap(({grupo,cats})=>[
             React.createElement('tr',{key:'g_'+grupo,style:{background:'#fff',cursor:'pointer'},onClick:()=>toggleGroup('s_'+grupo)},
               React.createElement('td',{style:{...tdL('#fff',700,'#111'),paddingLeft:8}},(collGroups['s_'+grupo]?'▶ ':'▼ ')+grupo),
-              dias.map(d=>{const v=groupDia('despesa',grupo,d);return React.createElement('td',{key:d,style:{...totS('#fff',v>0?'#111':'#ccc')}},v>0?F(v):'');}),
+              dias.map(d=>{const v=groupDia('despesa',grupo,d);return React.createElement('td',{key:d,style:{...totS('#fff',v>0?'#111':'#ccc')}},F(v));}),
               React.createElement('td',{style:{...totS('#fff','#111'),borderLeft:'2px solid #e5e5e5'}},F(groupTotal('despesa',grupo)))
             ),
             ...(!collGroups['s_'+grupo]?cats.map(cat=>catRow('despesa',cat,'#fff','#111')):[])
@@ -4410,12 +4410,12 @@ function FinMovs({uid,db,reload,setM}){
           // Saldo final
           React.createElement('tr',{style:{background:'#fff'}},
             React.createElement('td',{style:tdL('#f8faff',700,'#2563eb')},'Saldo final do período'),
-            dias.map(d=>{const v=tipoDia('receita',d)-tipoDia('despesa',d);return React.createElement('td',{key:d,style:{...totS('#f8faff',v>=0?'#111':'#555')}},v!==0?F(v):'');}),
+            dias.map(d=>{const v=tipoDia('receita',d)-tipoDia('despesa',d);return React.createElement('td',{key:d,style:{...totS('#f8faff',v>=0?'#111':'#555')}},F(v));}),
             React.createElement('td',{style:{...totS('#f8faff','#111'),borderLeft:'2px solid #e5e5e5',fontSize:13}},F(totalEnt-totalSai))
           ),
           React.createElement('tr',{style:{background:'#fff'}},
             React.createElement('td',{style:tdL('#eff6ff',800,'#1d4ed8')},'Saldo total'),
-            dias.map(d=>React.createElement('td',{key:d,style:{...totS('#eff6ff','#1d4ed8')}},d===diasMes?F(saldoContas):'')),
+            dias.map(d=>React.createElement('td',{key:d,style:{...totS('#eff6ff','#1d4ed8')}},F(saldoContas))),
             React.createElement('td',{style:{...totS('#eff6ff','#1d4ed8'),borderLeft:'2px solid #e5e5e5',fontSize:13,fontWeight:800}},F(saldoContas))
           )
         )
