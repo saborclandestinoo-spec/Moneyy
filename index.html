@@ -4280,9 +4280,37 @@ function FinMovs({uid,db,reload,setM}){
   const catTotal=(tipo,cat)=>pagos.filter(l=>l.tipo===tipo&&catLabel(l.categoria)===cat).reduce((s,l)=>s+Number(l.valor||0),0);
   const tipoTotal=(tipo)=>pagos.filter(l=>l.tipo===tipo).reduce((s,l)=>s+Number(l.valor||0),0);
 
-  const uniqueCats=(tipo)=>[...new Set(pagos.filter(l=>l.tipo===tipo).map(l=>catLabel(l.categoria)))].sort();
-  const catsEnt=uniqueCats('receita');
-  const catsSai=uniqueCats('despesa');
+  // Get parent group from PLANO_CONTAS by category cod prefix (nivel 1)
+  const getGroup=(catFull)=>{
+    const cod=(catFull||'').split(' ')[0];
+    if(!cod||!cod.match(/^\d/))return null;
+    const parts=cod.split('.');
+    if(parts.length<2)return null;
+    const parentCod=parts.slice(0,2).join('.');
+    const parent=PLANO_CONTAS.find(p=>p.cod===parentCod);
+    return parent?parent.nome:null;
+  };
+
+  // Group categories by their plano de contas parent
+  const groupedCats=(tipo)=>{
+    const lans=pagos.filter(l=>l.tipo===tipo);
+    const groups={};
+    lans.forEach(l=>{
+      const fullCat=l.categoria||'Outros';
+      const grp=getGroup(fullCat)||'Outros';
+      if(!groups[grp])groups[grp]={cats:new Set(),total:0};
+      groups[grp].cats.add(catLabel(fullCat));
+    });
+    return Object.entries(groups).map(([g,v])=>({grupo:g,cats:[...v.cats].sort()}));
+  };
+  const catsEnt=groupedCats('receita');
+  const catsSai=groupedCats('despesa');
+
+  const groupDia=(tipo,grupo,dia)=>{
+    const dt=mesStr+'-'+String(dia).padStart(2,'0');
+    return pagos.filter(l=>l.tipo===tipo&&l.data_pag===dt&&(getGroup(l.categoria||'Outros')||'Outros')===grupo).reduce((s,l)=>s+Number(l.valor||0),0);
+  };
+  const groupTotal=(tipo,grupo)=>pagos.filter(l=>l.tipo===tipo&&(getGroup(l.categoria||'Outros')||'Outros')===grupo).reduce((s,l)=>s+Number(l.valor||0),0);
 
   // Saldo inicial = saldo total das contas antes do mês
   const saldoContas=(contas||[]).reduce((s,c)=>s+Number(c.saldo||0),0);
@@ -4347,12 +4375,26 @@ function FinMovs({uid,db,reload,setM}){
           ),
           // Receitas
           secRow('Total de receitas','#f0fdf4','#16a34a'),
-          ...catsEnt.map(cat=>catRow('receita',cat,'#f0fdf4','#16a34a')),
+          ...catsEnt.flatMap(({grupo,cats})=>[
+            React.createElement('tr',{key:'g_'+grupo,style:{background:'#f0fdf4'}},
+              React.createElement('td',{style:{...tdL('#f0fdf4',700,'#15803d'),paddingLeft:8}},grupo),
+              dias.map(d=>{const v=groupDia('receita',grupo,d);return React.createElement('td',{key:d,style:{...totS('#f0fdf4',v>0?'#16a34a':'#ddd')}},v>0?F(v):'');}),
+              React.createElement('td',{style:{...totS('#f0fdf4','#16a34a'),borderLeft:'2px solid #e5e5e5'}},F(groupTotal('receita',grupo)))
+            ),
+            ...cats.map(cat=>catRow('receita',cat,'#f7fef9','#16a34a'))
+          ]),
           catsEnt.length===0&&React.createElement('tr',null,React.createElement('td',{colSpan:diasMes+2,style:{color:'#ccc',textAlign:'center',padding:10}},'Sem receitas')),
           totRow('Total de receitas','receita','#dcfce7','#15803d'),
           // Despesas
           secRow('Total de despesas','#fff5f5','#dc2626'),
-          ...catsSai.map(cat=>catRow('despesa',cat,'#fff5f5','#dc2626')),
+          ...catsSai.flatMap(({grupo,cats})=>[
+            React.createElement('tr',{key:'g_'+grupo,style:{background:'#fff5f5'}},
+              React.createElement('td',{style:{...tdL('#fff5f5',700,'#b91c1c'),paddingLeft:8}},grupo),
+              dias.map(d=>{const v=groupDia('despesa',grupo,d);return React.createElement('td',{key:d,style:{...totS('#fff5f5',v>0?'#dc2626':'#ddd')}},v>0?F(v):'');}),
+              React.createElement('td',{style:{...totS('#fff5f5','#dc2626'),borderLeft:'2px solid #e5e5e5'}},F(groupTotal('despesa',grupo)))
+            ),
+            ...cats.map(cat=>catRow('despesa',cat,'#fffafa','#dc2626'))
+          ]),
           catsSai.length===0&&React.createElement('tr',null,React.createElement('td',{colSpan:diasMes+2,style:{color:'#ccc',textAlign:'center',padding:10}},'Sem despesas')),
           totRow('Total de despesas','despesa','#fee2e2','#b91c1c'),
           // Saldo final
