@@ -4257,6 +4257,8 @@ function FinMovs({uid,db,reload,setM}){
   const d0=new Date(hoje+'T12:00:00');
   const[ano,setAno]=React.useState(d0.getFullYear());
   const[mes,setMes]=React.useState(d0.getMonth());
+  const[collapsed,setCollapsed]=React.useState({ent:false,sai:false});
+  const toggleSec=(k)=>setCollapsed(p=>({...p,[k]:!p[k]}));
   const MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   const navM=(d)=>{let m=mes+d,a=ano;if(m<0){m=11;a--;}else if(m>11){m=0;a++;}setMes(m);setAno(a);};
   const mesStr=ano+'-'+String(mes+1).padStart(2,'0');
@@ -4374,8 +4376,10 @@ function FinMovs({uid,db,reload,setM}){
             React.createElement('td',{style:{...totS('#f8f8f8','#2563eb'),borderLeft:'2px solid #e5e5e5'}},F(saldoContas-totalEnt+totalSai))
           ),
           // Receitas
-          secRow('Total de receitas','#f0fdf4','#16a34a'),
-          ...catsEnt.flatMap(({grupo,cats})=>[
+          React.createElement('tr',{style:{background:'#f0fdf4',cursor:'pointer'},onClick:()=>toggleSec('ent')},
+            React.createElement('td',{colSpan:diasMes+2,style:{padding:'8px 12px',fontWeight:700,fontSize:13,color:'#16a34a',borderLeft:'4px solid #16a34a',userSelect:'none'}},(collapsed.ent?'▶':'▼')+' Total de receitas')
+          ),
+          !collapsed.ent&&React.createElement(React.Fragment,null,...catsEnt.flatMap(({grupo,cats})=>[
             React.createElement('tr',{key:'g_'+grupo,style:{background:'#f0fdf4'}},
               React.createElement('td',{style:{...tdL('#f0fdf4',700,'#15803d'),paddingLeft:8}},grupo),
               dias.map(d=>{const v=groupDia('receita',grupo,d);return React.createElement('td',{key:d,style:{...totS('#f0fdf4',v>0?'#16a34a':'#ddd')}},v>0?F(v):'');}),
@@ -4383,11 +4387,14 @@ function FinMovs({uid,db,reload,setM}){
             ),
             ...cats.map(cat=>catRow('receita',cat,'#f7fef9','#16a34a'))
           ]),
-          catsEnt.length===0&&React.createElement('tr',null,React.createElement('td',{colSpan:diasMes+2,style:{color:'#ccc',textAlign:'center',padding:10}},'Sem receitas')),
+          ),
+          catsEnt.length===0&&!collapsed.ent&&React.createElement('tr',null,React.createElement('td',{colSpan:diasMes+2,style:{color:'#ccc',textAlign:'center',padding:10}},'Sem receitas')),
           totRow('Total de receitas','receita','#dcfce7','#15803d'),
           // Despesas
-          secRow('Total de despesas','#fff5f5','#dc2626'),
-          ...catsSai.flatMap(({grupo,cats})=>[
+          React.createElement('tr',{style:{background:'#fff5f5',cursor:'pointer'},onClick:()=>toggleSec('sai')},
+            React.createElement('td',{colSpan:diasMes+2,style:{padding:'8px 12px',fontWeight:700,fontSize:13,color:'#dc2626',borderLeft:'4px solid #dc2626',userSelect:'none'}},(collapsed.sai?'▶':'▼')+' Total de despesas')
+          ),
+          !collapsed.sai&&React.createElement(React.Fragment,null,...catsSai.flatMap(({grupo,cats})=>[
             React.createElement('tr',{key:'g_'+grupo,style:{background:'#fff5f5'}},
               React.createElement('td',{style:{...tdL('#fff5f5',700,'#b91c1c'),paddingLeft:8}},grupo),
               dias.map(d=>{const v=groupDia('despesa',grupo,d);return React.createElement('td',{key:d,style:{...totS('#fff5f5',v>0?'#dc2626':'#ddd')}},v>0?F(v):'');}),
@@ -4395,7 +4402,8 @@ function FinMovs({uid,db,reload,setM}){
             ),
             ...cats.map(cat=>catRow('despesa',cat,'#fffafa','#dc2626'))
           ]),
-          catsSai.length===0&&React.createElement('tr',null,React.createElement('td',{colSpan:diasMes+2,style:{color:'#ccc',textAlign:'center',padding:10}},'Sem despesas')),
+          ),
+          catsSai.length===0&&!collapsed.sai&&React.createElement('tr',null,React.createElement('td',{colSpan:diasMes+2,style:{color:'#ccc',textAlign:'center',padding:10}},'Sem despesas')),
           totRow('Total de despesas','despesa','#fee2e2','#b91c1c'),
           // Saldo final
           React.createElement('tr',{style:{background:'#f8faff'}},
