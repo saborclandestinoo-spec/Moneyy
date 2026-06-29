@@ -2992,6 +2992,13 @@ function NovoEst({uid,reload,close,item,catInicial}){
     const payload={user_id:uid,nome,categoria:cat,unidade,qtd:qtdTotal,qtd_embalagem:embN,qtd_estoque:estN,minimo:parseFloat(minimo)||0,custo:parseFloat(custo)||0,fornecedor,validade:validade||null};
     if(isEdit){await sb.from('estoque').update(payload).eq('id',item.id);}
     else{await sb.from('estoque').insert(payload);}
+    // Sync: if Cookie, upsert fichas_tecnicas entry
+    if(cat==='Cookie'){
+      const fichaExist=(db?.fichas||[]).find(f=>(f.nome||'').toLowerCase()===nome.toLowerCase());
+      if(!fichaExist){
+        await sb.from('fichas_tecnicas').insert({user_id:uid,nome,categoria:cat,rendimento:1,unidade_rendimento:'un',preco_venda:parseFloat(custo)||0});
+      }
+    }
     toast(isEdit?'Atualizado!':'Criado!',false,true);reload();close();setLd(false);
   };
 
@@ -3468,6 +3475,13 @@ function FichaForm({uid,db,reload,close,ficha,setM}){
           descricao:'Ajuste de Estoque Inicial ('+(deltaInicial>0?'+':'')+deltaInicial+' un)'
         });
       }
+    }
+    // Sync: upsert Cookie estoque item
+    const estoqueExist=(db.estoque||[]).find(e=>e.categoria==='Cookie'&&(e.nome||'').toLowerCase()===nome.toLowerCase());
+    if(estoqueExist){
+      await sb.from('estoque').update({nome}).eq('id',estoqueExist.id);
+    } else {
+      await sb.from('estoque').insert({user_id:uid,nome,categoria:'Cookie',unidade:'un',qtd:0,minimo:0,custo:parseFloat(precoVenda)||0,fornecedor:'',validade:null});
     }
     toast(isEdit?'Ficha atualizada!':'Ficha criada!',false,true);reload();close();setLd(false);
   };
