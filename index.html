@@ -2843,9 +2843,12 @@ function Estoque({uid,db,reload,setM}){
   const[busca,setBusca]=React.useState('');
 
   const SECOES=[
-    {id:'Matéria-Prima',label:'Matérias Primas',icon:'🌾',desc:'Ingredientes e insumos brutos',cor:'#b45309'},
-    {id:'Recheio',label:'Recheios',icon:'🍫',desc:'Recheios produzidos ou comprados',cor:'#7c3aed'},
-    {id:'Cookie',label:'Cookies',icon:'🍪',desc:'Produtos acabados prontos para venda',cor:'#dc2626'},
+    {id:'Matéria-Prima',label:'Matérias Primas',desc:'Ingredientes e insumos brutos',cor:'#b45309',almox:false},
+    {id:'Recheio',label:'Recheios',desc:'Recheios produzidos ou comprados',cor:'#7c3aed',almox:false},
+    {id:'Cookie',label:'Cookies',desc:'Produtos acabados prontos para venda',cor:'#dc2626',almox:false},
+    {id:'Embalagem',label:'Embalagens',desc:'Caixas, saquinhos e materiais de embalagem',cor:'#0284c7',almox:false},
+    {id:'Material de Produção',label:'Mat. de Produção',desc:'Almoxarifado — entradas e saídas de produção',cor:'#059669',almox:true},
+    {id:'Material de Limpeza',label:'Mat. de Limpeza',desc:'Almoxarifado — higiene e limpeza',cor:'#0891b2',almox:true},
   ];
 
   const items=React.useMemo(()=>{
@@ -2854,41 +2857,43 @@ function Estoque({uid,db,reload,setM}){
     return r;
   },[estoque,sec,busca]);
 
-  const secAtual=SECOES.find(s=>s.id===sec);
+  const secAtual=SECOES.find(s=>s.id===sec)||SECOES[0];
   const criticos=items.filter(e=>Number(e.qtd)<=Number(e.minimo)&&Number(e.minimo)>0);
-  const valTotal=items.reduce((s,e)=>s+(Number(e.qtd||0)*Number(e.custo||0)),0);
 
-  const novo=()=>setM({title:'+ Novo — '+secAtual.label,body:React.createElement(NovoEst,{uid,reload,catInicial:sec,close:()=>setM(null)})});
+  const novo=()=>setM({title:'+ '+secAtual.label,body:React.createElement(NovoEst,{uid,reload,catInicial:sec,close:()=>setM(null)})});
   const editar=(e)=>setM({title:'✏ '+e.nome,body:React.createElement(NovoEst,{uid,reload,item:e,close:()=>setM(null)})});
-  const mov=(e)=>setM({title:'Movimentar — '+e.nome,body:React.createElement(MovEst,{id:e.id,db,reload,close:()=>setM(null)})});
+  const mov=(e)=>setM({title:'Movimentar — '+e.nome,body:React.createElement(MovEst,{id:e.id,db,reload,close:()=>setM(null),isAlmox:secAtual.almox})});
 
-  return React.createElement(PW,{title:'Estoque',sub:'Gerencie seus insumos, recheios e produtos',
+  return React.createElement(PW,{title:'Estoque',sub:'Controle de insumos, recheios, produtos e almoxarifado',
     actions:[React.createElement('button',{key:'n',style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:novo},'+ Adicionar')]},
 
-    // Section cards
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:20}},
+    // Section cards grid 3x2
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:20}},
       SECOES.map(s=>{
         const its=(estoque||[]).filter(e=>e.categoria===s.id);
         const crits=its.filter(e=>Number(e.qtd)<=Number(e.minimo)&&Number(e.minimo)>0);
         const val=its.reduce((sum,e)=>sum+(Number(e.qtd||0)*Number(e.custo||0)),0);
         const active=sec===s.id;
         return React.createElement('div',{key:s.id,onClick:()=>setSec(s.id),style:{
-          background:active?s.cor:'#fff',borderRadius:14,padding:'16px',cursor:'pointer',
+          background:active?s.cor:'#fff',borderRadius:14,padding:'14px 16px',cursor:'pointer',
           boxShadow:active?'0 4px 16px rgba(0,0,0,0.15)':'0 1px 8px rgba(0,0,0,0.07)',
-          border:active?'none':'2px solid transparent',transition:'all 0.15s'
+          border:'2px solid '+(active?s.cor:'transparent'),transition:'all 0.15s'
         }},
-          React.createElement('div',{style:{fontSize:28,marginBottom:6}},s.icon),
-          React.createElement('div',{style:{fontWeight:800,fontSize:15,color:active?'#fff':s.cor,marginBottom:2}},s.label),
-          React.createElement('div',{style:{fontSize:11,color:active?'rgba(255,255,255,0.7)':'#aaa',marginBottom:10}},s.desc),
-          React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:12}},
+          React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}},
             React.createElement('div',null,
-              React.createElement('div',{style:{fontWeight:700,color:active?'#fff':'#111',fontSize:18}},its.length),
-              React.createElement('div',{style:{color:active?'rgba(255,255,255,0.7)':'#aaa',fontSize:10}},'itens')
+              React.createElement('div',{style:{fontWeight:800,fontSize:13,color:active?'#fff':s.cor}},s.label),
+              React.createElement('div',{style:{fontSize:10,color:active?'rgba(255,255,255,0.65)':'#bbb',marginTop:2}},s.almox?'Almoxarifado':s.desc.split(' — ')[0])
             ),
-            crits.length>0&&React.createElement('div',{style:{background:active?'rgba(255,255,255,0.2)':'#fee2e2',borderRadius:8,padding:'3px 8px',fontSize:11,color:active?'#fff':'#dc2626',fontWeight:700,alignSelf:'flex-end'}},crits.length+' críticos'),
+            s.almox&&React.createElement('span',{style:{fontSize:9,fontWeight:700,background:active?'rgba(255,255,255,0.2)':'#f0fdf4',color:active?'#fff':'#059669',borderRadius:6,padding:'2px 6px'}},'ALMOX')
+          ),
+          React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-end'}},
+            React.createElement('div',null,
+              React.createElement('div',{style:{fontWeight:700,color:active?'#fff':'#111',fontSize:22,lineHeight:1}},its.length),
+              React.createElement('div',{style:{color:active?'rgba(255,255,255,0.6)':'#aaa',fontSize:10}},'itens')
+            ),
             React.createElement('div',{style:{textAlign:'right'}},
-              React.createElement('div',{style:{fontWeight:700,color:active?'#fff':'#111',fontSize:13}},F(val)),
-              React.createElement('div',{style:{color:active?'rgba(255,255,255,0.7)':'#aaa',fontSize:10}},'em estoque')
+              crits.length>0&&React.createElement('div',{style:{fontSize:10,color:active?'#fecaca':'#dc2626',fontWeight:700,marginBottom:2}},crits.length+' críticos'),
+              React.createElement('div',{style:{fontWeight:600,color:active?'#fff':'#555',fontSize:12}},F(val))
             )
           )
         );
@@ -2897,34 +2902,34 @@ function Estoque({uid,db,reload,setM}){
 
     // Filter bar
     React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}},
-      React.createElement('span',{style:{fontWeight:700,fontSize:15,color:secAtual.cor}},secAtual.icon+' '+secAtual.label),
+      React.createElement('div',null,
+        React.createElement('span',{style:{fontWeight:800,fontSize:15,color:secAtual.cor}},secAtual.label),
+        secAtual.almox&&React.createElement('span',{style:{marginLeft:8,fontSize:11,background:'#f0fdf4',color:'#059669',padding:'2px 8px',borderRadius:6,fontWeight:700}},'Almoxarifado — entradas e saídas controladas')
+      ),
       React.createElement('input',{placeholder:'Buscar...',value:busca,onChange:e=>setBusca(e.target.value),style:{background:'#f5f5f5',border:'none',borderRadius:9,padding:'7px 12px',fontSize:12,color:'#111',outline:'none',width:200}})
     ),
 
     // Table
     React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
       items.length===0
-        ? React.createElement('div',{style:{padding:'40px',textAlign:'center',color:'#ccc'}},secAtual.icon+' Nenhum item em '+secAtual.label)
+        ? React.createElement('div',{style:{padding:'40px',textAlign:'center',color:'#ccc',fontSize:13}},'Nenhum item em '+secAtual.label)
         : React.createElement(Tbl,{
-            cols:sec==='Cookie'
-              ?['Produto','Qtd','Mínimo','Status','Custo Unit.','Val. Total','']
-              :['Nome','Unid.','Qtd Total','Mínimo','Status','Custo Unit.','Val. Total','Validade',''],
+            cols:['Nome','Unid.','Qtd','Mínimo','Status','Custo Unit.','Val. Total',...(sec!=='Cookie'?['Validade']:[]),''],
             rows:items.map(e=>{
               const diff=e.validade?Math.ceil((new Date(e.validade)-new Date())/86400000):999;
               const st=Number(e.qtd)<=Number(e.minimo)&&Number(e.minimo)>0?'Crítico':diff<0?'Vencido':diff<30?'Vencendo':'OK';
               const stC=st==='Crítico'||st==='Vencido'?'red':st==='Vencendo'?'amber':'green';
-              const cells=[
+              return React.createElement(TR,{key:e.id,onClick:()=>editar(e),cells:[
                 React.createElement('span',{style:{fontWeight:700,fontSize:13,color:secAtual.cor}},e.nome),
-                ...(sec!=='Cookie'?[React.createElement('span',{style:{fontSize:12,color:'#888'}},e.unidade)]:[]),
-                React.createElement('span',{style:{fontWeight:700,color:Number(e.qtd)<=Number(e.minimo)&&Number(e.minimo)>0?'#dc2626':'#111'}},e.qtd+' '+(sec!=='Cookie'?e.unidade:'un')),
-                React.createElement('span',{style:{fontSize:12,color:'#aaa'}},e.minimo+(sec!=='Cookie'?' '+e.unidade:' un')),
+                React.createElement('span',{style:{fontSize:12,color:'#888'}},e.unidade||'un'),
+                React.createElement('span',{style:{fontWeight:700,color:Number(e.qtd)<=Number(e.minimo)&&Number(e.minimo)>0?'#dc2626':'#111'}},e.qtd),
+                React.createElement('span',{style:{fontSize:12,color:'#aaa'}},e.minimo||'—'),
                 React.createElement(Badge,{t:st,c:stC}),
                 React.createElement('span',{style:{fontSize:12}},F(e.custo)),
-                React.createElement('span',{style:{fontWeight:600}},F(Number(e.qtd)*Number(e.custo))),
+                React.createElement('span',{style:{fontWeight:600}},F(Number(e.qtd||0)*Number(e.custo||0))),
                 ...(sec!=='Cookie'?[React.createElement('span',{style:{fontSize:11,color:diff<30&&diff>=0?'#f59e0b':diff<0?'#dc2626':'#aaa'}},e.validade?FD(e.validade):'—')]:[]),
-                React.createElement('button',{onClick:ev=>{ev.stopPropagation();mov(e);},style:{background:'#f5f5f5',border:'none',borderRadius:7,padding:'4px 10px',fontSize:11,cursor:'pointer',fontWeight:600}},'Mover')
-              ];
-              return React.createElement(TR,{key:e.id,onClick:()=>editar(e),cells});
+                React.createElement('button',{onClick:ev=>{ev.stopPropagation();mov(e);},style:{background:secAtual.almox?secAtual.cor:'#f5f5f5',color:secAtual.almox?'#fff':'#555',border:'none',borderRadius:7,padding:'4px 10px',fontSize:11,cursor:'pointer',fontWeight:600}},secAtual.almox?'Entrada/Saída':'Mover')
+              ]});
             }),
             empty:'Nenhum item.'
           })
@@ -2951,7 +2956,7 @@ function NovoEst({uid,reload,close,item,catInicial}){
   const[ld,setLd]=React.useState(false);
   const isEdit=!!item?.id;
 
-  const CATS=['Matéria-Prima','Recheio','Cookie','Produto Acabado','Embalagem','Descartável','Outros'];
+  const CATS=['Matéria-Prima','Recheio','Cookie','Embalagem','Material de Produção','Material de Limpeza','Produto Acabado','Outros'];
   const UNIDS=['kg','g','L','ml','un','cx','pct','dz','m','cm'];
 
   // Recalcula custo/unidade automaticamente quando o valor pago ou a qtd por embalagem mudam
@@ -3000,7 +3005,7 @@ function NovoEst({uid,reload,close,item,catInicial}){
   );
 }
 
-function MovEst({id,db,reload,close}){
+function MovEst({id,db,reload,close,isAlmox=false}){
   const item=(db.estoque||[]).find(e=>e.id===id);
   const[tipo,setTipo]=React.useState('entrada');
   const[qtd,setQtd]=React.useState('');
