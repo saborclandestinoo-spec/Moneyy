@@ -2838,7 +2838,7 @@ function PedForm({uid,db,reload,close}){
 
 // ── ESTOQUE ──
 function Estoque({uid,db,reload,setM}){
-  const{estoque}=db;
+  const{estoque,fichas,ficha_ingredientes}=db;
   const[sec,setSec]=React.useState('Matéria-Prima');
   const[busca,setBusca]=React.useState('');
 
@@ -2851,18 +2851,44 @@ function Estoque({uid,db,reload,setM}){
     {id:'Material de Limpeza',label:'Mat. de Limpeza',desc:'Almoxarifado — higiene e limpeza',cor:'#0891b2',almox:true},
   ];
 
+  // Calculate cost from ficha ingredients
+  const calcCustoFicha=(fichaId)=>{
+    const ings=(ficha_ingredientes||[]).filter(i=>i.ficha_id===fichaId);
+    return ings.reduce((s,i)=>{
+      const est=(estoque||[]).find(e=>e.id===i.estoque_id||e.nome===i.nome);
+      return s+(parseFloat(i.quantidade||0)*parseFloat(est?.custo||i.custo_unitario||0));
+    },0);
+  };
+
   const items=React.useMemo(()=>{
+    if(sec==='Cookie'){
+      // Show fichas as items; merge with estoque for qty
+      return (fichas||[]).filter(f=>!busca||(f.nome||'').toLowerCase().includes(busca.toLowerCase())).map(f=>{
+        const est=(estoque||[]).find(e=>e.categoria==='Cookie'&&(e.nome||'').toLowerCase()===(f.nome||'').toLowerCase());
+        const custo=calcCustoFicha(f.id);
+        return{...f,_fichaId:f.id,id:est?.id||'f_'+f.id,qtd:est?.qtd||0,unidade:'un',minimo:est?.minimo||0,custo,validade:null,_isFromFicha:!est};
+      });
+    }
     let r=(estoque||[]).filter(e=>e.categoria===sec);
     if(busca)r=r.filter(e=>(e.nome||'').toLowerCase().includes(busca.toLowerCase()));
     return r;
-  },[estoque,sec,busca]);
+  },[estoque,fichas,ficha_ingredientes,sec,busca]);
 
   const secAtual=SECOES.find(s=>s.id===sec)||SECOES[0];
   const criticos=items.filter(e=>Number(e.qtd)<=Number(e.minimo)&&Number(e.minimo)>0);
 
   const novo=()=>setM({title:'+ '+secAtual.label,body:React.createElement(NovoEst,{uid,reload,catInicial:sec,close:()=>setM(null)})});
-  const editar=(e)=>setM({title:'✏ '+e.nome,body:React.createElement(NovoEst,{uid,reload,item:e,close:()=>setM(null)})});
-  const mov=(e)=>setM({title:'Movimentar — '+e.nome,body:React.createElement(MovEst,{id:e.id,db,reload,close:()=>setM(null),isAlmox:secAtual.almox})});
+  const editar=(e)=>{if(e._fichaId)setM({title:'✏ '+e.nome+' (Ficha)',wide:true,body:React.createElement(FichaForm,{uid,db,reload,setM,ficha:(fichas||[]).find(f=>f.id===e._fichaId),close:()=>setM(null)})});else setM({title:'✏ '+e.nome,body:React.createElement(NovoEst,{uid,reload,item:e,close:()=>setM(null)})});};
+  const mov=async(e)=>{
+    if(e._isFromFicha){
+      // Create estoque entry first
+      const{data:newEst}=await sb.from('estoque').insert({user_id:uid,nome:e.nome,categoria:'Cookie',unidade:'un',qtd:0,minimo:0,custo:e.custo,fornecedor:''}).select().single();
+      if(newEst)reload();
+      toast('Item criado no estoque! Agora pode movimentar.',false,true);
+      return;
+    }
+    setM({title:'Movimentar — '+e.nome,body:React.createElement(MovEst,{id:e.id,db,reload,close:()=>setM(null),isAlmox:secAtual.almox})});
+  };
 
   return React.createElement(PW,{title:'Estoque',sub:'Controle de insumos, recheios, produtos e almoxarifado',
     actions:[React.createElement('button',{key:'n',style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:novo},'+ Adicionar')]},
@@ -2870,7 +2896,7 @@ function Estoque({uid,db,reload,setM}){
     // Section cards grid 3x2
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:20}},
       SECOES.map(s=>{
-        const its=(estoque||[]).filter(e=>e.categoria===s.id);
+        const its=s.id==='Cookie'?(fichas||[]):(estoque||[]).filter(e=>e.categoria===s.id);
         const crits=its.filter(e=>Number(e.qtd)<=Number(e.minimo)&&Number(e.minimo)>0);
         const val=its.reduce((sum,e)=>sum+(Number(e.qtd||0)*Number(e.custo||0)),0);
         const active=sec===s.id;
@@ -3111,7 +3137,7 @@ function FichasTecnicas({uid,db,reload,setM}){
           React.createElement('button',{style:{background:'#dc2626',color:'#fff',padding:'10px 20px',borderRadius:10,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:nova},'Criar primeira ficha')
         )
       :React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
-          React.createElement(Tbl,{cols:['Produto','Categoria','Estoque','Custo Unit','Custo Total','Preço Venda','Lucro Unit','Margem','Receita Pot.','Status'],
+          React.createElement(Tbl,{cols:['Produto','Categoria','Custo Unit','Custo Total','Preço Venda','Lucro Unit','Margem','Receita Pot.','Status'],
             rows:list.map(f=>{
               const ings=ingredientesPorFicha[f.id]||[];
               const custoUnit=ings.reduce((s,i)=>s+Number(i.quantidade||0)*Number(i.custo_unit||0),0);
