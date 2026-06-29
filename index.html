@@ -6326,13 +6326,15 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){
       const gid=uid_gen();
       for(let i=0;i<numParc;i++){
         const dt=advanceDate(venc,freqParc,i);
-        rows.push({...base,data:dt,venc:dt,competencia:dt.slice(0,7)+'-01',data_pag:i===0&&pago?dataPag:null,pago:i===0?pago:false,grupo_id:gid,parcela:(i+1)+'/'+numParc,descricao:desc+' ('+(i+1)+'/'+numParc+')'});
+        const dtCompP=advanceDate(competencia||venc,freqParc,i);
+        rows.push({...base,data:dt,venc:dt,competencia:dtCompP,data_pag:i===0&&pago?dataPag:null,pago:i===0?pago:false,grupo_id:gid,parcela:(i+1)+'/'+numParc,descricao:desc+' ('+(i+1)+'/'+numParc+')'});
       }
     }else if(tipoLanc==='Recorrente'){
       const gid=uid_gen();
       for(let i=0;i<numRep;i++){
         const dt=advanceDate(venc,freqRec,i);
-        rows.push({...base,data:dt,venc:dt,competencia:dt.slice(0,7)+'-01',data_pag:i===0&&pago?dataPag:null,pago:i===0?pago:false,grupo_id:gid,recorrente:freqRec,parcela:(i+1)+'/'+numRep});
+        const dtComp=advanceDate(competencia||venc,freqRec,i);
+        rows.push({...base,data:dt,venc:dt,competencia:dtComp,data_pag:i===0&&pago?dataPag:null,pago:i===0?pago:false,grupo_id:gid,recorrente:freqRec,parcela:(i+1)+'/'+numRep});
       }
     }else{
       rows=[{...base,data_pag:pago?dataPag:null}];
