@@ -3012,29 +3012,67 @@ function MovEst({id,db,reload,close,isAlmox=false}){
   const item=(db.estoque||[]).find(e=>e.id===id);
   const[tipo,setTipo]=React.useState('entrada');
   const[qtd,setQtd]=React.useState('');
+  const[valorPago,setValorPago]=React.useState('');
+  const[data,setData]=React.useState(TODAY());
   const[obs,setObs]=React.useState('');
   const[ld,setLd]=React.useState(false);
   if(!item)return null;
+
+  // Auto-calc custo unitário
+  const novoCusto=qtd&&valorPago&&parseFloat(qtd)>0?(parseFloat(valorPago)/parseFloat(qtd)).toFixed(4):null;
+
   const salvar=async()=>{
     if(!qtd){toast('Informe a quantidade',true);return;}
     setLd(true);
     const delta=tipo==='entrada'?parseFloat(qtd):-parseFloat(qtd);
-    const novaQtd=Number(item.qtd)+delta;
-    await sb.from('estoque').update({qtd:novaQtd}).eq('id',id);
-    await sb.from('movimentacoes').insert({user_id:item.user_id,tipo,categoria:item.categoria,descricao:(tipo==='entrada'?'Entrada':'Saída')+': '+item.nome+(obs?' — '+obs:''),valor:parseFloat(qtd)*Number(item.custo),origem:'estoque',data_movimentacao:TODAY()});
+    const novaQtd=Math.max(0,Number(item.qtd)+delta);
+    const updatePayload={qtd:novaQtd};
+    // Atualiza custo médio ponderado na entrada
+    if(tipo==='entrada'&&valorPago&&parseFloat(qtd)>0){
+      const qtdAtual=Number(item.qtd)||0;
+      const custoAtual=Number(item.custo)||0;
+      const qtdNova=parseFloat(qtd);
+      const custoNovo=parseFloat(valorPago)/qtdNova;
+      const custoMedio=(qtdAtual*custoAtual+qtdNova*custoNovo)/(qtdAtual+qtdNova);
+      updatePayload.custo=parseFloat(custoMedio.toFixed(4));
+    }
+    await sb.from('estoque').update(updatePayload).eq('id',id);
+    await sb.from('movimentacoes').insert({
+      user_id:item.user_id,tipo,categoria:item.categoria,
+      descricao:(tipo==='entrada'?'Entrada':'Saída')+': '+item.nome+(obs?' — '+obs:''),
+      valor:tipo==='entrada'&&valorPago?parseFloat(valorPago):parseFloat(qtd)*Number(item.custo),
+      origem:'estoque',data_movimentacao:data
+    });
     toast('Movimentado!',false,true);reload();close();setLd(false);
   };
+
   return React.createElement('div',null,
+    // Item info
     React.createElement('div',{style:{background:'#f8f9fc',borderRadius:10,padding:'12px 14px',marginBottom:14,display:'flex',justifyContent:'space-between'}},
-      React.createElement('div',null,React.createElement('div',{style:{fontWeight:700}},item.nome),React.createElement('div',{style:{fontSize:12,color:'#aaa'}},item.categoria)),
-      React.createElement('div',{style:{textAlign:'right'}},React.createElement('div',{style:{fontWeight:800,fontSize:18}},item.qtd+' '+item.unidade),React.createElement('div',{style:{fontSize:11,color:'#aaa'}},'estoque atual'))
+      React.createElement('div',null,
+        React.createElement('div',{style:{fontWeight:700}},item.nome),
+        React.createElement('div',{style:{fontSize:12,color:'#aaa'}},item.categoria)
+      ),
+      React.createElement('div',{style:{textAlign:'right'}},
+        React.createElement('div',{style:{fontWeight:800,fontSize:18}},item.qtd+' '+item.unidade),
+        React.createElement('div',{style:{fontSize:11,color:'#aaa'}},'estoque atual')
+      )
     ),
+    // Tipo
     React.createElement('div',{style:{display:'flex',gap:8,marginBottom:14}},
       ['entrada','saida'].map(t=>React.createElement('button',{key:t,onClick:()=>setTipo(t),style:{flex:1,padding:'10px',borderRadius:10,border:'none',cursor:'pointer',fontWeight:700,fontSize:13,background:tipo===t?(t==='entrada'?'#16a34a':'#dc2626'):'#f5f5f5',color:tipo===t?'#fff':'#666'}},t==='entrada'?'↑ Entrada':'↓ Saída'))
     ),
-    React.createElement(FloatInput,{label:'Quantidade ('+item.unidade+')',acent:'#dc2626',type:'number',value:qtd,onChange:e=>setQtd(e.target.value)}),
+    // Fields
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:tipo==='entrada'?'1fr 1fr':'1fr',gap:10}},
+      React.createElement(FloatInput,{label:'Quantidade ('+item.unidade+')',acent:'#dc2626',type:'number',value:qtd,onChange:e=>setQtd(e.target.value)}),
+      tipo==='entrada'&&React.createElement(FloatInput,{label:'Valor total pago (R$)',acent:'#16a34a',type:'number',value:valorPago,onChange:e=>setValorPago(e.target.value)})
+    ),
+    tipo==='entrada'&&novoCusto&&React.createElement('div',{style:{background:'#f0fdf4',borderRadius:9,padding:'8px 12px',marginBottom:10,fontSize:12,color:'#16a34a'}},
+      'Novo custo médio: R$ '+parseFloat(novoCusto).toFixed(4).replace('.',',')+' / '+item.unidade
+    ),
+    React.createElement(MiniDatePicker,{label:'Data',value:data,onChange:setData,acent:'#dc2626'}),
     React.createElement(FloatInput,{label:'Observação',acent:'#dc2626',value:obs,onChange:e=>setObs(e.target.value)}),
-    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
+    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',marginTop:8}},
       React.createElement('button',{style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'},onClick:close},'Cancelar'),
       React.createElement('button',{style:{background:tipo==='entrada'?'#16a34a':'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:salvar},ld?'...':'Confirmar')
     )
