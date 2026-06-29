@@ -383,7 +383,7 @@ function MapaEntregas({pedidosEntrega,pedidosEntregues,entregadores,rotas,BASE_L
           const res=await fetch(url);
           const data=await res.json();
           if(data.routes&&data.routes[0]){ const coords=data.routes[0].geometry.coordinates.map(c=>[c[1],c[0]]); // [lon,lat]->[lat,lon]
-            novasRotas[e.id]={path:coords,distanciaKm:data.routes[0].distance/1000,duracaoMin:data.routes[0].duration/60}; } }catch(err){ // Falha de rede/timeout: sem rota real para este entregador, cai no fallback de linha reta } }
+            novasRotas[e.id]={path:coords,distanciaKm:data.routes[0].distance/1000,duracaoMin:data.routes[0].duration/60}; } }catch(err){ /* sem rota */ } }
       if(!cancelado)setRotasReais(novasRotas);
       setCarregandoRotas(false); };
     buscarTodas();
@@ -1265,7 +1265,8 @@ function PedHistorico({uid,db,reload,setM}){ const{pedidos_cw}=db;
       try{ const res=await fetch(EDGE+'?token='+encodeURIComponent(token)+'&uid='+uid+'&date='+dia);
         const json=await res.json();
         totalPed+=(json.total||0); }catch(e){}
-      await new Promise(r=>setTimeout(r,500)); // throttle }
+      await new Promise(r=>setTimeout(r,500)); // throttle
+}
     setSyncMsg(totalPed+' pedidos sincronizados!');
     toast(totalPed+' pedidos importados!',false,true);
     reload();
@@ -2542,7 +2543,8 @@ async function importarLancamentos(uid, arquivo, contas, reload, onDone){ const 
         if(!isNaN(s)){const d=new Date((+s-25569)*86400000);return d.toISOString().split('T')[0];}
         return null; };
 
-      const lancToInsert = rows.map(r => ({ user_id: uid, tipo:     (String(r['Tipo']||'despesa')).toLowerCase().includes('rec')?'receita':'despesa', descricao:String(r['Descricao']||r['Descrição']||r['descricao']||'Sem descricao'), valor:    parseFloat(String(r['Valor']||0).replace(',','.'))||0, categoria:String(r['Categoria']||r['categoria']||''), forma_pag:String(r['Forma Pagto']||r['Forma de Pagamento']||''), data:     mapeiaData(r['Data']||r['data'])||TODAY(), venc:     mapeiaData(r['Vencimento']||r['vencimento'])||mapeiaData(r['Data']||r['data'])||TODAY(), data_pag: mapeiaData(r['Data Pagto']||r['Data Pagamento'])||null, pago:     String(r['Pago']||'').toLowerCase()==='sim'||String(r['Pago']||'')==='true', obs:      String(r['Obs']||r['Observacao']||r['Observação']||''), conta_id: null, // conta por nome abaixo })).filter(l=>l.descricao&&l.descricao.length>0&&l.valor>0);
+      const lancToInsert = rows.map(r => ({ user_id: uid, tipo:     (String(r['Tipo']||'despesa')).toLowerCase().includes('rec')?'receita':'despesa', descricao:String(r['Descricao']||r['Descrição']||r['descricao']||'Sem descricao'), valor:    parseFloat(String(r['Valor']||0).replace(',','.'))||0, categoria:String(r['Categoria']||r['categoria']||''), forma_pag:String(r['Forma Pagto']||r['Forma de Pagamento']||''), data:     mapeiaData(r['Data']||r['data'])||TODAY(), venc:     mapeiaData(r['Vencimento']||r['vencimento'])||mapeiaData(r['Data']||r['data'])||TODAY(), data_pag: mapeiaData(r['Data Pagto']||r['Data Pagamento'])||null, pago:     String(r['Pago']||'').toLowerCase()==='sim'||String(r['Pago']||'')==='true', obs:      String(r['Obs']||r['Observacao']||r['Observação']||''), conta_id: null // conta por nome abaixo
+})).filter(l=>l.descricao&&l.descricao.length>0&&l.valor>0);
 
       // Tentar mapear conta por nome
       lancToInsert.forEach((l,i) => { const nomeConta = String(rows[i]['Conta']||'').toLowerCase();
@@ -4056,7 +4058,8 @@ function App(){ const[user,setUser]=useState(null);const[page,setPage]=useState(
         const{error:errUpd}=await sb.from('estoque').update({qtd:novaQtd,qtd_estoque:novaQtd}).eq('id',prod.id);
         if(errUpd){toast('Erro ao baixar '+ficha.nome+': '+errUpd.message,true);}
         else{ await sb.from('estoque_movimentos').insert({ user_id:user.id,estoque_id:prod.id,produto_nome:ficha.nome, tipo:'saida_venda',quantidade:qtdVendida,saldo_apos:novaQtd, referencia:'#'+(pedido.pedido_id||sourceId), descricao:'Venda — pedido #'+(pedido.pedido_id||sourceId)+(pedido.cliente?' · '+pedido.cliente:'') }); } }
-      // Se não existe produto acabado cadastrado ainda, não cria — só alerta quando vender sem produção prévia }
+      // Se não existe produto acabado cadastrado ainda, não cria — só alerta quando vender sem produção prévia
+}
 
     if(semVinculo.length>0){ toast('⚠ Pedido #'+(pedido.pedido_id||'')+': sem vínculo de estoque para '+semVinculo.join(', '),true); }
 
