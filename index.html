@@ -2838,7 +2838,7 @@ function PedForm({uid,db,reload,close}){
 
 // ── ESTOQUE ──
 function Estoque({uid,db,reload,setM}){
-  const{estoque}=db;
+  const{estoque,fichas}=db;
   const[sec,setSec]=React.useState('Matéria-Prima');
   const[busca,setBusca]=React.useState('');
 
@@ -2853,15 +2853,24 @@ function Estoque({uid,db,reload,setM}){
 
   const items=React.useMemo(()=>{
     let r=(estoque||[]).filter(e=>e.categoria===sec);
+    // For cookies: merge fichas técnicas that don't have an estoque entry
+    if(sec==='Cookie'){
+      const nomesEstoque=new Set(r.map(e=>(e.nome||'').toLowerCase()));
+      (fichas||[]).forEach(f=>{
+        if(!nomesEstoque.has((f.nome||'').toLowerCase())){
+          r=[...r,{id:'ficha_'+f.id,nome:f.nome,categoria:'Cookie',qtd:0,unidade:'un',minimo:0,custo:0,_fromFicha:true}];
+        }
+      });
+    }
     if(busca)r=r.filter(e=>(e.nome||'').toLowerCase().includes(busca.toLowerCase()));
     return r;
-  },[estoque,sec,busca]);
+  },[estoque,fichas,sec,busca]);
 
   const secAtual=SECOES.find(s=>s.id===sec)||SECOES[0];
   const criticos=items.filter(e=>Number(e.qtd)<=Number(e.minimo)&&Number(e.minimo)>0);
 
   const novo=()=>setM({title:'+ '+secAtual.label,body:React.createElement(NovoEst,{uid,reload,catInicial:sec,close:()=>setM(null)})});
-  const editar=(e)=>setM({title:'✏ '+e.nome,body:React.createElement(NovoEst,{uid,reload,item:e,close:()=>setM(null)})});
+  const editar=(e)=>{if(e._fromFicha){toast('Item vem de Ficha Técnica. Crie um item de estoque para ele.',false,true);return;}setM({title:'✏ '+e.nome,body:React.createElement(NovoEst,{uid,reload,item:e,close:()=>setM(null)})});};
   const mov=(e)=>setM({title:'Movimentar — '+e.nome,body:React.createElement(MovEst,{id:e.id,db,reload,close:()=>setM(null),isAlmox:secAtual.almox})});
 
   return React.createElement(PW,{title:'Estoque',sub:'Controle de insumos, recheios, produtos e almoxarifado',
@@ -2870,7 +2879,9 @@ function Estoque({uid,db,reload,setM}){
     // Section cards grid 3x2
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:20}},
       SECOES.map(s=>{
-        const its=(estoque||[]).filter(e=>e.categoria===s.id);
+        const its=s.id==='Cookie'
+          ?[...(estoque||[]).filter(e=>e.categoria==='Cookie'),...(fichas||[]).filter(f=>!(estoque||[]).some(e=>e.categoria==='Cookie'&&(e.nome||'').toLowerCase()===(f.nome||'').toLowerCase())).map(f=>({nome:f.nome,qtd:0,minimo:0,custo:0}))]
+          :(estoque||[]).filter(e=>e.categoria===s.id);
         const crits=its.filter(e=>Number(e.qtd)<=Number(e.minimo)&&Number(e.minimo)>0);
         const val=its.reduce((sum,e)=>sum+(Number(e.qtd||0)*Number(e.custo||0)),0);
         const active=sec===s.id;
@@ -2920,7 +2931,10 @@ function Estoque({uid,db,reload,setM}){
               const st=Number(e.qtd)<=Number(e.minimo)&&Number(e.minimo)>0?'Crítico':diff<0?'Vencido':diff<30?'Vencendo':'OK';
               const stC=st==='Crítico'||st==='Vencido'?'red':st==='Vencendo'?'amber':'green';
               return React.createElement(TR,{key:e.id,onClick:()=>editar(e),cells:[
+                React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6}},
                 React.createElement('span',{style:{fontWeight:700,fontSize:13,color:'#111'}},e.nome),
+                e._fromFicha&&React.createElement('span',{style:{fontSize:9,background:'#fef3c7',color:'#92400e',borderRadius:4,padding:'1px 5px',fontWeight:700}},'Ficha')
+              ),
                 React.createElement('span',{style:{fontSize:12,color:'#888'}},e.unidade||'un'),
                 React.createElement('span',{style:{fontWeight:700,color:Number(e.qtd)<=Number(e.minimo)&&Number(e.minimo)>0?'#dc2626':'#111'}},e.qtd),
                 React.createElement('span',{style:{fontSize:12,color:'#aaa'}},e.minimo||'—'),
@@ -2929,8 +2943,8 @@ function Estoque({uid,db,reload,setM}){
                 React.createElement('span',{style:{fontWeight:600}},F(Number(e.qtd||0)*Number(e.custo||0))),
                 ...(sec!=='Cookie'?[React.createElement('span',{style:{fontSize:11,color:diff<30&&diff>=0?'#f59e0b':diff<0?'#dc2626':'#aaa'}},e.validade?FD(e.validade):'—')]:[]),
                 React.createElement('div',{style:{display:'flex',gap:4}},
-                React.createElement('button',{onClick:ev=>{ev.stopPropagation();mov(e);},style:{background:secAtual.almox?secAtual.cor:'#f5f5f5',color:secAtual.almox?'#fff':'#555',border:'none',borderRadius:7,padding:'4px 10px',fontSize:11,cursor:'pointer',fontWeight:600}},secAtual.almox?'Mov.':'Mover'),
-                React.createElement('button',{onClick:async ev=>{ev.stopPropagation();if(!confirm('Excluir '+e.nome+'?'))return;await sb.from('estoque').delete().eq('id',e.id);reload();},style:{background:'#fee2e2',color:'#dc2626',border:'none',borderRadius:7,padding:'4px 8px',fontSize:11,cursor:'pointer',fontWeight:600}},'✕')
+                React.createElement('button',{onClick:ev=>{ev.stopPropagation();if(e._fromFicha){toast('Adicione ao estoque primeiro',false,true);return;}mov(e);},style:{background:e._fromFicha?'#f5f5f5':secAtual.almox?secAtual.cor:'#f5f5f5',color:e._fromFicha?'#ccc':secAtual.almox?'#fff':'#555',border:'none',borderRadius:7,padding:'4px 10px',fontSize:11,cursor:e._fromFicha?'default':'pointer',fontWeight:600}},secAtual.almox?'Mov.':'Mover'),
+                !e._fromFicha&&React.createElement('button',{onClick:async ev=>{ev.stopPropagation();if(!confirm('Excluir '+e.nome+'?'))return;await sb.from('estoque').delete().eq('id',e.id);reload();},style:{background:'#fee2e2',color:'#dc2626',border:'none',borderRadius:7,padding:'4px 8px',fontSize:11,cursor:'pointer',fontWeight:600}},'✕')
               )
               ]});
             }),
