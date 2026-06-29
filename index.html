@@ -2920,7 +2920,7 @@ function Estoque({uid,db,reload,setM}){
               const st=Number(e.qtd)<=Number(e.minimo)&&Number(e.minimo)>0?'Crítico':diff<0?'Vencido':diff<30?'Vencendo':'OK';
               const stC=st==='Crítico'||st==='Vencido'?'red':st==='Vencendo'?'amber':'green';
               return React.createElement(TR,{key:e.id,onClick:()=>editar(e),cells:[
-                React.createElement('span',{style:{fontWeight:700,fontSize:13,color:secAtual.cor}},e.nome),
+                React.createElement('span',{style:{fontWeight:700,fontSize:13,color:'#111'}},e.nome),
                 React.createElement('span',{style:{fontSize:12,color:'#888'}},e.unidade||'un'),
                 React.createElement('span',{style:{fontWeight:700,color:Number(e.qtd)<=Number(e.minimo)&&Number(e.minimo)>0?'#dc2626':'#111'}},e.qtd),
                 React.createElement('span',{style:{fontSize:12,color:'#aaa'}},e.minimo||'—'),
@@ -2928,7 +2928,10 @@ function Estoque({uid,db,reload,setM}){
                 React.createElement('span',{style:{fontSize:12}},F(e.custo)),
                 React.createElement('span',{style:{fontWeight:600}},F(Number(e.qtd||0)*Number(e.custo||0))),
                 ...(sec!=='Cookie'?[React.createElement('span',{style:{fontSize:11,color:diff<30&&diff>=0?'#f59e0b':diff<0?'#dc2626':'#aaa'}},e.validade?FD(e.validade):'—')]:[]),
-                React.createElement('button',{onClick:ev=>{ev.stopPropagation();mov(e);},style:{background:secAtual.almox?secAtual.cor:'#f5f5f5',color:secAtual.almox?'#fff':'#555',border:'none',borderRadius:7,padding:'4px 10px',fontSize:11,cursor:'pointer',fontWeight:600}},secAtual.almox?'Entrada/Saída':'Mover')
+                React.createElement('div',{style:{display:'flex',gap:4}},
+                React.createElement('button',{onClick:ev=>{ev.stopPropagation();mov(e);},style:{background:secAtual.almox?secAtual.cor:'#f5f5f5',color:secAtual.almox?'#fff':'#555',border:'none',borderRadius:7,padding:'4px 10px',fontSize:11,cursor:'pointer',fontWeight:600}},secAtual.almox?'Mov.':'Mover'),
+                React.createElement('button',{onClick:async ev=>{ev.stopPropagation();if(!confirm('Excluir '+e.nome+'?'))return;await sb.from('estoque').delete().eq('id',e.id);reload();},style:{background:'#fee2e2',color:'#dc2626',border:'none',borderRadius:7,padding:'4px 8px',fontSize:11,cursor:'pointer',fontWeight:600}},'✕')
+              )
               ]});
             }),
             empty:'Nenhum item.'
@@ -2956,7 +2959,7 @@ function NovoEst({uid,reload,close,item,catInicial}){
   const[ld,setLd]=React.useState(false);
   const isEdit=!!item?.id;
 
-  const CATS=['Matéria-Prima','Recheio','Cookie','Embalagem','Material de Produção','Material de Limpeza','Produto Acabado','Outros'];
+  const CATS=['Matéria-Prima','Recheio','Cookie','Embalagem','Material de Produção','Material de Limpeza'];
   const UNIDS=['kg','g','L','ml','un','cx','pct','dz','m','cm'];
 
   // Recalcula custo/unidade automaticamente quando o valor pago ou a qtd por embalagem mudam
