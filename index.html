@@ -6326,14 +6326,23 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){
       const gid=uid_gen();
       for(let i=0;i<numParc;i++){
         const dt=advanceDate(venc,freqParc,i);
-        const dtCompP=advanceDate(competencia||venc,freqParc,i);
+        const dtCompP=competencia?advanceDate(competencia,freqParc,i):(()=>{
+          const[yr,mo,dy]=dt.split('-').map(Number);
+          const prev=new Date(yr,mo-1-1,dy);
+          return prev.getFullYear()+'-'+String(prev.getMonth()+1).padStart(2,'0')+'-'+String(prev.getDate()).padStart(2,'0');
+        })();
         rows.push({...base,data:dt,venc:dt,competencia:dtCompP,data_pag:i===0&&pago?dataPag:null,pago:i===0?pago:false,grupo_id:gid,parcela:(i+1)+'/'+numParc,descricao:desc+' ('+(i+1)+'/'+numParc+')'});
       }
     }else if(tipoLanc==='Recorrente'){
       const gid=uid_gen();
       for(let i=0;i<numRep;i++){
         const dt=advanceDate(venc,freqRec,i);
-        const dtComp=advanceDate(competencia||venc,freqRec,i);
+        // Competência: se definida pelo usuário, avança pelo mesmo freq; senão usa 1 período antes do venc
+        const dtComp=competencia?advanceDate(competencia,freqRec,i):(()=>{
+          const[yr,mo,dy]=dt.split('-').map(Number);
+          const prev=new Date(yr,mo-1-1,dy); // 1 mês antes
+          return prev.getFullYear()+'-'+String(prev.getMonth()+1).padStart(2,'0')+'-'+String(prev.getDate()).padStart(2,'0');
+        })();
         rows.push({...base,data:dt,venc:dt,competencia:dtComp,data_pag:i===0&&pago?dataPag:null,pago:i===0?pago:false,grupo_id:gid,recorrente:freqRec,parcela:(i+1)+'/'+numRep});
       }
     }else{
