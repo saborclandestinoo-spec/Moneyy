@@ -2043,7 +2043,11 @@ function FichaForm({uid,db,reload,close,ficha,setM}){ const[verHistorico,setVerH
   const prodAcabadoAtual=(estoque||[]).find(e=>e.nome===(ficha?.nome||'')&&e.categoria==='Cookie');
   const[estoqueInicial,setEstoqueInicial]=React.useState(prodAcabadoAtual?String(prodAcabadoAtual.estoque_inicial||0):'0');
 
-  React.useEffect(()=>{ if(ficha?.id){sb.from('ficha_ingredientes').select('*').eq('ficha_id',ficha.id).then(({data})=>setIngs((data||[]).map(i=>({...i,tipo:i.tipo||'Insumo'}))));} },[ficha?.id]);
+  React.useEffect(()=>{ if(ficha?.id){sb.from('ficha_ingredientes').select('*').eq('ficha_id',ficha.id).then(({data})=>setIngs((data||[]).map(i=>{
+    // Refresh custo_unit from live estoque
+    const est=i.estoque_id?(estoque||[]).find(e=>e.id===i.estoque_id):null;
+    return{...i,tipo:i.tipo||'Insumo',custo_unit:est?String(est.custo):String(i.custo_unit||0)};
+  })));} },[ficha?.id]);
 
   const TIPOS_ING=['Insumo','Recheio','Cobertura','Material de Produção'];
   const sugerirTipo=(estItem)=>{ if(!estItem)return 'Insumo';
@@ -2065,7 +2069,15 @@ function FichaForm({uid,db,reload,close,ficha,setM}){ const[verHistorico,setVerH
       arr.splice(toIdx,0,moved);
       return arr; }); };
 
-  const selecionarEstoque=(id,estoqueId)=>{ const item=(estoque||[]).find(e=>e.id===estoqueId);
+  const selecionarEstoque=(id,estoqueId)=>{
+    if(estoqueId&&estoqueId.startsWith('ficha_')){
+      // Recheio not yet in estoque — link by name, custo=0 until produced
+      const fichaId=estoqueId.replace('ficha_','');
+      const ficha=(db.fichas||[]).find(f=>f.id===fichaId);
+      if(ficha){ updIng(id,'nome',ficha.nome); updIng(id,'unidade',ficha.unidade_rendimento||'g');
+        updIng(id,'custo_unit','0'); updIng(id,'estoque_id',''); } return;
+    }
+    const item=(estoque||[]).find(e=>e.id===estoqueId);
     if(item){ updIng(id,'nome',item.nome);
       updIng(id,'unidade',item.unidade);
       updIng(id,'custo_unit',String(item.custo));
@@ -2171,13 +2183,23 @@ function FichaForm({uid,db,reload,close,ficha,setM}){ const[verHistorico,setVerH
                   background:draggedId&&draggedId!==ing.id?'#fafafa':'transparent',borderRadius:8,padding:'2px 0'}},
                 React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'center',height:38,color:'#ccc',fontSize:14,userSelect:'none'}},'⠿'),
                 React.createElement('div',{style:{minWidth:0}},
-                  React.createElement(CustomSelect,{label:'Do estoque',value:ing.estoque_id||'', onChange:v=>{if(v)selecionarEstoque(ing.id,v);else updIng(ing.id,'estoque_id','');}, options:[{v:'',l:'— Selecionar —'},...(estoque||[]).filter(e=>{
+                  React.createElement(CustomSelect,{label:'Do estoque',value:ing.estoque_id||'', onChange:v=>{if(v)selecionarEstoque(ing.id,v);else updIng(ing.id,'estoque_id','');}, options:(()=>{
                     const t=ing.tipo||'Insumo';
-                    if(t==='Recheio')return e.categoria==='Recheio';
-                    if(t==='Material de Produção')return e.categoria==='Material de Produção'||e.categoria==='Embalagem';
-                    if(t==='Cobertura')return e.categoria==='Matéria-Prima'||e.categoria==='Recheio';
-                    return e.categoria==='Matéria-Prima'; // Insumo default
-                  }).map(e=>({v:e.id,l:e.nome}))], acent:cor }),
+                    let items=(estoque||[]).filter(e=>{
+                      if(t==='Recheio')return e.categoria==='Recheio';
+                      if(t==='Material de Produção')return e.categoria==='Material de Produção'||e.categoria==='Embalagem';
+                      if(t==='Cobertura')return e.categoria==='Matéria-Prima'||e.categoria==='Recheio';
+                      return e.categoria==='Matéria-Prima';
+                    }).map(e=>({v:e.id,l:e.nome,custo:e.custo,unidade:e.unidade}));
+                    // Recheio: also include fichas with categoria='Recheio' not yet in estoque
+                    if(t==='Recheio'){
+                      const estNomes=new Set(items.map(e=>e.l.toLowerCase()));
+                      const fichOpts=(db.fichas||[]).filter(f=>f.categoria==='Recheio'&&!estNomes.has((f.nome||'').toLowerCase()))
+                        .map(f=>({v:'ficha_'+f.id,l:f.nome+'  (sem estoque)',custo:0,unidade:f.unidade_rendimento||'g'}));
+                      items=[...items,...fichOpts];
+                    }
+                    return [{v:'',l:'— Selecionar —'},...items];
+                  })(), acent:cor }),
                   !ing.estoque_id&&React.createElement(FloatInput,{label:'Ou nome manual',acent:cor,value:ing.nome,onChange:e=>updIng(ing.id,'nome',e.target.value)})
                 ),
                 React.createElement(FloatInput,{label:'Qtd',acent:!ing.quantidade?'#dc2626':cor,type:'number',value:ing.quantidade,onChange:e=>updIng(ing.id,'quantidade',e.target.value)}),
