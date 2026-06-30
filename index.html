@@ -2208,8 +2208,20 @@ function AnaliseVendas({uid,db,reload,setM}){
   const chartW=W-padL-padR, chartH=H-padT-padB;
   const xAt=i=>padL+(i/(Math.max(1,diasPeriodo-1)))*chartW;
   const yAt=v=>padT+chartH-(v/maxVal)*chartH;
-  const lineAtual=pontos.map((p,i)=>`${i===0?'M':'L'}${xAt(i)},${yAt(p.atual)}`).join(' ');
-  const lineAnt=pontos.map((p,i)=>`${i===0?'M':'L'}${xAt(i)},${yAt(p.anterior)}`).join(' ');
+  const smoothPath=(vals)=>{
+    const pts=vals.map((v,i)=>[xAt(i),yAt(v)]);
+    if(pts.length<2)return pts.length===1?`M${pts[0][0]},${pts[0][1]}`:'';
+    let d=`M${pts[0][0]},${pts[0][1]}`;
+    for(let i=0;i<pts.length-1;i++){
+      const p0=pts[i===0?0:i-1], p1=pts[i], p2=pts[i+1], p3=pts[i+2===pts.length+1?i+1:Math.min(i+2,pts.length-1)];
+      const cp1x=p1[0]+(p2[0]-p0[0])/6, cp1y=p1[1]+(p2[1]-p0[1])/6;
+      const cp2x=p2[0]-(p3[0]-p1[0])/6, cp2y=p2[1]-(p3[1]-p1[1])/6;
+      d+=` C${cp1x},${cp1y} ${cp2x},${cp2y} ${p2[0]},${p2[1]}`;
+    }
+    return d;
+  };
+  const lineAtual=smoothPath(pontos.map(p=>p.atual));
+  const lineAnt=smoothPath(pontos.map(p=>p.anterior));
   const areaAtual=lineAtual+` L${xAt(diasPeriodo-1)},${padT+chartH} L${xAt(0)},${padT+chartH} Z`;
 
   const yTicks=5;
@@ -2246,7 +2258,8 @@ function AnaliseVendas({uid,db,reload,setM}){
         ),
         pontos.every(p=>p.atual===0&&p.anterior===0)
           ?React.createElement('div',{style:{textAlign:'center',color:'#ccc',padding:60}},'Sem vendas no período')
-          :React.createElement('svg',{viewBox:`0 0 ${W} ${H}`,style:{width:'100%',height:260,overflow:'visible'}},
+          :React.createElement('div',{style:{position:'relative'}},
+          React.createElement('svg',{viewBox:`0 0 ${W} ${H}`,style:{width:'100%',height:260,overflow:'visible'}},
               // Y grid + labels
               yLabels.map((v,i)=>React.createElement('g',{key:i},
                 React.createElement('line',{x1:padL,x2:W-padR,y1:yAt(v),y2:yAt(v),stroke:'#f0f0f0',strokeWidth:1}),
@@ -2266,15 +2279,20 @@ function AnaliseVendas({uid,db,reload,setM}){
               )),
               // X labels (every few days)
               pontos.filter((p,i)=>i%Math.ceil(diasPeriodo/10)===0||i===diasPeriodo-1).map(p=>React.createElement('text',{key:p.idx,x:xAt(p.idx),y:H-8,fontSize:9,fill:'#aaa',textAnchor:'middle'},FD(p.dia).slice(0,5))),
-              // Tooltip
-              hoverIdx!==null&&React.createElement('g',null,
-                React.createElement('line',{x1:xAt(hoverIdx),x2:xAt(hoverIdx),y1:padT,y2:padT+chartH,stroke:'#ccc',strokeWidth:1,strokeDasharray:'3,3'}),
-                React.createElement('rect',{x:Math.min(xAt(hoverIdx)+8,W-160),y:padT+10,width:150,height:50,rx:8,fill:'#1e293b'}),
-                React.createElement('text',{x:Math.min(xAt(hoverIdx)+18,W-150),y:padT+28,fontSize:10,fill:'#93c5fd'},FD(pontos[hoverIdx].dia)),
-                React.createElement('text',{x:Math.min(xAt(hoverIdx)+18,W-150),y:padT+42,fontSize:11,fill:'#fff',fontWeight:700},'Atual: '+F(pontos[hoverIdx].atual)),
-                React.createElement('text',{x:Math.min(xAt(hoverIdx)+18,W-150),y:padT+54,fontSize:10,fill:'#fbbf24'},'Ant.: '+F(pontos[hoverIdx].anterior))
-              )
+              hoverIdx!==null&&React.createElement('line',{x1:xAt(hoverIdx),x2:xAt(hoverIdx),y1:padT,y2:padT+chartH,stroke:'#ccc',strokeWidth:1,strokeDasharray:'3,3'})
+            ),
+          hoverIdx!==null&&React.createElement('div',{style:{
+            position:'absolute',left:(xAt(hoverIdx)/W*100)+'%',top:Math.max(0,(yAt(pontos[hoverIdx].atual)/H*100)-22)+'%',
+            transform:'translate(8px,0)',background:'#1e293b',borderRadius:10,padding:'10px 14px',
+            pointerEvents:'none',whiteSpace:'nowrap',boxShadow:'0 4px 12px rgba(0,0,0,0.25)',zIndex:10
+          }},
+            React.createElement('div',{style:{color:'#fff',fontWeight:800,fontSize:13,marginBottom:6}},FD(pontos[hoverIdx].dia)),
+            React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#fff'}},
+              React.createElement('span',{style:{width:10,height:10,borderRadius:2,background:'#2563eb',display:'inline-block'}}),
+              'Faturamento: '+F(pontos[hoverIdx].atual)
             )
+          )
+      )
       ),
 
       aba==='produtos'&&React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
