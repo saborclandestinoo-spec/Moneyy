@@ -1246,7 +1246,7 @@ function PedHistorico({uid,db,reload,setM}){
     if(busca){const b=busca.toLowerCase();r=r.filter(p=>(p.cliente||'').toLowerCase().includes(b)||(p.pedido_id||'').includes(b)||(p.raw&&p.raw.delivery_address&&(p.raw.delivery_address.street||'').toLowerCase().includes(b)));}
     return r.sort((a,b)=>(b.data_pedido||'').localeCompare(a.data_pedido||'')); },[pedidosCwLocal,fil,busca]);
 
-  const total=list.reduce((s,p)=>s+Number(p.total||0),0);
+  const total=list.filter(p=>!isPedCancelado(p)).reduce((s,p)=>s+Number(p.total||0),0);
   const entregues=list.filter(p=>p.status==='delivered'||p.status==='closed').length;
 
   // Sincroniza um dia específico via edge function
