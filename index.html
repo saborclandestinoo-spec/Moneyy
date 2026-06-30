@@ -1709,10 +1709,10 @@ function Estoque({uid,db,reload,setM}){ const{estoque,fichas,ficha_ingredientes}
       return s+(parseFloat(i.quantidade||0)*parseFloat(est?.custo||i.custo_unit||0)); },0); };
 
   const items=React.useMemo(()=>{ if(sec==='Cookie'){ // Mescla fichas técnicas + itens de estoque soltos (sem ficha)
-      const fromFichas=(fichas||[]).filter(f=>!busca||(f.nome||'').toLowerCase().includes(busca.toLowerCase())).map(f=>{ const est=(estoque||[]).find(e=>e.categoria==='Cookie'&&(e.nome||'').toLowerCase()===(f.nome||'').toLowerCase());
+      const fromFichas=(fichas||[]).filter(f=>f.categoria!=='Recheio'&&(!busca||(f.nome||'').toLowerCase().includes(busca.toLowerCase()))).map(f=>{ const est=(estoque||[]).find(e=>e.categoria==='Cookie'&&(e.nome||'').toLowerCase()===(f.nome||'').toLowerCase());
         const custo=calcCustoFicha(f.id);
         return{...f,_fichaId:f.id,id:est?.id||'f_'+f.id,qtd:est?.qtd||0,unidade:'un',minimo:est?.minimo||0,custo,validade:null,_isFromFicha:!est}; });
-      const nomesComFicha=new Set((fichas||[]).map(f=>(f.nome||'').toLowerCase()));
+      const nomesComFicha=new Set((fichas||[]).filter(f=>f.categoria!=='Recheio').map(f=>(f.nome||'').toLowerCase()));
       const soltos=(estoque||[]).filter(e=>e.categoria==='Cookie'&&!nomesComFicha.has((e.nome||'').toLowerCase())&&(!busca||(e.nome||'').toLowerCase().includes(busca.toLowerCase())));
       return[...fromFichas,...soltos]; }
     // Recheios also show fichas_tecnicas with categoria='Recheio'
