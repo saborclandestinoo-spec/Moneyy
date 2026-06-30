@@ -1911,7 +1911,7 @@ function FichasTecnicas({uid,db,reload,setM}){ const{fichas,estoque}=db;
           React.createElement('button',{style:{background:'#dc2626',color:'#fff',padding:'10px 20px',borderRadius:10,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:nova},isRecheio?'Criar primeiro recheio':'Criar primeira ficha')
         )
       :React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
-          React.createElement(Tbl,{cols:isRecheio?['Recheio','Rendimento','Custo Total','Custo/Un','Qtd em Estoque']:['Produto','Categoria','Custo Unit','Custo Total','Preço Venda','Lucro Unit','Margem','Receita Pot.','Status'],
+          React.createElement(Tbl,{cols:isRecheio?['Recheio','Rendimento','Custo Total','Custo/Un','Qtd em Estoque']:['Produto','Estoque','Categoria','Custo Unit','Custo Total','Preço Venda','Lucro Unit','Margem','Receita Pot.','Status'],
             rows:list.map(f=>{
               const ings=ingredientesPorFicha[f.id]||[];
               const custoTotalIng=ings.reduce((s,i)=>s+Number(i.quantidade||0)*Number(i.custo_unit||0),0);
@@ -1940,8 +1940,8 @@ function FichasTecnicas({uid,db,reload,setM}){ const{fichas,estoque}=db;
               const semVinculo=!f.nome_cw&&!f.nome_ifood;
               return React.createElement(TR,{key:f.id,onClick:()=>editar(f),cells:[
                 React.createElement('div',null,React.createElement('div',{style:{fontWeight:700,fontSize:13,color:'#111'}},f.nome_cw||f.nome),f.nome_cw&&React.createElement('div',{style:{fontSize:10,color:'#aaa'}},f.nome)),
+                React.createElement('span',{style:{fontWeight:800,fontSize:13,color:qtdEstoque===0?'#aaa':'#111'}},qtdEstoque+' un'),
                 React.createElement('span',{style:{fontSize:11,background:'#f5f5f5',color:'#666',padding:'3px 9px',borderRadius:20}},(f.categoria||'—').toUpperCase()),
-                React.createElement('span',{style:{fontWeight:800,fontSize:13,color:qtdEstoque===0?'#aaa':'#111'}},qtdEstoque),
                 React.createElement('span',{style:{fontSize:12}},F(custoUnit)),
                 React.createElement('span',{style:{fontSize:12,fontWeight:700,color:'#555'}},F(custoTotalEst)),
                 React.createElement('span',{style:{fontSize:12,fontWeight:700}},precoVenda>0?F(precoVenda):'—'),
