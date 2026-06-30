@@ -2198,7 +2198,7 @@ function AnaliseVendas({uid,db,reload,setM}){
     if(chartRef.current)chartRef.current.destroy();
     const ctx=canvasRef.current.getContext('2d');
     chartRef.current=new Chart(ctx,{type:'line',data:{labels,datasets:[
-      {label:'Faturamento '+mesNome,data:dataAtual,borderColor:'rgba(220,38,38,.85)',backgroundColor:'rgba(220,38,38,.08)',fill:true,tension:.4,pointRadius:3,pointBackgroundColor:'rgba(220,38,38,.9)',borderWidth:2},
+      {label:'Faturamento '+mesNome,data:dataAtual,borderColor:'rgba(37,99,235,.85)',backgroundColor:'rgba(37,99,235,.08)',fill:true,tension:.4,pointRadius:3,pointBackgroundColor:'rgba(37,99,235,.9)',borderWidth:2},
       {label:'Faturamento '+mesNomeAnt,data:dataAnterior,borderColor:'rgba(250,180,80,.8)',backgroundColor:'rgba(250,180,80,.05)',fill:true,tension:.4,pointRadius:3,pointBackgroundColor:'rgba(250,180,80,.9)',borderWidth:2,borderDash:[4,3]}
     ]},options:{responsive:true,maintainAspectRatio:false,
       plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.dataset.label+': '+F(c.parsed.y)}}},
@@ -2241,7 +2241,7 @@ function AnaliseVendas({uid,db,reload,setM}){
       ),
       React.createElement('div',{style:{height:380}},React.createElement('canvas',{ref:canvasRef})),
       React.createElement('div',{style:{display:'flex',gap:24,marginTop:14,fontSize:12}},
-        React.createElement('span',{style:{display:'flex',alignItems:'center',gap:6}},React.createElement('span',{style:{width:12,height:12,borderRadius:'50%',background:'rgba(220,38,38,.85)',display:'inline-block'}}),'Faturamento por dia ('+mesNome+')'),
+        React.createElement('span',{style:{display:'flex',alignItems:'center',gap:6}},React.createElement('span',{style:{width:12,height:12,borderRadius:'50%',background:'rgba(37,99,235,.85)',display:'inline-block'}}),'Faturamento por dia ('+mesNome+')'),
         React.createElement('span',{style:{display:'flex',alignItems:'center',gap:6}},React.createElement('span',{style:{width:12,height:12,borderRadius:'50%',background:'rgba(250,180,80,.8)',display:'inline-block'}}),'Faturamento por dia ('+mesNomeAnt+')')
       )
     )
