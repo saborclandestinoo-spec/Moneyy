@@ -2207,7 +2207,7 @@ function AnaliseVendas({uid,db,reload,setM}){
   const totalValProd=porProduto.reduce((s,p)=>s+p.valor,0);
 
   // SVG line chart geometry
-  const W=900,H=260,padL=60,padR=20,padT=20,padB=30;
+  const W=1400,H=380,padL=60,padR=20,padT=20,padB=30;
   const chartW=W-padL-padR, chartH=H-padT-padB;
   const xAt=i=>padL+(i/(Math.max(1,diasPeriodo-1)))*chartW;
   const yAt=v=>padT+chartH-(v/maxVal)*chartH;
@@ -2270,7 +2270,7 @@ function AnaliseVendas({uid,db,reload,setM}){
         pontos.every(p=>p.atual===0&&p.anterior===0)
           ?React.createElement('div',{style:{textAlign:'center',color:'#ccc',padding:60}},'Sem vendas no período')
           :React.createElement('div',{style:{position:'relative'}},
-          React.createElement('svg',{viewBox:`0 0 ${W} ${H}`,preserveAspectRatio:'none',style:{width:'100%',height:260,display:'block'}},
+          React.createElement('svg',{viewBox:`0 0 ${W} ${H}`,preserveAspectRatio:'none',style:{width:'100%',height:380,display:'block'}},
               // Y grid + labels
               yLabels.map((v,i)=>React.createElement('g',{key:i},
                 React.createElement('line',{x1:padL,x2:W-padR,y1:yAt(v),y2:yAt(v),stroke:'#f0f0f0',strokeWidth:1}),
@@ -2279,13 +2279,11 @@ function AnaliseVendas({uid,db,reload,setM}){
               // Area fill (current)
               React.createElement('path',{d:areaAtual,fill:'#2563eb',opacity:0.08}),
               // Previous period line (dashed orange)
-              React.createElement('path',{d:lineAnt,fill:'none',stroke:'#f59e0b',strokeWidth:2,strokeDasharray:'5,4'}),
-              // Current period line (solid blue)
-              React.createElement('path',{d:lineAtual,fill:'none',stroke:'#2563eb',strokeWidth:2.5}),
+                            // Current period line (solid blue)
+              React.createElement('path',{d:lineAtual,fill:'none',stroke:'#2563eb',strokeWidth:1.5,strokeLinejoin:'round',strokeLinecap:'round'}),
               // Dots
               pontos.map((p,i)=>React.createElement('g',{key:i},
-                React.createElement('circle',{cx:xAt(i),cy:yAt(p.anterior),r:3,fill:'#f59e0b'}),
-                React.createElement('circle',{cx:xAt(i),cy:yAt(p.atual),r:3.5,fill:'#2563eb'}),
+                React.createElement('circle',{cx:xAt(i),cy:yAt(p.atual),r:2.5,fill:'#2563eb'}),
                 React.createElement('rect',{x:xAt(i)-(chartW/diasPeriodo)/2,y:padT,width:chartW/diasPeriodo,height:chartH,fill:'transparent',onMouseEnter:()=>setHoverIdx(i),onMouseLeave:()=>setHoverIdx(null)})
               )),
               // X labels (every few days)
@@ -2304,8 +2302,7 @@ function AnaliseVendas({uid,db,reload,setM}){
             )
           ),
         React.createElement('div',{style:{display:'flex',gap:24,marginTop:14,fontSize:12,paddingLeft:padL}},
-          React.createElement('span',{style:{display:'flex',alignItems:'center',gap:6}},React.createElement('span',{style:{width:10,height:10,borderRadius:'50%',background:'#2563eb',display:'inline-block'}}),'Faturamento por dia ('+FD(dtIni).slice(3)+')'),
-          React.createElement('span',{style:{display:'flex',alignItems:'center',gap:6}},React.createElement('span',{style:{width:10,height:10,borderRadius:'50%',background:'#f59e0b',display:'inline-block'}}),'Faturamento por dia ('+FD(dtIniAnt).slice(3)+')')
+          React.createElement('span',{style:{display:'flex',alignItems:'center',gap:6}},React.createElement('span',{style:{width:10,height:10,borderRadius:'50%',background:'#2563eb',display:'inline-block'}}),'Faturamento por dia')
         )
       )
       ),
