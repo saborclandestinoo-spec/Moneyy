@@ -1883,6 +1883,15 @@ function FichaForm({uid,db,reload,close,ficha,setM}){ const[verHistorico,setVerH
 
   const updIng=(id,k,v)=>setIngs(p=>p.map(i=>i.id===id?{...i,[k]:v}:i));
   const delIng=(id)=>setIngs(p=>p.filter(i=>i.id!==id));
+  const[draggedId,setDraggedId]=React.useState(null);
+  const moveIng=(fromId,toId)=>{ if(fromId===toId)return;
+    setIngs(p=>{ const arr=[...p];
+      const fromIdx=arr.findIndex(i=>i.id===fromId);
+      const toIdx=arr.findIndex(i=>i.id===toId);
+      if(fromIdx===-1||toIdx===-1)return p;
+      const[moved]=arr.splice(fromIdx,1);
+      arr.splice(toIdx,0,moved);
+      return arr; }); };
 
   const selecionarEstoque=(id,estoqueId)=>{ const item=(estoque||[]).find(e=>e.id===estoqueId);
     if(item){ updIng(id,'nome',item.nome);
@@ -1979,7 +1988,16 @@ function FichaForm({uid,db,reload,close,ficha,setM}){ const[verHistorico,setVerH
           ),
           grupo.length===0
             ?React.createElement('div',{style:{fontSize:11,color:'#ddd',paddingLeft:4,marginBottom:4}},'Nenhum item')
-            :grupo.map(ing=>React.createElement('div',{key:ing.id,style:{display:'grid',gridTemplateColumns:'2.5fr 1fr 1fr 1fr 1fr auto',gap:8,marginBottom:8,alignItems:'start'}},
+            :grupo.map(ing=>React.createElement('div',{key:ing.id,
+                draggable:true,
+                onDragStart:e=>{setDraggedId(ing.id);e.dataTransfer.effectAllowed='move';},
+                onDragOver:e=>e.preventDefault(),
+                onDrop:e=>{e.preventDefault();if(draggedId)moveIng(draggedId,ing.id);setDraggedId(null);},
+                onDragEnd:()=>setDraggedId(null),
+                style:{display:'grid',gridTemplateColumns:'20px 2.5fr 1fr 1fr 1fr 1fr auto',gap:8,marginBottom:8,alignItems:'start',
+                  opacity:draggedId===ing.id?0.4:1,cursor:'grab',
+                  background:draggedId&&draggedId!==ing.id?'#fafafa':'transparent',borderRadius:8,padding:'2px 0'}},
+                React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'center',height:38,color:'#ccc',fontSize:14,userSelect:'none'}},'⠿'),
                 React.createElement('div',null,
                   React.createElement(CustomSelect,{label:'Do estoque',value:ing.estoque_id||'', onChange:v=>{if(v)selecionarEstoque(ing.id,v);else updIng(ing.id,'estoque_id','');}, options:[{v:'',l:'— Selecionar —'},...(estoque||[]).filter(e=>e.categoria!=='Cookie').map(e=>({v:e.id,l:e.nome}))], acent:cor }),
                   !ing.estoque_id&&React.createElement(FloatInput,{label:'Ou nome manual',acent:cor,value:ing.nome,onChange:e=>updIng(ing.id,'nome',e.target.value)})
