@@ -2275,7 +2275,8 @@ function AnaliseProdutos({uid,db,reload,setM}){
   const porProduto=React.useMemo(()=>{ const g={};
     naoCancelados.forEach(p=>{ const itens=((p.raw&&p.raw.items)||p.itens||[]).filter(it=>!isCancelledItem(it));
       itens.forEach(it=>{ const nome=it.name||it.nome||'Sem nome'; const qtd=Number(it.quantity||1);
-        const valor=Number(it.total_price||it.price||0)*qtd;
+        const precoUnit=Number(it.price||it.unit_price||0);
+        const valor=precoUnit*qtd;
         if(!g[nome])g[nome]={qtd:0,valor:0};
         g[nome].qtd+=qtd; g[nome].valor+=valor; }); });
     return Object.entries(g).map(([nome,v])=>({nome,...v})).sort((a,b)=>b.valor-a.valor); },[naoCancelados]);
