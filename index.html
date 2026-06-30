@@ -1704,9 +1704,14 @@ function Estoque({uid,db,reload,setM}){ const{estoque,fichas,ficha_ingredientes}
     {id:'Matéria-Prima',label:'Matérias Primas',desc:'Ingredientes e insumos brutos',cor:'#b45309',almox:false}, {id:'Recheio',label:'Recheios',desc:'Recheios produzidos ou comprados',cor:'#7c3aed',almox:false}, {id:'Cookie',label:'Cookies',desc:'Produtos acabados prontos para venda',cor:'#dc2626',almox:false}, {id:'Embalagem',label:'Embalagens',desc:'Caixas, saquinhos e materiais de embalagem',cor:'#0284c7',almox:false}, {id:'Material de Produção',label:'Mat. de Produção',desc:'Almoxarifado — entradas e saídas de produção',cor:'#059669',almox:true}, {id:'Material de Limpeza',label:'Mat. de Limpeza',desc:'Almoxarifado — higiene e limpeza',cor:'#0891b2',almox:true}, ];
 
   // Calculate cost from ficha ingredients
-  const calcCustoFicha=(fichaId)=>{ const ings=(ficha_ingredientes||[]).filter(i=>i.ficha_id===fichaId);
-    return ings.reduce((s,i)=>{ const est=(estoque||[]).find(e=>e.id===i.estoque_id||e.nome===i.nome);
-      return s+(parseFloat(i.quantidade||0)*parseFloat(est?.custo||i.custo_unit||0)); },0); };
+  const calcCustoFicha=(fichaId)=>{
+    const ings=(ficha_ingredientes||[]).filter(i=>i.ficha_id===fichaId);
+    const total=ings.reduce((s,i)=>{ const est=(estoque||[]).find(e=>e.id===i.estoque_id||e.nome===i.nome);
+      return s+(parseFloat(i.quantidade||0)*parseFloat(est?.custo||i.custo_unit||0)); },0);
+    const f=(fichas||[]).find(x=>x.id===fichaId);
+    const rend=Number(f?.rendimento||1);
+    return rend>0?total/rend:total;
+  };
 
   const items=React.useMemo(()=>{ if(sec==='Cookie'){ // Mescla fichas técnicas + itens de estoque soltos (sem ficha)
       const fromFichas=(fichas||[]).filter(f=>f.categoria!=='Recheio'&&(!busca||(f.nome||'').toLowerCase().includes(busca.toLowerCase()))).map(f=>{ const est=(estoque||[]).find(e=>e.categoria==='Cookie'&&(e.nome||'').toLowerCase()===(f.nome||'').toLowerCase());
@@ -1775,7 +1780,7 @@ function Estoque({uid,db,reload,setM}){ const{estoque,fichas,ficha_ingredientes}
     ), // Table
     React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}}, items.length===0
         ? React.createElement('div',{style:{padding:'40px',textAlign:'center',color:'#ccc',fontSize:13}},'Nenhum item em '+secAtual.label)
-        : React.createElement(Tbl,{ cols:['Nome','Unid.','Qtd','Mínimo','Status','Custo Unit.','Val. Total',...(sec!=='Cookie'?['Validade']:[]),''], rows:items.map(e=>{ const diff=e.validade?Math.ceil((new Date(e.validade)-new Date())/86400000):999;
+        : React.createElement(Tbl,{ cols:['Nome','Unid.','Qtd em estoque','Mínimo','Status','Custo/Un','Val. Total',...(sec!=='Cookie'?['Validade']:[]),''], rows:items.map(e=>{ const diff=e.validade?Math.ceil((new Date(e.validade)-new Date())/86400000):999;
               const st=Number(e.qtd)<=Number(e.minimo)&&Number(e.minimo)>0?'Crítico':diff<0?'Vencido':diff<30?'Vencendo':'OK';
               const stC=st==='Crítico'||st==='Vencido'?'red':st==='Vencendo'?'amber':'green';
               return React.createElement(TR,{key:e.id,onClick:()=>editar(e),cells:[
