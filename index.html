@@ -1216,20 +1216,35 @@ function PedCaixa({uid,db,setDb,reload,setM}){ const{pedidos_cw,lancamentos,cont
   );
 }
 
-function PedHistorico({uid,db,reload,setM}){ const{pedidos_cw}=db;
+function PedHistorico({uid,db,reload,setM}){
   const[busca,setBusca]=React.useState('');
   const[fil,setFil]=React.useState('');
   const[dtIni,setDtIni]=React.useState(()=>{const d=new Date();d.setDate(d.getDate()-30);return d.toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});});
   const[dtFim,setDtFim]=React.useState(TODAY());
   const[syncing,setSyncing]=React.useState(false);
   const[syncMsg,setSyncMsg]=React.useState('');
+  const[pedidosCwLocal,setPedidosCwLocal]=React.useState([]);
+  const[loadingList,setLoadingList]=React.useState(false);
 
-  const list=React.useMemo(()=>{ let r=pedidos_cw||[];
-    if(dtIni)r=r.filter(p=>(p.data_pedido||'')>=dtIni);
-    if(dtFim)r=r.filter(p=>(p.data_pedido||'')<=dtFim);
+  // Busca direto do banco pelo período selecionado, paginado (sem limite de 200)
+  React.useEffect(()=>{ let cancelado=false;
+    const buscar=async()=>{ setLoadingList(true);
+      let all=[]; let from=0; const pageSize=1000;
+      while(true){ const{data,error}=await sb.from('pedidos_cw').select('*').eq('user_id',uid)
+          .gte('data_pedido',dtIni).lte('data_pedido',dtFim)
+          .order('data_pedido',{ascending:false}).range(from,from+pageSize-1);
+        if(error||!data||data.length===0)break;
+        all=all.concat(data);
+        if(data.length<pageSize)break;
+        from+=pageSize; }
+      if(!cancelado){setPedidosCwLocal(all);setLoadingList(false);} };
+    buscar();
+    return()=>{cancelado=true;}; },[uid,dtIni,dtFim]);
+
+  const list=React.useMemo(()=>{ let r=pedidosCwLocal||[];
     if(fil)r=r.filter(p=>p.status===fil);
     if(busca){const b=busca.toLowerCase();r=r.filter(p=>(p.cliente||'').toLowerCase().includes(b)||(p.pedido_id||'').includes(b)||(p.raw&&p.raw.delivery_address&&(p.raw.delivery_address.street||'').toLowerCase().includes(b)));}
-    return r.sort((a,b)=>(b.data_pedido||'').localeCompare(a.data_pedido||'')); },[pedidos_cw,dtIni,dtFim,fil,busca]);
+    return r.sort((a,b)=>(b.data_pedido||'').localeCompare(a.data_pedido||'')); },[pedidosCwLocal,fil,busca]);
 
   const total=list.reduce((s,p)=>s+Number(p.total||0),0);
   const entregues=list.filter(p=>p.status==='delivered'||p.status==='closed').length;
@@ -1243,10 +1258,9 @@ function PedHistorico({uid,db,reload,setM}){ const{pedidos_cw}=db;
       const res=await fetch(EDGE+'?token='+encodeURIComponent(token)+'&uid='+uid+'&date='+data);
       const json=await res.json();
       setSyncMsg((json.total||0)+' pedidos em '+FD(data));
-      // Atualiza db
-      const{data:novPed}=await sb.from('pedidos_cw').select('*').eq('user_id',uid).order('data_pedido',{ascending:false}).limit(500);
-      if(novPed)setDb&&setDb(p=>({...p,pedidos_cw:novPed}));
-      else reload(); }catch(e){setSyncMsg('Erro: '+e.message);toast('Erro ao sincronizar',true);}
+      // Re-busca o período local (não depende do limite global)
+      const{data:novPed}=await sb.from('pedidos_cw').select('*').eq('user_id',uid).gte('data_pedido',dtIni).lte('data_pedido',dtFim).order('data_pedido',{ascending:false});
+      if(novPed)setPedidosCwLocal(novPed); }catch(e){setSyncMsg('Erro: '+e.message);toast('Erro ao sincronizar',true);}
     setSyncing(false); };
 
   // Sincroniza todo o período selecionado (dia a dia)
@@ -1269,7 +1283,8 @@ function PedHistorico({uid,db,reload,setM}){ const{pedidos_cw}=db;
 }
     setSyncMsg(totalPed+' pedidos sincronizados!');
     toast(totalPed+' pedidos importados!',false,true);
-    reload();
+    const{data:novPed2}=await sb.from('pedidos_cw').select('*').eq('user_id',uid).gte('data_pedido',dtIni).lte('data_pedido',dtFim).order('data_pedido',{ascending:false});
+    if(novPed2)setPedidosCwLocal(novPed2);
     setSyncing(false); };
 
   return React.createElement(PW,{title:'Histórico de Pedidos',sub:'Busque e sincronize pedidos de qualquer período', actions:[
