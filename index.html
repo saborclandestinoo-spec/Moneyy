@@ -1560,7 +1560,7 @@ function Estoque({uid,db,reload,setM}){ const{estoque,fichas,ficha_ingredientes}
   // Calculate cost from ficha ingredients
   const calcCustoFicha=(fichaId)=>{ const ings=(ficha_ingredientes||[]).filter(i=>i.ficha_id===fichaId);
     return ings.reduce((s,i)=>{ const est=(estoque||[]).find(e=>e.id===i.estoque_id||e.nome===i.nome);
-      return s+(parseFloat(i.quantidade||0)*parseFloat(est?.custo||i.custo_unitario||0)); },0); };
+      return s+(parseFloat(i.quantidade||0)*parseFloat(est?.custo||i.custo_unit||0)); },0); };
 
   const items=React.useMemo(()=>{ if(sec==='Cookie'){ // Mescla fichas técnicas + itens de estoque soltos (sem ficha)
       const fromFichas=(fichas||[]).filter(f=>!busca||(f.nome||'').toLowerCase().includes(busca.toLowerCase())).map(f=>{ const est=(estoque||[]).find(e=>e.categoria==='Cookie'&&(e.nome||'').toLowerCase()===(f.nome||'').toLowerCase());
@@ -2365,7 +2365,7 @@ function AnaliseProdutos({uid,db,reload,setM}){
     if(!f)return 0;
     const ings=(ficha_ingredientes||[]).filter(i=>i.ficha_id===f.id);
     return ings.reduce((s,i)=>{ const est=(estoque||[]).find(e=>e.id===i.estoque_id||e.nome===i.nome);
-      return s+(parseFloat(i.quantidade||0)*parseFloat(est?.custo||i.custo_unitario||0)); },0);
+      return s+(parseFloat(i.quantidade||0)*parseFloat(est?.custo||i.custo_unit||0)); },0);
   };
 
   const porProduto=React.useMemo(()=>{ const g={};
