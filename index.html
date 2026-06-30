@@ -223,7 +223,7 @@ const FIN_SUBS=[
 ];
 const FIN_PAGES=new Set(FIN_SUBS.map(s=>s.id));
 const DESEMP_SUBS=[
-  {id:'fin_dre',l:'DRE'}, {id:'fin_balanco',l:'Balanço Patrimonial'}, {id:'analise_vendas',l:'Análise de Vendas'},
+  {id:'fin_dre',l:'DRE'}, {id:'fin_balanco',l:'Balanço Patrimonial'}, {id:'analise_vendas',l:'Análise de Vendas'}, {id:'analise_produtos',l:'Análise de Produtos'},
 ];
 const DESEMP_PAGES=new Set(DESEMP_SUBS.map(s=>s.id));
 
@@ -2145,9 +2145,7 @@ function AnaliseVendas({uid,db,reload,setM}){
   const[pedidos,setPedidos]=React.useState([]);
   const[pedidosAnt,setPedidosAnt]=React.useState([]);
   const[loading,setLoading]=React.useState(false);
-  const[aba,setAba]=React.useState('vendas');
 
-  // Período anterior (mesmo número de dias, imediatamente antes)
   const diasPeriodo=Math.round((new Date(dtFim)-new Date(dtIni))/86400000)+1;
   const dtIniAnt=(()=>{const d=new Date(dtIni+'T12:00:00');d.setDate(d.getDate()-diasPeriodo);return d.toLocaleDateString('sv-SE');})();
   const dtFimAnt=(()=>{const d=new Date(dtIni+'T12:00:00');d.setDate(d.getDate()-1);return d.toLocaleDateString('sv-SE');})();
@@ -2179,34 +2177,19 @@ function AnaliseVendas({uid,db,reload,setM}){
   const varPed=naoCanceladosAnt.length>0?((naoCancelados.length-naoCanceladosAnt.length)/naoCanceladosAnt.length*100):0;
   const varTicket=ticketMedioAnt>0?((ticketMedio-ticketMedioAnt)/ticketMedioAnt*100):0;
 
-  // Group by day-index (1,2,3...) for current and previous period
   const porDiaIdx=(lista,iniStr)=>{ const g={}; const ini=new Date(iniStr+'T12:00:00');
     lista.forEach(p=>{ const d=new Date(p.data_pedido+'T12:00:00'); const idx=Math.round((d-ini)/86400000);
       g[idx]=(g[idx]||0)+Number(p.total||0); });
     return g; };
   const gAtual=porDiaIdx(naoCancelados,dtIni);
-  const gAnt=porDiaIdx(naoCanceladosAnt,dtIniAnt);
   const pontos=Array.from({length:diasPeriodo},(_,i)=>({
     idx:i,
     dia:(()=>{const d=new Date(dtIni+'T12:00:00');d.setDate(d.getDate()+i);return d.toLocaleDateString('sv-SE');})(),
-    atual:gAtual[i]||0, anterior:gAnt[i]||0
+    atual:gAtual[i]||0
   }));
 
-  const maxVal=Math.max(...pontos.map(p=>Math.max(p.atual,p.anterior)),1);
+  const maxVal=Math.max(...pontos.map(p=>p.atual),1);
 
-  // Product analysis from raw.items
-  const porProduto=React.useMemo(()=>{ const g={};
-    naoCancelados.forEach(p=>{ const itens=((p.raw&&p.raw.items)||p.itens||[]).filter(it=>!isCancelledItem(it));
-      itens.forEach(it=>{ const nome=it.name||it.nome||'Sem nome'; const qtd=Number(it.quantity||1);
-        const valor=Number(it.total_price||it.price||0)*qtd;
-        if(!g[nome])g[nome]={qtd:0,valor:0};
-        g[nome].qtd+=qtd; g[nome].valor+=valor; }); });
-    return Object.entries(g).map(([nome,v])=>({nome,...v})).sort((a,b)=>b.valor-a.valor); },[naoCancelados]);
-
-  const totalQtdProd=porProduto.reduce((s,p)=>s+p.qtd,0);
-  const totalValProd=porProduto.reduce((s,p)=>s+p.valor,0);
-
-  // SVG line chart geometry
   const W=1400,H=380,padL=60,padR=20,padT=20,padB=30;
   const chartW=W-padL-padR, chartH=H-padT-padB;
   const xAt=i=>padL+(i/(Math.max(1,diasPeriodo-1)))*chartW;
@@ -2216,7 +2199,7 @@ function AnaliseVendas({uid,db,reload,setM}){
     if(pts.length<2)return pts.length===1?`M${pts[0][0]},${pts[0][1]}`:'';
     let d=`M${pts[0][0]},${pts[0][1]}`;
     for(let i=0;i<pts.length-1;i++){
-      const p0=pts[i===0?0:i-1], p1=pts[i], p2=pts[i+1], p3=pts[i+2===pts.length+1?i+1:Math.min(i+2,pts.length-1)];
+      const p0=pts[i===0?0:i-1], p1=pts[i], p2=pts[i+1], p3=pts[Math.min(i+2,pts.length-1)];
       const cp1x=p1[0]+(p2[0]-p0[0])/6, cp1y=p1[1]+(p2[1]-p0[1])/6;
       const cp2x=p2[0]-(p3[0]-p1[0])/6, cp2y=p2[1]-(p3[1]-p1[1])/6;
       d+=` C${cp1x},${cp1y} ${cp2x},${cp2y} ${p2[0]},${p2[1]}`;
@@ -2224,72 +2207,66 @@ function AnaliseVendas({uid,db,reload,setM}){
     return d;
   };
   const lineAtual=smoothPath(pontos.map(p=>p.atual));
-  const lineAnt=smoothPath(pontos.map(p=>p.anterior));
   const areaAtual=lineAtual+` L${xAt(diasPeriodo-1)},${padT+chartH} L${xAt(0)},${padT+chartH} Z`;
 
   const yTicks=5;
   const yLabels=Array.from({length:yTicks+1},(_,i)=>Math.round(maxVal*i/yTicks));
-
   const[hoverIdx,setHoverIdx]=React.useState(null);
 
-  return React.createElement(PW,{title:'Análise de Vendas',sub:'Faturamento, ticket médio e produtos mais vendidos',
+  return React.createElement(PW,{title:'Análise de Vendas',sub:'Faturamento por dia',
     actions:[React.createElement(DateRangePicker,{key:'dr',dtIni,dtFim,onChangeDtIni:setDtIni,onChangeDtFim:setDtFim,openRight:true})]},
 
     loading&&React.createElement('div',{style:{textAlign:'center',padding:30,color:'#ccc'}},'Carregando...'),
 
-    !loading&&React.createElement(React.Fragment,null,
-      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:20}},
-        React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'16px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
-          React.createElement('div',{style:{fontSize:11,color:'#aaa',fontWeight:600,marginBottom:6}},'Faturamento'),
+    !loading&&React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'20px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+      // KPIs row inline at the top of the chart card
+      React.createElement('div',{style:{display:'flex',gap:40,marginBottom:20,flexWrap:'wrap'}},
+        React.createElement('div',null,
+          React.createElement('div',{style:{fontSize:11,color:'#aaa',fontWeight:600,marginBottom:4}},'Faturamento'),
           React.createElement('div',{style:{display:'flex',alignItems:'baseline',gap:8}},
-            React.createElement('span',{style:{fontSize:22,fontWeight:800,color:'#111'}},F(faturamentoTotal)),
+            React.createElement('span',{style:{fontSize:24,fontWeight:800,color:'#111'}},F(faturamentoTotal)),
             React.createElement('span',{style:{fontSize:12,fontWeight:700,color:varFat>=0?'#16a34a':'#dc2626'}},(varFat>=0?'↑ ':'↓ ')+Math.abs(varFat).toFixed(1)+'%')
           )
         ),
-        React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'16px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
-          React.createElement('div',{style:{fontSize:11,color:'#aaa',fontWeight:600,marginBottom:6}},'Pedidos'),
+        React.createElement('div',null,
+          React.createElement('div',{style:{fontSize:11,color:'#aaa',fontWeight:600,marginBottom:4}},'Pedidos'),
           React.createElement('div',{style:{display:'flex',alignItems:'baseline',gap:8}},
-            React.createElement('span',{style:{fontSize:22,fontWeight:800,color:'#111'}},naoCancelados.length),
+            React.createElement('span',{style:{fontSize:24,fontWeight:800,color:'#111'}},naoCancelados.length),
             React.createElement('span',{style:{fontSize:12,fontWeight:700,color:varPed>=0?'#16a34a':'#dc2626'}},(varPed>=0?'↑ ':'↓ ')+Math.abs(varPed).toFixed(1)+'%')
           )
         ),
-        React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'16px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
-          React.createElement('div',{style:{fontSize:11,color:'#aaa',fontWeight:600,marginBottom:6}},'Ticket médio'),
+        React.createElement('div',null,
+          React.createElement('div',{style:{fontSize:11,color:'#aaa',fontWeight:600,marginBottom:4}},'Ticket médio'),
           React.createElement('div',{style:{display:'flex',alignItems:'baseline',gap:8}},
-            React.createElement('span',{style:{fontSize:22,fontWeight:800,color:'#111'}},F(ticketMedio)),
+            React.createElement('span',{style:{fontSize:24,fontWeight:800,color:'#111'}},F(ticketMedio)),
             React.createElement('span',{style:{fontSize:12,fontWeight:700,color:varTicket>=0?'#16a34a':'#dc2626'}},(varTicket>=0?'↑ ':'↓ ')+Math.abs(varTicket).toFixed(1)+'%')
           )
         )
       ),
 
-      React.createElement('div',{style:{display:'flex',gap:8,marginBottom:16}},
-        ['vendas','produtos'].map(t=>React.createElement('button',{key:t,onClick:()=>setAba(t),style:{padding:'8px 18px',borderRadius:10,border:'none',cursor:'pointer',fontWeight:700,fontSize:13,background:aba===t?'#dc2626':'#f5f5f5',color:aba===t?'#fff':'#666'}},t==='vendas'?'Vendas por dia':'Análise de produtos'))
-      ),
-
-      aba==='vendas'&&React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'20px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
-        pontos.every(p=>p.atual===0&&p.anterior===0)
-          ?React.createElement('div',{style:{textAlign:'center',color:'#ccc',padding:60}},'Sem vendas no período')
-          :React.createElement('div',{style:{position:'relative'}},
+      pontos.every(p=>p.atual===0)
+        ?React.createElement('div',{style:{textAlign:'center',color:'#ccc',padding:60}},'Sem vendas no período')
+        :React.createElement('div',{style:{position:'relative'}},
           React.createElement('svg',{viewBox:`0 0 ${W} ${H}`,preserveAspectRatio:'none',style:{width:'100%',height:380,display:'block'}},
-              // Y grid + labels
-              yLabels.map((v,i)=>React.createElement('g',{key:i},
-                React.createElement('line',{x1:padL,x2:W-padR,y1:yAt(v),y2:yAt(v),stroke:'#f0f0f0',strokeWidth:1}),
-                React.createElement('text',{x:padL-8,y:yAt(v)+4,fontSize:10,fill:'#aaa',textAnchor:'end'},F(v))
-              )),
-              // Area fill (current)
-              React.createElement('path',{d:areaAtual,fill:'#2563eb',opacity:0.08}),
-              // Previous period line (dashed orange)
-                            // Current period line (solid blue)
-              React.createElement('path',{d:lineAtual,fill:'none',stroke:'#2563eb',strokeWidth:1.5,strokeLinejoin:'round',strokeLinecap:'round'}),
-              // Dots
-              pontos.map((p,i)=>React.createElement('g',{key:i},
-                React.createElement('circle',{cx:xAt(i),cy:yAt(p.atual),r:2.5,fill:'#2563eb'}),
-                React.createElement('rect',{x:xAt(i)-(chartW/diasPeriodo)/2,y:padT,width:chartW/diasPeriodo,height:chartH,fill:'transparent',onMouseEnter:()=>setHoverIdx(i),onMouseLeave:()=>setHoverIdx(null)})
-              )),
-              // X labels (every few days)
-              pontos.map(p=>React.createElement('text',{key:p.idx,x:xAt(p.idx),y:H-8,fontSize:8,fill:'#aaa',textAnchor:'middle'},FD(p.dia).slice(0,2))),
-              hoverIdx!==null&&React.createElement('line',{x1:xAt(hoverIdx),x2:xAt(hoverIdx),y1:padT,y2:padT+chartH,stroke:'#ccc',strokeWidth:1,strokeDasharray:'3,3'})
+            React.createElement('defs',null,
+              React.createElement('linearGradient',{id:'gradAv',x1:'0',y1:'0',x2:'0',y2:'1'},
+                React.createElement('stop',{offset:'0%',stopColor:'#2563eb',stopOpacity:0.25}),
+                React.createElement('stop',{offset:'100%',stopColor:'#2563eb',stopOpacity:0.02})
+              )
             ),
+            yLabels.map((v,i)=>React.createElement('g',{key:i},
+              React.createElement('line',{x1:padL,x2:W-padR,y1:yAt(v),y2:yAt(v),stroke:'#f0f0f0',strokeWidth:1}),
+              React.createElement('text',{x:padL-8,y:yAt(v)+4,fontSize:10,fill:'#aaa',textAnchor:'end'},F(v))
+            )),
+            React.createElement('path',{d:areaAtual,fill:'url(#gradAv)'}),
+            React.createElement('path',{d:lineAtual,fill:'none',stroke:'#2563eb',strokeWidth:2.5,strokeLinejoin:'round',strokeLinecap:'round'}),
+            pontos.map((p,i)=>React.createElement('g',{key:i},
+              React.createElement('circle',{cx:xAt(i),cy:yAt(p.atual),r:2,fill:'#2563eb'}),
+              React.createElement('rect',{x:xAt(i)-(chartW/diasPeriodo)/2,y:padT,width:chartW/diasPeriodo,height:chartH,fill:'transparent',onMouseEnter:()=>setHoverIdx(i),onMouseLeave:()=>setHoverIdx(null)})
+            )),
+            pontos.map(p=>React.createElement('text',{key:p.idx,x:xAt(p.idx),y:H-8,fontSize:8,fill:'#aaa',textAnchor:'middle'},FD(p.dia).slice(0,2))),
+            hoverIdx!==null&&React.createElement('line',{x1:xAt(hoverIdx),x2:xAt(hoverIdx),y1:padT,y2:padT+chartH,stroke:'#ccc',strokeWidth:1,strokeDasharray:'3,3'})
+          ),
           hoverIdx!==null&&React.createElement('div',{style:{
             position:'absolute',left:(xAt(hoverIdx)/W*100)+'%',top:Math.max(0,(yAt(pontos[hoverIdx].atual)/H*100)-22)+'%',
             transform:'translate(8px,0)',background:'#1e293b',borderRadius:10,padding:'10px 14px',
@@ -2300,21 +2277,62 @@ function AnaliseVendas({uid,db,reload,setM}){
               React.createElement('span',{style:{width:10,height:10,borderRadius:2,background:'#2563eb',display:'inline-block'}}),
               'Faturamento: '+F(pontos[hoverIdx].atual)
             )
-          ),
-        React.createElement('div',{style:{display:'flex',gap:24,marginTop:14,fontSize:12,paddingLeft:padL}},
-          React.createElement('span',{style:{display:'flex',alignItems:'center',gap:6}},React.createElement('span',{style:{width:10,height:10,borderRadius:'50%',background:'#2563eb',display:'inline-block'}}),'Faturamento por dia')
+          )
         )
-      )
-      ),
+    )
+  );
+}
 
-      aba==='produtos'&&React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
-        porProduto.length===0
+function AnaliseProdutos({uid,db,reload,setM}){
+  const hoje=TODAY();
+  const[dtIni,setDtIni]=React.useState(()=>{const d=new Date();d.setDate(1);return d.toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});});
+  const[dtFim,setDtFim]=React.useState(hoje);
+  const[pedidos,setPedidos]=React.useState([]);
+  const[loading,setLoading]=React.useState(false);
+  const[busca,setBusca]=React.useState('');
+
+  React.useEffect(()=>{ let cancelado=false;
+    const buscar=async()=>{ setLoading(true);
+      let all=[]; let from=0; const pageSize=1000;
+      while(true){ const{data,error}=await sb.from('pedidos_cw').select('*').eq('user_id',uid)
+          .gte('data_pedido',dtIni).lte('data_pedido',dtFim).order('data_pedido',{ascending:true}).range(from,from+pageSize-1);
+        if(error||!data||data.length===0)break;
+        all=all.concat(data);
+        if(data.length<pageSize)break;
+        from+=pageSize; }
+      if(!cancelado){setPedidos(all);setLoading(false);} };
+    buscar();
+    return()=>{cancelado=true;}; },[uid,dtIni,dtFim]);
+
+  const naoCancelados=React.useMemo(()=>pedidos.filter(p=>!isPedCancelado(p)),[pedidos]);
+
+  const porProduto=React.useMemo(()=>{ const g={};
+    naoCancelados.forEach(p=>{ const itens=((p.raw&&p.raw.items)||p.itens||[]).filter(it=>!isCancelledItem(it));
+      itens.forEach(it=>{ const nome=it.name||it.nome||'Sem nome'; const qtd=Number(it.quantity||1);
+        const valor=Number(it.total_price||it.price||0)*qtd;
+        if(!g[nome])g[nome]={qtd:0,valor:0};
+        g[nome].qtd+=qtd; g[nome].valor+=valor; }); });
+    return Object.entries(g).map(([nome,v])=>({nome,...v})).sort((a,b)=>b.valor-a.valor); },[naoCancelados]);
+
+  const listFiltrada=busca?porProduto.filter(p=>p.nome.toLowerCase().includes(busca.toLowerCase())):porProduto;
+  const totalQtdProd=listFiltrada.reduce((s,p)=>s+p.qtd,0);
+  const totalValProd=listFiltrada.reduce((s,p)=>s+p.valor,0);
+
+  return React.createElement(PW,{title:'Análise de Produtos',sub:'Quantidade vendida e faturamento por produto',
+    actions:[React.createElement(DateRangePicker,{key:'dr',dtIni,dtFim,onChangeDtIni:setDtIni,onChangeDtFim:setDtFim,openRight:true})]},
+
+    loading&&React.createElement('div',{style:{textAlign:'center',padding:30,color:'#ccc'}},'Carregando...'),
+
+    !loading&&React.createElement(React.Fragment,null,
+      React.createElement('input',{placeholder:'Buscar produto...',value:busca,onChange:e=>setBusca(e.target.value),style:{background:'#f5f5f5',border:'none',borderRadius:9,padding:'9px 14px',fontSize:13,color:'#111',outline:'none',width:260,marginBottom:14}}),
+      React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+        listFiltrada.length===0
           ?React.createElement('div',{style:{textAlign:'center',color:'#ccc',padding:30}},'Sem produtos no período')
           :React.createElement(Tbl,{
               cols:['Produto','Qtd vendida','% Qtd','Faturamento','% Fat','Preço médio'],
               rows:[
                 ['TOTAL',totalQtdProd,'100%',F(totalValProd),'100%',F(totalQtdProd>0?totalValProd/totalQtdProd:0)],
-                ...porProduto.map(p=>[p.nome,p.qtd,((p.qtd/totalQtdProd)*100).toFixed(1)+'%',F(p.valor),((p.valor/totalValProd)*100).toFixed(1)+'%',F(p.qtd>0?p.valor/p.qtd:0)])
+                ...listFiltrada.map(p=>[p.nome,p.qtd,((p.qtd/totalQtdProd)*100).toFixed(1)+'%',F(p.valor),((p.valor/totalValProd)*100).toFixed(1)+'%',F(p.qtd>0?p.valor/p.qtd:0)])
               ].map((r,i)=>React.createElement(TR,{key:i,cells:r.map((c,j)=>React.createElement('span',{style:{fontWeight:i===0?800:j===0?600:400,fontSize:12,color:i===0?'#111':j===0?'#111':'#555'}},c))}))
             })
       )
@@ -4324,7 +4342,7 @@ function App(){ const[user,setUser]=useState(null);const[page,setPage]=useState(
   const uid=user.id;
   const PAGES={ pedidos:()=>React.createElement(PedidosCW,{uid,db,setDb,reload,setM:setModal,cfg,setCfg}), ped_historico:()=>React.createElement(PedHistorico,{uid,db,reload,setM:setModal}), ped_mesas:()=>React.createElement(PedMesas,{uid,db,reload,setM:setModal}), ped_kds:()=>React.createElement(PedKDS,{uid,db,reload,setM:setModal}), ped_caixa:()=>React.createElement(PedCaixa,{uid,db,setDb,reload:async()=>{await refreshCaixas(uid);await refreshLanc(uid);},setM:setModal}), ped_entregas:()=>React.createElement(PedEntregas,{uid,db,reload,setM:setModal}), estoque:()=>React.createElement(Estoque,{uid,db,reload:async()=>{const{data}=await sb.from('estoque').select('*').eq('user_id',uid).order('nome');if(data)setDb(p=>({...p,estoque:data}));},setM:setModal}), fichas:()=>React.createElement(FichasTecnicas,{uid,db,reload:async()=>{ const{data}=await sb.from('fichas_tecnicas').select('*').eq('user_id',uid).order('nome');
       if(data)setDb(p=>({...p,fichas:data}));
-      await refreshEstoque(uid); },setM:setModal}), producao_hist:()=>React.createElement(ProducaoHistorico,{uid,db,reload,setM:setModal}), producao_plan:()=>React.createElement(PlanejamentoProducao,{uid,db,reload,setM:setModal}), fin_visao:()=>React.createElement(FinVisao,{uid,db,reload,setM:setModal}), fin_dre:()=>React.createElement(FinDRE,{uid,db,reload,setM:setModal}), fin_balanco:()=>React.createElement(FinBalanco,{uid,db,reload,setM:setModal}), analise_vendas:()=>React.createElement(AnaliseVendas,{uid,db,reload,setM:setModal}), fin_lancamentos:()=>React.createElement(FinLancamentos,{uid,db,reload,setM:setModal,refreshLanc:()=>refreshLanc(uid),refreshContas:()=>refreshContas(uid),refreshEstoque:()=>refreshEstoque(uid)}), fin_receber:()=>React.createElement(FinReceber,{uid,db,reload,setM:setModal}), fin_pagar:()=>React.createElement(FinPagar,{uid,db,reload,setM:setModal}), fin_movs:()=>React.createElement(FinMovs,{uid,db,reload,setM:setModal}), fin_contas:()=>React.createElement(FinContas,{uid,db,reload:()=>refreshContas(uid),setM:setModal}), fin_categorias:()=>React.createElement(FinCategorias,{uid,db,reload:()=>refreshCategorias(uid),setM:setModal}), fin_centros:()=>React.createElement(FinCentros,{uid,db,reload:()=>refreshCentros(uid),setM:setModal}), fin_formas:()=>React.createElement(FinFormas,{uid,db,reload:()=>refreshFormasPag(uid),setM:setModal}), imp_config:()=>React.createElement(ImpressaoConfig,{uid}), };
+      await refreshEstoque(uid); },setM:setModal}), producao_hist:()=>React.createElement(ProducaoHistorico,{uid,db,reload,setM:setModal}), producao_plan:()=>React.createElement(PlanejamentoProducao,{uid,db,reload,setM:setModal}), fin_visao:()=>React.createElement(FinVisao,{uid,db,reload,setM:setModal}), fin_dre:()=>React.createElement(FinDRE,{uid,db,reload,setM:setModal}), fin_balanco:()=>React.createElement(FinBalanco,{uid,db,reload,setM:setModal}), analise_vendas:()=>React.createElement(AnaliseVendas,{uid,db,reload,setM:setModal}), analise_produtos:()=>React.createElement(AnaliseProdutos,{uid,db,reload,setM:setModal}), fin_lancamentos:()=>React.createElement(FinLancamentos,{uid,db,reload,setM:setModal,refreshLanc:()=>refreshLanc(uid),refreshContas:()=>refreshContas(uid),refreshEstoque:()=>refreshEstoque(uid)}), fin_receber:()=>React.createElement(FinReceber,{uid,db,reload,setM:setModal}), fin_pagar:()=>React.createElement(FinPagar,{uid,db,reload,setM:setModal}), fin_movs:()=>React.createElement(FinMovs,{uid,db,reload,setM:setModal}), fin_contas:()=>React.createElement(FinContas,{uid,db,reload:()=>refreshContas(uid),setM:setModal}), fin_categorias:()=>React.createElement(FinCategorias,{uid,db,reload:()=>refreshCategorias(uid),setM:setModal}), fin_centros:()=>React.createElement(FinCentros,{uid,db,reload:()=>refreshCentros(uid),setM:setModal}), fin_formas:()=>React.createElement(FinFormas,{uid,db,reload:()=>refreshFormasPag(uid),setM:setModal}), imp_config:()=>React.createElement(ImpressaoConfig,{uid}), };
   const PC=PAGES[page]||PAGES.pedidos;
 
   return React.createElement(React.Fragment,null, React.createElement('div',{style:{display:'flex',height:'100vh',background:'#f4f4f5',overflow:'hidden'}}, React.createElement(Sidebar,{page,setPage,user,logout,col,setCol}), React.createElement('main',{style:{flex:1,overflow:'auto',background:'#f4f4f5'}},PC())
