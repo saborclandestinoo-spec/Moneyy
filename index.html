@@ -869,11 +869,11 @@ function CaixaReport({uid,caixa,db}){ const{contas,formas_pag}=db;
 
   if(pedidosDia===null)return React.createElement('div',{style:{padding:'40px',textAlign:'center',color:'#aaa'}},'Carregando relatório...');
 
-  const pedNaoCancelados=pedidosDia.filter(p=>p.status!=='canceled');
+  const pedNaoCancelados=pedidosDia.filter(p=>!isPedCancelado(p));
   const pedIfood=pedNaoCancelados.filter(p=>p.canal==='ifood');
   const pedDelivery=pedNaoCancelados.filter(p=>p.raw&&p.raw.order_type==='delivery'&&p.canal!=='ifood');
   const pedRetirada=pedNaoCancelados.filter(p=>p.raw&&p.raw.order_type!=='delivery'&&p.canal!=='ifood');
-  const pedCancelados=pedidosDia.filter(p=>p.status==='canceled');
+  const pedCancelados=pedidosDia.filter(p=>isPedCancelado(p));
 
   const agruparPag=(lista,excluirIfoodOnline=false)=>{ const g={};
     lista.forEach(p=>{(p.pagamentos||[]).forEach(pg=>{ const k=(pg.payment_method||'').toLowerCase();
@@ -994,11 +994,11 @@ function PedCaixa({uid,db,setDb,reload,setM}){ const{pedidos_cw,lancamentos,cont
     if(r.created_at)return new Date(r.created_at).toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'})===dataCaixa;
     return false; });
 
-  const pedNaoCancelados=pedidosHoje.filter(p=>p.status!=='canceled');
+  const pedNaoCancelados=pedidosHoje.filter(p=>!isPedCancelado(p));
   const pedIfood=pedNaoCancelados.filter(p=>p.canal==='ifood');
   const pedDelivery=pedNaoCancelados.filter(p=>p.raw&&p.raw.order_type==='delivery'&&p.canal!=='ifood');
   const pedRetirada=pedNaoCancelados.filter(p=>p.raw&&p.raw.order_type!=='delivery'&&p.canal!=='ifood');
-  const pedCancelados=pedidosHoje.filter(p=>p.status==='canceled');
+  const pedCancelados=pedidosHoje.filter(p=>isPedCancelado(p));
   const pedAtivos=pedidosHoje.filter(p=>!['canceled','closed','delivered'].includes(p.status));
 
   const agruparPag=(lista,excluirIfoodOnline=false)=>{const g={};lista.forEach(p=>{(p.pagamentos||[]).forEach(pg=>{const k=(pg.payment_method||'').toLowerCase();const isOnline=pg.payment_type==='online';if(excluirIfoodOnline&&k==='ifood'&&isOnline)return;if(excluirIfoodOnline&&k==='online_credit_card')return;if(k==='ifood'&&isOnline)return;const n=PM_MAP_CW[k]||k;g[n]=(g[n]||0)+Number(pg.value||pg.total||0);});});return g;};
@@ -1071,7 +1071,7 @@ function PedCaixa({uid,db,setDb,reload,setM}){ const{pedidos_cw,lancamentos,cont
     setLd(false);
     const _seen=new Set((_p1||[]).map(p=>p.id));
     const pedsDia=[...(_p1||[]),...(_p2||[]).filter(p=>!_seen.has(p.id))];
-    const pedNaoCancDia=(pedsDia||[]).filter(p=>p.status!=='canceled');
+    const pedNaoCancDia=(pedsDia||[]).filter(p=>!isPedCancelado(p));
     // vendasPrincipais = todos (incluindo ifood) para exibição no modal
     const vP={};
     pedNaoCancDia.forEach(p=>{ (p.pagamentos||[]).forEach(pg=>{ const k=(pg.payment_method||'').toLowerCase();
@@ -1182,7 +1182,7 @@ function PedCaixa({uid,db,setDb,reload,setM}){ const{pedidos_cw,lancamentos,cont
         return dt===c.data; };
       const todosDia=todos.filter(matchDia);
       // Inclui TODOS os entregues (iFood marketplace também) - o payment_method separa iFood Online dos cartões
-      const pedEntregues=todosDia.filter(p=>p.status!=='canceled'&&(p.status==='delivered'||p.status==='closed'));
+      const pedEntregues=todosDia.filter(p=>!isPedCancelado(p)&&(p.status==='delivered'||p.status==='closed'));
       if(!pedEntregues.length){toast('Nenhum pedido entregue em '+FD(c.data)+'. Buscados: '+todos.length+', Dia: '+todosDia.length,true);return;}
       await sb.from('lancamentos').delete().eq('user_id',uid).eq('data',c.data).eq('obs','consolidado_cw');
       const grupos={};
@@ -1296,7 +1296,7 @@ function PedHistorico({uid,db,reload,setM}){
         )
       )
     ), // Stats
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:16}}, React.createElement(SC,{label:'Pedidos',val:list.length}), React.createElement(SC,{label:'Entregues',val:entregues,color:'#16a34a'}), React.createElement(SC,{label:'Cancelados',val:list.filter(p=>p.status==='canceled').length,color:'#dc2626'}), React.createElement(SC,{label:'Faturamento',val:F(total),color:'#dc2626'})
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:16}}, React.createElement(SC,{label:'Pedidos',val:list.length}), React.createElement(SC,{label:'Entregues',val:entregues,color:'#16a34a'}), React.createElement(SC,{label:'Cancelados',val:list.filter(p=>isPedCancelado(p)).length,color:'#dc2626'}), React.createElement(SC,{label:'Faturamento',val:F(total),color:'#dc2626'})
     ), // Tabela
     React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}}, React.createElement(Tbl,{cols:['Data','Nº','Cliente','Pagamento','Total','Canal','Status'], rows:list.map(p=>{ const pags=p.pagamentos||[];
           const pagNome=pags.length?(PM_MAP_CW[(pags[0].payment_method||'').toLowerCase()]||pags[0].payment_method||'—'):'—';
@@ -1331,13 +1331,13 @@ function PedidosCW({uid,db,setDb,reload,setM,cfg,setCfg}){ const{pedidos_cw,cont
     list.forEach(p=>{ c.total++;
       if(['confirmed','released','ready','waiting_to_catch','scheduled_confirmed','waiting_confirmation'].includes(p.status))c.confirmados++;
       if(p.status==='delivered'||p.status==='closed')c.entregues++;
-      if(p.status==='canceled')c.cancelados++;
+      if(isPedCancelado(p))c.cancelados++;
       // Faturamento = todos exceto cancelados
-      if(p.status!=='canceled')c.faturamento+=Number(p.total||0);
+      if(!isPedCancelado(p))c.faturamento+=Number(p.total||0);
       // Cookies = todos exceto cancelados
-      if(p.status!=='canceled'){ const itens=((p.raw&&p.raw.items)||p.itens||[]).filter(it=>it.status!=='canceled'&&it.status!=='cancelled'&&it.status!=='CANCELLED'&&!it.cancelled&&Number(it.quantity||0)>0);
+      if(!isPedCancelado(p)){ const itens=((p.raw&&p.raw.items)||p.itens||[]).filter(it=>it.status!=='canceled'&&it.status!=='cancelled'&&it.status!=='CANCELLED'&&!it.cancelled&&Number(it.quantity||0)>0);
         itens.forEach(it=>c.cookies+=Number(it.quantity||it.qty||1)); } });
-    const pedNaoCancelados=list.filter(p=>p.status!=='canceled');
+    const pedNaoCancelados=list.filter(p=>!isPedCancelado(p));
     c.ticketMedio=pedNaoCancelados.length>0?c.faturamento/pedNaoCancelados.length:0;
     return c; },[list]);
 
@@ -1418,7 +1418,7 @@ function PedidoCWDetalhe({p,contas,formas_pag,uid,reload,close}){ const raw=p.ra
   const pags=p.pagamentos||raw.payments||[];
   const itens=raw.items||p.itens||[];
   const statusLabel=CW_STATUS[p.status]||p.status||'—';
-  const stC=p.status==='delivered'||p.status==='closed'?'green':p.status==='canceled'?'red':['confirmed','ready','released'].includes(p.status)?'blue':'amber';
+  const stC=p.status==='delivered'||p.status==='closed'?'green':isPedCancelado(p)?'red':['confirmed','ready','released'].includes(p.status)?'blue':'amber';
   const dtFmt=raw.created_at?new Date(raw.created_at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'}):'—';
   const addr=raw.delivery_address||{};
   const addrStr=[addr.street,addr.number,addr.complement,addr.neighborhood,addr.city,addr.state].filter(Boolean).join(', ');
@@ -2519,6 +2519,7 @@ function advanceDate(base,freq,i){ const[yr0,mo0,dy0]=base.split('-').map(Number
   const n=new Date(yr,mo,dy);
   return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0');
 }
+const isPedCancelado=(p)=>{const s=(p.status||'').toLowerCase();return s==='canceled'||s==='cancelled'||s==='cancel';};
 const uid_gen=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
 
 function exportarLancamentos(list, contas, dtIni, dtFim){ const rows = list.map(l => ({ 'Data':          l.data||'', 'Vencimento':    l.venc||'', 'Tipo':          l.tipo||'', 'Descricao':     l.descricao||'', 'Categoria':     l.categoria||'', 'Conta':         (contas||[]).find(c=>c.id===l.conta_id)&&(contas||[]).find(c=>c.id===l.conta_id).nome||'', 'Forma Pagto':   l.forma_pag||'', 'Valor':         Number(l.valor||0), 'Pago':          l.pago?'Sim':'Nao', 'Data Pagto':    l.data_pag||'', 'Parcela':       l.parcela||'', 'Obs':           l.obs||'', }));
