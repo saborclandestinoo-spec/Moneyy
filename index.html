@@ -1891,6 +1891,10 @@ function FichasTecnicas({uid,db,reload,setM}){ const{fichas,estoque}=db;
     :setM({title:f.nome,wide:true,body:React.createElement(FichaForm,{uid,db,reload,ficha:f,setM,close:()=>setM(null)})});
 
   const[ingredientesPorFicha,setIngredientesPorFicha]=React.useState({});
+  const[draggedFichaId,setDraggedFichaId]=React.useState(null);
+  const[ordem,setOrdem]=React.useState(null); // null = use fichas order
+  const listaOrdenada=React.useMemo(()=>{ if(!ordem)return list; const m=Object.fromEntries(list.map((f,i)=>[f.id,i])); return [...list].sort((a,b)=>(ordem.indexOf(a.id)-ordem.indexOf(b.id))); },[list,ordem]);
+  const moveFicha=(fromId,toId)=>{ setOrdem(p=>{ const base=p||(list.map(f=>f.id)); const arr=[...base]; const fi=arr.indexOf(fromId),ti=arr.indexOf(toId); if(fi===-1||ti===-1)return p; const[m]=arr.splice(fi,1); arr.splice(ti,0,m); return arr; }); };
   React.useEffect(()=>{ if(!list.length)return;
     sb.from('ficha_ingredientes').select('*').in('ficha_id',list.map(f=>f.id)).then(({data})=>{ const map={};
       (data||[]).forEach(i=>{if(!map[i.ficha_id])map[i.ficha_id]=[];map[i.ficha_id].push(i);});
@@ -1912,7 +1916,7 @@ function FichasTecnicas({uid,db,reload,setM}){ const{fichas,estoque}=db;
         )
       :React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
           React.createElement(Tbl,{cols:isRecheio?['Recheio','Rendimento','Custo Total','Custo/Un','Qtd em Estoque']:['Produto','Estoque','Categoria','Custo Unit','Custo Total','Preço Venda','Lucro Unit','Margem','Receita Pot.','Status'],
-            rows:list.map(f=>{
+            rows:listaOrdenada.map(f=>{
               const ings=ingredientesPorFicha[f.id]||[];
               const custoTotalIng=ings.reduce((s,i)=>s+Number(i.quantidade||0)*Number(i.custo_unit||0),0);
               const rend=Number(f.rendimento||1);
@@ -1938,8 +1942,18 @@ function FichasTecnicas({uid,db,reload,setM}){ const{fichas,estoque}=db;
               const margem=precoVenda>0?(lucroUnit/precoVenda*100):0;
               const receitaPot=precoVenda*qtdEstoque;
               const semVinculo=!f.nome_cw&&!f.nome_ifood;
-              return React.createElement(TR,{key:f.id,onClick:()=>editar(f),cells:[
-                React.createElement('div',null,React.createElement('div',{style:{fontWeight:700,fontSize:13,color:'#111'}},f.nome_cw||f.nome),f.nome_cw&&React.createElement('div',{style:{fontSize:10,color:'#aaa'}},f.nome)),
+              return React.createElement(TR,{key:f.id,onClick:()=>editar(f),
+                draggable:true,
+                onDragStart:e=>{setDraggedFichaId(f.id);e.dataTransfer.effectAllowed='move';},
+                onDragOver:e=>e.preventDefault(),
+                onDrop:e=>{e.preventDefault();if(draggedFichaId)moveFicha(draggedFichaId,f.id);setDraggedFichaId(null);},
+                onDragEnd:()=>setDraggedFichaId(null),
+                style:{opacity:draggedFichaId===f.id?0.4:1,cursor:'grab'},
+                cells:[
+                React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6}},
+                  React.createElement('span',{style:{color:'#ccc',fontSize:14,userSelect:'none',cursor:'grab'}},'⠿'),
+                  React.createElement('div',null,React.createElement('div',{style:{fontWeight:700,fontSize:13,color:'#111'}},f.nome_cw||f.nome),f.nome_cw&&React.createElement('div',{style:{fontSize:10,color:'#aaa'}},f.nome))
+                ),
                 React.createElement('span',{style:{fontWeight:800,fontSize:13,color:qtdEstoque===0?'#aaa':'#111'}},qtdEstoque+' un'),
                 React.createElement('span',{style:{fontSize:11,background:'#f5f5f5',color:'#666',padding:'3px 9px',borderRadius:20}},(f.categoria||'—').toUpperCase()),
                 React.createElement('span',{style:{fontSize:12}},F(custoUnit)),
@@ -3636,6 +3650,10 @@ function ProducaoDetalhe({producao,db,close}){ const{fichas}=db;
 function PlanejamentoProducao({uid,db,reload,setM}){ const{fichas,estoque}=db;
   const[plano,setPlano]=React.useState([]); // [{id, ficha_id, qtd, data_producao}]
   const[ingredientesPorFicha,setIngredientesPorFicha]=React.useState({});
+  const[draggedFichaId,setDraggedFichaId]=React.useState(null);
+  const[ordem,setOrdem]=React.useState(null); // null = use fichas order
+  const listaOrdenada=React.useMemo(()=>{ if(!ordem)return list; const m=Object.fromEntries(list.map((f,i)=>[f.id,i])); return [...list].sort((a,b)=>(ordem.indexOf(a.id)-ordem.indexOf(b.id))); },[list,ordem]);
+  const moveFicha=(fromId,toId)=>{ setOrdem(p=>{ const base=p||(list.map(f=>f.id)); const arr=[...base]; const fi=arr.indexOf(fromId),ti=arr.indexOf(toId); if(fi===-1||ti===-1)return p; const[m]=arr.splice(fi,1); arr.splice(ti,0,m); return arr; }); };
   const[loadingIngs,setLoadingIngs]=React.useState(true);
   const[loadingPlano,setLoadingPlano]=React.useState(true);
   const[salvando,setSalvando]=React.useState(false);
