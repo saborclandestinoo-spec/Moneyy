@@ -1994,11 +1994,11 @@ function FichaForm({uid,db,reload,close,ficha,setM}){ const[verHistorico,setVerH
                 onDragOver:e=>e.preventDefault(),
                 onDrop:e=>{e.preventDefault();if(draggedId)moveIng(draggedId,ing.id);setDraggedId(null);},
                 onDragEnd:()=>setDraggedId(null),
-                style:{display:'grid',gridTemplateColumns:'20px 2.5fr 1fr 1fr 1fr 1fr auto',gap:8,marginBottom:8,alignItems:'start',
+                style:{display:'grid',gridTemplateColumns:'20px 1fr 0.8fr 0.8fr 0.8fr 1fr auto',gap:8,marginBottom:8,alignItems:'start',
                   opacity:draggedId===ing.id?0.4:1,cursor:'grab',
                   background:draggedId&&draggedId!==ing.id?'#fafafa':'transparent',borderRadius:8,padding:'2px 0'}},
                 React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'center',height:38,color:'#ccc',fontSize:14,userSelect:'none'}},'⠿'),
-                React.createElement('div',null,
+                React.createElement('div',{style:{minWidth:0}},
                   React.createElement(CustomSelect,{label:'Do estoque',value:ing.estoque_id||'', onChange:v=>{if(v)selecionarEstoque(ing.id,v);else updIng(ing.id,'estoque_id','');}, options:[{v:'',l:'— Selecionar —'},...(estoque||[]).filter(e=>e.categoria!=='Cookie').map(e=>({v:e.id,l:e.nome}))], acent:cor }),
                   !ing.estoque_id&&React.createElement(FloatInput,{label:'Ou nome manual',acent:cor,value:ing.nome,onChange:e=>updIng(ing.id,'nome',e.target.value)})
                 ),
@@ -3221,7 +3221,7 @@ function CustomSelect({label,value,onChange,options,placeholder,acent,minimal}){
 
   const lbFloat={position:'absolute',top:7,left:14,fontSize:9,color:cor,fontWeight:700, letterSpacing:'1.2px',textTransform:'uppercase',pointerEvents:'none',zIndex:1};
   const boxStyle=minimal?{background:'transparent',border:'none',padding:'0',fontSize:13, color:'#111',cursor:'pointer',userSelect:'none',position:'relative',boxSizing:'border-box', display:'flex',alignItems:'center',fontWeight:500,gap:4}
-  :{width:'100%',background:'#fff',border:'1.5px solid '+(open?cor:'#e2e2e2'), borderRadius:10,padding:'24px 36px 8px 14px',fontSize:13,color:isEmpty?'#bbb':'#111', cursor:'pointer',userSelect:'none',position:'relative',boxSizing:'border-box', display:'flex',alignItems:'center',minHeight:52,transition:'border-color 0.15s'};
+  :{width:'100%',background:'#fff',border:'1.5px solid '+(open?cor:'#e2e2e2'), borderRadius:10,padding:'24px 36px 8px 14px',fontSize:13,color:isEmpty?'#bbb':'#111', cursor:'pointer',userSelect:'none',position:'relative',boxSizing:'border-box', display:'flex',alignItems:'center',minHeight:52,transition:'border-color 0.15s',wordBreak:'break-word',whiteSpace:'normal'};
 
   return React.createElement('div',{ref,style:{position:'relative',marginBottom:minimal?0:10}}, !minimal&&React.createElement('label',{style:lbFloat},label), React.createElement('div',{style:boxStyle,onClick:()=>setOpen(p=>!p)}, React.createElement('span',{style:{flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},displayLabel), React.createElement('span',{style:{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)', fontSize:11,color:'#bbb',transition:'transform 0.2s', display:'inline-block',rotate:open?'180deg':'0deg'} },'▾')
     ), open&&React.createElement('div',{style:{ position:'absolute',top:'calc(100% + 4px)',left:0,right:0,zIndex:999, background:'#fff',borderRadius:12,boxShadow:'0 8px 32px rgba(0,0,0,0.14)', border:'1px solid #f0f0f0',maxHeight:280,overflow:'hidden', animation:'fadeUp 0.12s ease',display:'flex',flexDirection:'column' }}, options.length>6&&React.createElement('div',{style:{padding:'8px',borderBottom:'1px solid #f0f0f0'}}, React.createElement('input',{ ref:inputRef,value:busca,onChange:e=>setBusca(e.target.value), placeholder:'Buscar...',onClick:e=>e.stopPropagation(), style:{width:'100%',border:'1px solid #e2e2e2',borderRadius:8,padding:'7px 10px',fontSize:12,outline:'none',boxSizing:'border-box'} })
