@@ -2004,7 +2004,7 @@ function FichaForm({uid,db,reload,close,ficha,setM}){ const[verHistorico,setVerH
                 ),
                 React.createElement(FloatInput,{label:'Qtd',acent:!ing.quantidade?'#dc2626':cor,type:'number',value:ing.quantidade,onChange:e=>updIng(ing.id,'quantidade',e.target.value)}),
                 React.createElement(CustomSelect,{label:'Un',value:ing.unidade,onChange:v=>updIng(ing.id,'unidade',v),options:['g','kg','ml','L','un','colher','xícara'],acent:cor}),
-                React.createElement(FloatInput,{label:'R$/un',acent:cor,type:'number',value:ing.custo_unit,onChange:e=>updIng(ing.id,'custo_unit',e.target.value)}),
+                React.createElement(FloatInput,{label:'Total (R$)',acent:cor,type:'number',value:(Number(ing.quantidade||0)*Number(ing.custo_unit||0))||'',onChange:e=>{const novoTotal=parseFloat(e.target.value)||0;const qtd=Number(ing.quantidade||0);updIng(ing.id,'custo_unit',qtd>0?String(novoTotal/qtd):'0');}}),
                 React.createElement(CustomSelect,{label:'Tipo',value:ing.tipo||'Insumo',onChange:v=>updIng(ing.id,'tipo',v),options:TIPOS_ING,acent:cor}),
                 React.createElement('button',{onClick:()=>delIng(ing.id),style:{background:'#fee2e2',color:'#dc2626',border:'none',borderRadius:8,padding:'8px 10px',cursor:'pointer',fontWeight:700,marginTop:10}},'×')
               ))
