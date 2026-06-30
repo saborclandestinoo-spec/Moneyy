@@ -2049,7 +2049,7 @@ function FichaForm({uid,db,reload,close,ficha,setM}){ const[verHistorico,setVerH
     return{...i,tipo:i.tipo||'Insumo',custo_unit:est?String(est.custo):String(i.custo_unit||0)};
   })));} },[ficha?.id]);
 
-  const TIPOS_ING=['Insumo','Recheio','Cobertura','Material de Produção'];
+  const TIPOS_ING=['Insumo','Recheio','Cobertura','Embalagem','Material de Produção'];
   const sugerirTipo=(estItem)=>{ if(!estItem)return 'Insumo';
     if(estItem.categoria==='Recheio')return 'Recheio';
     if(estItem.categoria==='Material de Produção')return 'Material de Produção';
@@ -2187,7 +2187,8 @@ function FichaForm({uid,db,reload,close,ficha,setM}){ const[verHistorico,setVerH
                     const t=ing.tipo||'Insumo';
                     let items=(estoque||[]).filter(e=>{
                       if(t==='Recheio')return e.categoria==='Recheio';
-                      if(t==='Material de Produção')return e.categoria==='Material de Produção'||e.categoria==='Embalagem';
+                      if(t==='Embalagem')return e.categoria==='Embalagem';
+                    if(t==='Material de Produção')return e.categoria==='Material de Produção';
                       if(t==='Cobertura')return e.categoria==='Matéria-Prima'||e.categoria==='Recheio';
                       return e.categoria==='Matéria-Prima';
                     }).map(e=>({v:e.id,l:e.nome,custo:e.custo,unidade:e.unidade}));
