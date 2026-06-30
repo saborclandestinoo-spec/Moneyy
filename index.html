@@ -2250,6 +2250,7 @@ function AnaliseVendas({uid,db,reload,setM}){
 
 
 function AnaliseProdutos({uid,db,reload,setM}){
+  const{fichas}=db;
   const hoje=TODAY();
   const[dtIni,setDtIni]=React.useState(()=>{const d=new Date();d.setDate(1);return d.toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});});
   const[dtFim,setDtFim]=React.useState(hoje);
@@ -2274,7 +2275,16 @@ function AnaliseProdutos({uid,db,reload,setM}){
 
   const porProduto=React.useMemo(()=>{ const g={};
     naoCancelados.forEach(p=>{ const itens=((p.raw&&p.raw.items)||p.itens||[]).filter(it=>!isCancelledItem(it));
-      itens.forEach(it=>{ const nome=it.name||it.nome||'Sem nome'; const qtd=Number(it.quantity||1);
+      itens.forEach(it=>{
+        const nomeBruto=(it.name||it.nome||'Sem nome').trim();
+        const nLow=nomeBruto.toLowerCase();
+        let nome=nomeBruto;
+        const fExata=(fichas||[]).find(f=>(f.nome||'').trim().toLowerCase()===nLow);
+        const fCw=(fichas||[]).find(f=>(f.nome_cw||'').trim().toLowerCase()===nLow);
+        const fIfood=(fichas||[]).find(f=>(f.nome_ifood||'').trim().toLowerCase()===nLow);
+        const fMatch=fExata||fCw||fIfood;
+        if(fMatch)nome=fMatch.nome;
+        const qtd=Number(it.quantity||1);
         const precoUnit=Number(it.price||it.unit_price||0);
         const valor=precoUnit*qtd;
         if(!g[nome])g[nome]={qtd:0,valor:0};
