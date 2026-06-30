@@ -2277,10 +2277,11 @@ function AnaliseProdutos({uid,db,reload,setM}){
     naoCancelados.forEach(p=>{ const itens=((p.raw&&p.raw.items)||p.itens||[]).filter(it=>!isCancelledItem(it));
       itens.forEach(it=>{
         const nomeBruto=(it.name||it.nome||'Sem nome').trim();
-        const nLow=nomeBruto.toLowerCase();
+        const normN=s=>(s||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[-_\s]+/g,' ').trim();
+        const nLow=normN(nomeBruto);
         let nome=nomeBruto;
-        const aliasMatch=(campo)=>(f)=>(f[campo]||'').split('|').map(a=>a.trim().toLowerCase()).includes(nLow);
-        const fExata=(fichas||[]).find(f=>(f.nome||'').trim().toLowerCase()===nLow);
+        const aliasMatch=(campo)=>(f)=>(f[campo]||'').split('|').map(a=>normN(a)).includes(nLow);
+        const fExata=(fichas||[]).find(f=>normN(f.nome)===nLow);
         const fCw=(fichas||[]).find(aliasMatch('nome_cw'));
         const fIfood=(fichas||[]).find(aliasMatch('nome_ifood'));
         const fMatch=fExata||fCw||fIfood;
