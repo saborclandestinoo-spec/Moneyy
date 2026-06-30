@@ -2250,7 +2250,7 @@ function AnaliseVendas({uid,db,reload,setM}){
 
 
 function AnaliseProdutos({uid,db,reload,setM}){
-  const{fichas}=db;
+  const{fichas,estoque,ficha_ingredientes}=db;
   const hoje=TODAY();
   const[dtIni,setDtIni]=React.useState(()=>{const d=new Date();d.setDate(1);return d.toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});});
   const[dtFim,setDtFim]=React.useState(hoje);
@@ -2273,6 +2273,14 @@ function AnaliseProdutos({uid,db,reload,setM}){
 
   const naoCancelados=React.useMemo(()=>pedidos.filter(p=>!isPedCancelado(p)),[pedidos]);
 
+  const calcCustoUnit=(fichaNome)=>{
+    const f=(fichas||[]).find(x=>x.nome===fichaNome);
+    if(!f)return 0;
+    const ings=(ficha_ingredientes||[]).filter(i=>i.ficha_id===f.id);
+    return ings.reduce((s,i)=>{ const est=(estoque||[]).find(e=>e.id===i.estoque_id||e.nome===i.nome);
+      return s+(parseFloat(i.quantidade||0)*parseFloat(est?.custo||i.custo_unitario||0)); },0);
+  };
+
   const porProduto=React.useMemo(()=>{ const g={};
     naoCancelados.forEach(p=>{ const itens=((p.raw&&p.raw.items)||p.itens||[]).filter(it=>!isCancelledItem(it));
       itens.forEach(it=>{
@@ -2291,11 +2299,20 @@ function AnaliseProdutos({uid,db,reload,setM}){
         const valor=precoUnit*qtd;
         if(!g[nome])g[nome]={qtd:0,valor:0};
         g[nome].qtd+=qtd; g[nome].valor+=valor; }); });
-    return Object.entries(g).map(([nome,v])=>({nome,...v})).sort((a,b)=>b.valor-a.valor); },[naoCancelados]);
+    return Object.entries(g).map(([nome,v])=>{
+      const custoUnit=calcCustoUnit(nome);
+      const custoTotal=custoUnit*v.qtd;
+      const lucro=v.valor-custoTotal;
+      const margem=v.valor>0?(lucro/v.valor*100):0;
+      return{nome,...v,custoUnit,custoTotal,lucro,margem};
+    }).sort((a,b)=>b.valor-a.valor); },[naoCancelados,fichas,ficha_ingredientes,estoque]);
 
   const listFiltrada=busca?porProduto.filter(p=>p.nome.toLowerCase().includes(busca.toLowerCase())):porProduto;
   const totalQtdProd=listFiltrada.reduce((s,p)=>s+p.qtd,0);
   const totalValProd=listFiltrada.reduce((s,p)=>s+p.valor,0);
+  const totalCustoProd=listFiltrada.reduce((s,p)=>s+p.custoTotal,0);
+  const totalLucroProd=totalValProd-totalCustoProd;
+  const margemTotal=totalValProd>0?(totalLucroProd/totalValProd*100):0;
 
   return React.createElement(PW,{title:'Análise de Produtos',sub:'Quantidade vendida e faturamento por produto',
     actions:[React.createElement(DateRangePicker,{key:'dr',dtIni,dtFim,onChangeDtIni:setDtIni,onChangeDtFim:setDtFim,openRight:true})]},
@@ -2308,11 +2325,11 @@ function AnaliseProdutos({uid,db,reload,setM}){
         listFiltrada.length===0
           ?React.createElement('div',{style:{textAlign:'center',color:'#ccc',padding:30}},'Sem produtos no período')
           :React.createElement(Tbl,{
-              cols:['Produto','Qtd vendida','% Qtd','Faturamento','% Fat','Preço médio'],
+              cols:['Produto','Qtd vendida','Faturamento','Custo','Lucro','Margem'],
               rows:[
-                ['TOTAL',totalQtdProd,'100%',F(totalValProd),'100%',F(totalQtdProd>0?totalValProd/totalQtdProd:0)],
-                ...listFiltrada.map(p=>[p.nome,p.qtd,((p.qtd/totalQtdProd)*100).toFixed(1)+'%',F(p.valor),((p.valor/totalValProd)*100).toFixed(1)+'%',F(p.qtd>0?p.valor/p.qtd:0)])
-              ].map((r,i)=>React.createElement(TR,{key:i,cells:r.map((c,j)=>React.createElement('span',{style:{fontWeight:i===0?800:j===0?600:400,fontSize:12,color:i===0?'#111':j===0?'#111':'#555'}},c))}))
+                ['TOTAL',totalQtdProd,F(totalValProd),F(totalCustoProd),F(totalLucroProd),margemTotal.toFixed(1)+'%'],
+                ...listFiltrada.map(p=>[p.nome,p.qtd,F(p.valor),F(p.custoTotal),F(p.lucro),p.margem.toFixed(1)+'%'])
+              ].map((r,i)=>React.createElement(TR,{key:i,cells:r.map((c,j)=>React.createElement('span',{style:{fontWeight:i===0?800:j===0?600:400,fontSize:12,color:i===0?'#111':j===3?'#dc2626':j===4?'#16a34a':j===0?'#111':'#555'}},c))}))
             })
       )
     )
