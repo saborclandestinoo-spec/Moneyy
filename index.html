@@ -1918,7 +1918,7 @@ function FichaForm({uid,db,reload,close,ficha,setM}){ const[verHistorico,setVerH
     if(isEdit){await sb.from('fichas_tecnicas').update(payload).eq('id',fichaId);}
     else{const{data}=await sb.from('fichas_tecnicas').insert(payload).select().single();fichaId=data?.id;}
     if(fichaId){ await sb.from('ficha_ingredientes').delete().eq('ficha_id',fichaId);
-      const rows=ings.filter(i=>i.nome&&i.quantidade).map(i=>({ ficha_id:fichaId,nome:i.nome,quantidade:parseFloat(i.quantidade)||0, unidade:i.unidade,custo_unit:parseFloat(i.custo_unit)||0,estoque_id:i.estoque_id||null,tipo:i.tipo||'Insumo' }));
+      const rows=ings.filter(i=>i.nome).map(i=>({ ficha_id:fichaId,nome:i.nome,quantidade:parseFloat(i.quantidade)||0, unidade:i.unidade,custo_unit:parseFloat(i.custo_unit)||0,estoque_id:i.estoque_id||null,tipo:i.tipo||'Insumo' }));
       if(rows.length)await sb.from('ficha_ingredientes').insert(rows); }
     // Estoque Inicial: ponto de partida. Se mudar, ajusta o saldo atual pela diferença
     // (preserva o que já foi produzido/vendido desde então).
@@ -2002,7 +2002,7 @@ function FichaForm({uid,db,reload,close,ficha,setM}){ const[verHistorico,setVerH
                   React.createElement(CustomSelect,{label:'Do estoque',value:ing.estoque_id||'', onChange:v=>{if(v)selecionarEstoque(ing.id,v);else updIng(ing.id,'estoque_id','');}, options:[{v:'',l:'— Selecionar —'},...(estoque||[]).filter(e=>e.categoria!=='Cookie').map(e=>({v:e.id,l:e.nome}))], acent:cor }),
                   !ing.estoque_id&&React.createElement(FloatInput,{label:'Ou nome manual',acent:cor,value:ing.nome,onChange:e=>updIng(ing.id,'nome',e.target.value)})
                 ),
-                React.createElement(FloatInput,{label:'Qtd',acent:cor,type:'number',value:ing.quantidade,onChange:e=>updIng(ing.id,'quantidade',e.target.value)}),
+                React.createElement(FloatInput,{label:'Qtd',acent:!ing.quantidade?'#dc2626':cor,type:'number',value:ing.quantidade,onChange:e=>updIng(ing.id,'quantidade',e.target.value)}),
                 React.createElement(CustomSelect,{label:'Un',value:ing.unidade,onChange:v=>updIng(ing.id,'unidade',v),options:['g','kg','ml','L','un','colher','xícara'],acent:cor}),
                 React.createElement(FloatInput,{label:'R$/un',acent:cor,type:'number',value:ing.custo_unit,onChange:e=>updIng(ing.id,'custo_unit',e.target.value)}),
                 React.createElement(CustomSelect,{label:'Tipo',value:ing.tipo||'Insumo',onChange:v=>updIng(ing.id,'tipo',v),options:TIPOS_ING,acent:cor}),
