@@ -2171,7 +2171,13 @@ function FichaForm({uid,db,reload,close,ficha,setM}){ const[verHistorico,setVerH
                   background:draggedId&&draggedId!==ing.id?'#fafafa':'transparent',borderRadius:8,padding:'2px 0'}},
                 React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'center',height:38,color:'#ccc',fontSize:14,userSelect:'none'}},'⠿'),
                 React.createElement('div',{style:{minWidth:0}},
-                  React.createElement(CustomSelect,{label:'Do estoque',value:ing.estoque_id||'', onChange:v=>{if(v)selecionarEstoque(ing.id,v);else updIng(ing.id,'estoque_id','');}, options:[{v:'',l:'— Selecionar —'},...(estoque||[]).filter(e=>e.categoria!=='Cookie').map(e=>({v:e.id,l:e.nome}))], acent:cor }),
+                  React.createElement(CustomSelect,{label:'Do estoque',value:ing.estoque_id||'', onChange:v=>{if(v)selecionarEstoque(ing.id,v);else updIng(ing.id,'estoque_id','');}, options:[{v:'',l:'— Selecionar —'},...(estoque||[]).filter(e=>{
+                    const t=ing.tipo||'Insumo';
+                    if(t==='Recheio')return e.categoria==='Recheio';
+                    if(t==='Material de Produção')return e.categoria==='Material de Produção'||e.categoria==='Embalagem';
+                    if(t==='Cobertura')return e.categoria==='Matéria-Prima'||e.categoria==='Recheio';
+                    return e.categoria==='Matéria-Prima'; // Insumo default
+                  }).map(e=>({v:e.id,l:e.nome}))], acent:cor }),
                   !ing.estoque_id&&React.createElement(FloatInput,{label:'Ou nome manual',acent:cor,value:ing.nome,onChange:e=>updIng(ing.id,'nome',e.target.value)})
                 ),
                 React.createElement(FloatInput,{label:'Qtd',acent:!ing.quantidade?'#dc2626':cor,type:'number',value:ing.quantidade,onChange:e=>updIng(ing.id,'quantidade',e.target.value)}),
