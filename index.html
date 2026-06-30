@@ -2145,6 +2145,8 @@ function AnaliseVendas({uid,db,reload,setM}){
   const[pedidos,setPedidos]=React.useState([]);
   const[pedidosAnt,setPedidosAnt]=React.useState([]);
   const[loading,setLoading]=React.useState(false);
+  const canvasRef=React.useRef(null);
+  const chartRef=React.useRef(null);
 
   const diasPeriodo=Math.round((new Date(dtFim)-new Date(dtIni))/86400000)+1;
   const dtIniAnt=(()=>{const d=new Date(dtIni+'T12:00:00');d.setDate(d.getDate()-diasPeriodo);return d.toLocaleDateString('sv-SE');})();
@@ -2182,36 +2184,31 @@ function AnaliseVendas({uid,db,reload,setM}){
       g[idx]=(g[idx]||0)+Number(p.total||0); });
     return g; };
   const gAtual=porDiaIdx(naoCancelados,dtIni);
-  const pontos=Array.from({length:diasPeriodo},(_,i)=>({
-    idx:i,
-    dia:(()=>{const d=new Date(dtIni+'T12:00:00');d.setDate(d.getDate()+i);return d.toLocaleDateString('sv-SE');})(),
-    atual:gAtual[i]||0
-  }));
+  const gAnt=porDiaIdx(naoCanceladosAnt,dtIniAnt);
 
-  const maxVal=Math.max(...pontos.map(p=>p.atual),1);
+  const mesNome=new Date(dtIni+'T12:00:00').toLocaleString('pt-BR',{month:'long'});
+  const mesNomeAnt=new Date(dtIniAnt+'T12:00:00').toLocaleString('pt-BR',{month:'long'});
 
-  const W=1400,H=380,padL=60,padR=20,padT=20,padB=30;
-  const chartW=W-padL-padR, chartH=H-padT-padB;
-  const xAt=i=>padL+(i/(Math.max(1,diasPeriodo-1)))*chartW;
-  const yAt=v=>padT+chartH-(v/maxVal)*chartH;
-  const smoothPath=(vals)=>{
-    const pts=vals.map((v,i)=>[xAt(i),yAt(v)]);
-    if(pts.length<2)return pts.length===1?`M${pts[0][0]},${pts[0][1]}`:'';
-    let d=`M${pts[0][0]},${pts[0][1]}`;
-    for(let i=0;i<pts.length-1;i++){
-      const p0=pts[i===0?0:i-1], p1=pts[i], p2=pts[i+1], p3=pts[Math.min(i+2,pts.length-1)];
-      const cp1x=p1[0]+(p2[0]-p0[0])/6, cp1y=p1[1]+(p2[1]-p0[1])/6;
-      const cp2x=p2[0]-(p3[0]-p1[0])/6, cp2y=p2[1]-(p3[1]-p1[1])/6;
-      d+=` C${cp1x},${cp1y} ${cp2x},${cp2y} ${p2[0]},${p2[1]}`;
-    }
-    return d;
-  };
-  const lineAtual=smoothPath(pontos.map(p=>p.atual));
-  const areaAtual=lineAtual+` L${xAt(diasPeriodo-1)},${padT+chartH} L${xAt(0)},${padT+chartH} Z`;
+  React.useEffect(()=>{
+    if(loading||!canvasRef.current)return;
+    const labels=Array.from({length:diasPeriodo},(_,i)=>{const d=new Date(dtIni+'T12:00:00');d.setDate(d.getDate()+i);return String(d.getDate()).padStart(2,'0')+' '+d.toLocaleString('pt-BR',{month:'short'}).replace('.','');});
+    const dataAtual=Array.from({length:diasPeriodo},(_,i)=>gAtual[i]||0);
+    const dataAnterior=Array.from({length:diasPeriodo},(_,i)=>gAnt[i]||0);
 
-  const yTicks=5;
-  const yLabels=Array.from({length:yTicks+1},(_,i)=>Math.round(maxVal*i/yTicks));
-  const[hoverIdx,setHoverIdx]=React.useState(null);
+    if(chartRef.current)chartRef.current.destroy();
+    const ctx=canvasRef.current.getContext('2d');
+    chartRef.current=new Chart(ctx,{type:'line',data:{labels,datasets:[
+      {label:'Faturamento '+mesNome,data:dataAtual,borderColor:'rgba(220,38,38,.85)',backgroundColor:'rgba(220,38,38,.08)',fill:true,tension:.4,pointRadius:3,pointBackgroundColor:'rgba(220,38,38,.9)',borderWidth:2},
+      {label:'Faturamento '+mesNomeAnt,data:dataAnterior,borderColor:'rgba(250,180,80,.8)',backgroundColor:'rgba(250,180,80,.05)',fill:true,tension:.4,pointRadius:3,pointBackgroundColor:'rgba(250,180,80,.9)',borderWidth:2,borderDash:[4,3]}
+    ]},options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.dataset.label+': '+F(c.parsed.y)}}},
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:9},color:'#999',maxTicksLimit:16}},
+        y:{grid:{color:'rgba(0,0,0,.04)'},ticks:{font:{size:9},color:'#999',callback:v=>'R$ '+v}}
+      }
+    }});
+    return()=>{if(chartRef.current)chartRef.current.destroy();};
+  },[loading,dtIni,dtFim,JSON.stringify(gAtual),JSON.stringify(gAnt)]);
 
   return React.createElement(PW,{title:'Análise de Vendas',sub:'Faturamento por dia',
     actions:[React.createElement(DateRangePicker,{key:'dr',dtIni,dtFim,onChangeDtIni:setDtIni,onChangeDtFim:setDtFim,openRight:true})]},
@@ -2219,7 +2216,6 @@ function AnaliseVendas({uid,db,reload,setM}){
     loading&&React.createElement('div',{style:{textAlign:'center',padding:30,color:'#ccc'}},'Carregando...'),
 
     !loading&&React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'20px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
-      // KPIs row inline at the top of the chart card
       React.createElement('div',{style:{display:'flex',gap:40,marginBottom:20,flexWrap:'wrap'}},
         React.createElement('div',null,
           React.createElement('div',{style:{fontSize:11,color:'#aaa',fontWeight:600,marginBottom:4}},'Faturamento'),
@@ -2243,45 +2239,15 @@ function AnaliseVendas({uid,db,reload,setM}){
           )
         )
       ),
-
-      pontos.every(p=>p.atual===0)
-        ?React.createElement('div',{style:{textAlign:'center',color:'#ccc',padding:60}},'Sem vendas no período')
-        :React.createElement('div',{style:{position:'relative'}},
-          React.createElement('svg',{viewBox:`0 0 ${W} ${H}`,preserveAspectRatio:'none',style:{width:'100%',height:380,display:'block'}},
-            React.createElement('defs',null,
-              React.createElement('linearGradient',{id:'gradAv',x1:'0',y1:'0',x2:'0',y2:'1'},
-                React.createElement('stop',{offset:'0%',stopColor:'#2563eb',stopOpacity:0.25}),
-                React.createElement('stop',{offset:'100%',stopColor:'#2563eb',stopOpacity:0.02})
-              )
-            ),
-            yLabels.map((v,i)=>React.createElement('g',{key:i},
-              React.createElement('line',{x1:padL,x2:W-padR,y1:yAt(v),y2:yAt(v),stroke:'#f0f0f0',strokeWidth:1}),
-              React.createElement('text',{x:padL-8,y:yAt(v)+4,fontSize:10,fill:'#aaa',textAnchor:'end'},F(v))
-            )),
-            React.createElement('path',{d:areaAtual,fill:'url(#gradAv)'}),
-            React.createElement('path',{d:lineAtual,fill:'none',stroke:'#2563eb',strokeWidth:2.5,strokeLinejoin:'round',strokeLinecap:'round'}),
-            pontos.map((p,i)=>React.createElement('g',{key:i},
-              React.createElement('circle',{cx:xAt(i),cy:yAt(p.atual),r:2,fill:'#2563eb'}),
-              React.createElement('rect',{x:xAt(i)-(chartW/diasPeriodo)/2,y:padT,width:chartW/diasPeriodo,height:chartH,fill:'transparent',onMouseEnter:()=>setHoverIdx(i),onMouseLeave:()=>setHoverIdx(null)})
-            )),
-            pontos.map(p=>React.createElement('text',{key:p.idx,x:xAt(p.idx),y:H-8,fontSize:8,fill:'#aaa',textAnchor:'middle'},FD(p.dia).slice(0,2))),
-            hoverIdx!==null&&React.createElement('line',{x1:xAt(hoverIdx),x2:xAt(hoverIdx),y1:padT,y2:padT+chartH,stroke:'#ccc',strokeWidth:1,strokeDasharray:'3,3'})
-          ),
-          hoverIdx!==null&&React.createElement('div',{style:{
-            position:'absolute',left:(xAt(hoverIdx)/W*100)+'%',top:Math.max(0,(yAt(pontos[hoverIdx].atual)/H*100)-22)+'%',
-            transform:'translate(8px,0)',background:'#1e293b',borderRadius:10,padding:'10px 14px',
-            pointerEvents:'none',whiteSpace:'nowrap',boxShadow:'0 4px 12px rgba(0,0,0,0.25)',zIndex:10
-          }},
-            React.createElement('div',{style:{color:'#fff',fontWeight:800,fontSize:13,marginBottom:6}},FD(pontos[hoverIdx].dia)),
-            React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#fff'}},
-              React.createElement('span',{style:{width:10,height:10,borderRadius:2,background:'#2563eb',display:'inline-block'}}),
-              'Faturamento: '+F(pontos[hoverIdx].atual)
-            )
-          )
-        )
+      React.createElement('div',{style:{height:380}},React.createElement('canvas',{ref:canvasRef})),
+      React.createElement('div',{style:{display:'flex',gap:24,marginTop:14,fontSize:12}},
+        React.createElement('span',{style:{display:'flex',alignItems:'center',gap:6}},React.createElement('span',{style:{width:12,height:12,borderRadius:'50%',background:'rgba(220,38,38,.85)',display:'inline-block'}}),'Faturamento por dia ('+mesNome+')'),
+        React.createElement('span',{style:{display:'flex',alignItems:'center',gap:6}},React.createElement('span',{style:{width:12,height:12,borderRadius:'50%',background:'rgba(250,180,80,.8)',display:'inline-block'}}),'Faturamento por dia ('+mesNomeAnt+')')
+      )
     )
   );
 }
+
 
 function AnaliseProdutos({uid,db,reload,setM}){
   const hoje=TODAY();
