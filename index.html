@@ -1028,7 +1028,7 @@ function PedCaixa({uid,db,setDb,reload,setM}){ const{pedidos_cw,lancamentos,cont
   const sangrias=Number(caixaHoje&&caixaHoje.sangrias||0);
   const valorEsperado=abertura+suprimentos-sangrias+vendasDinheiro;
 
-  const gerarLancamentos=async()=>{ await sb.from('lancamentos').delete().eq('user_id',uid).eq('data',dataCaixa).eq('obs','consolidado_cw');
+  const gerarLancamentos=async()=>{ await sb.from('lancamentos').delete().eq('user_id',uid).eq('data',dataCaixa).eq('competencia',dataCaixa).eq('obs','consolidado_cw');
     const grupos={};
     pedNaoCancelados.filter(p=>p.status==='delivered'||p.status==='closed').forEach(p=>{ const pgs=p.pagamentos||(p.raw&&p.raw.payments)||[];
       pgs.forEach(pg=>{ const k=(pg.payment_method||'').toLowerCase();
@@ -1057,7 +1057,7 @@ function PedCaixa({uid,db,setDb,reload,setM}){ const{pedidos_cw,lancamentos,cont
   const fecharCaixa=()=>{ if(pedAtivos.length>0)toast('⚠️ '+pedAtivos.length+' pedido(s) ainda em andamento',false,false);
     setM({title:'Fechar Caixa',wide:true,body:React.createElement(FecharCaixaModal,{ uid,caixa:caixaHoje,vendasPrincipais,abertura,suprimentos,sangrias, gerarLancamentos,reload,close:()=>setM(null),setLd })}); };
   const reabrirCaixa=async()=>{ await sb.from('caixas').update({status:'aberto',fechado_em:null,saldo_fechamento:null}).eq('id',caixaHoje.id);
-    await sb.from('lancamentos').delete().eq('user_id',uid).eq('data',hoje).eq('obs','consolidado_cw');
+    await sb.from('lancamentos').delete().eq('user_id',uid).eq('data',hoje).eq('competencia',hoje).eq('obs','consolidado_cw');
     toast('Reaberto',false,true);reload(); };
   const abrirMov=(tipo)=>setM({title:tipo==='suprimento'?'➕ Suprimento':'➖ Sangria',body:React.createElement(MovCaixaModal,{uid,caixa:caixaHoje,tipo,reload,close:()=>setM(null)})});
   const verRelatorio=(caixa)=>setM({title:'Relatório de Caixa — '+FD(caixa.data),wide:true,body:React.createElement(CaixaReportModal,{uid,caixa,db,close:()=>setM(null)})});
@@ -1082,7 +1082,7 @@ function PedCaixa({uid,db,setDb,reload,setM}){ const{pedidos_cw,lancamentos,cont
     const aberturaCx=c.saldo_abertura||0;
     const suprimCx=c.suprimentos||0;
     const sangriaCx=c.sangrias||0;
-    const gerarLancHistorico=async()=>{ await sb.from('lancamentos').delete().eq('user_id',uid).eq('data',dataCx).eq('obs','consolidado_cw');
+    const gerarLancHistorico=async()=>{ await sb.from('lancamentos').delete().eq('user_id',uid).eq('data',dataCx).eq('competencia',dataCx).eq('obs','consolidado_cw');
       const grupos={};
       pedEntregues.forEach(p=>{ (p.pagamentos||(p.raw&&p.raw.payments)||[]).forEach(pg=>{ const k=(pg.payment_method||pg.method||pg.type||'').toLowerCase();
           const pmNome=PM_MAP_CW[k]||k;
@@ -1184,7 +1184,7 @@ function PedCaixa({uid,db,setDb,reload,setM}){ const{pedidos_cw,lancamentos,cont
       // Inclui TODOS os entregues (iFood marketplace também) - o payment_method separa iFood Online dos cartões
       const pedEntregues=todosDia.filter(p=>!isPedCancelado(p)&&(p.status==='delivered'||p.status==='closed'));
       if(!pedEntregues.length){toast('Nenhum pedido entregue em '+FD(c.data)+'. Buscados: '+todos.length+', Dia: '+todosDia.length,true);return;}
-      await sb.from('lancamentos').delete().eq('user_id',uid).eq('data',c.data).eq('obs','consolidado_cw');
+      await sb.from('lancamentos').delete().eq('user_id',uid).eq('data',c.data).eq('competencia',c.data).eq('obs','consolidado_cw');
       const grupos={};
       pedEntregues.forEach(p=>{ const pgs=p.pagamentos||(p.raw&&p.raw.payments)||[];
         pgs.forEach(pg=>{ const k=(pg.payment_method||pg.method||pg.type||'').toLowerCase();
