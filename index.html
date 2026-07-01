@@ -4293,15 +4293,13 @@ function FinCategorias({uid,db,reload,setM}){ const{categorias_fin}=db;
   // First pass: build standard rows
   PLANO_CONTAS.forEach(item=>rows.push({...item,custom:false}));
   // Second pass: for each parent, append custom children after the last standard child
-  const parentPrefixes=new Set(PLANO_CONTAS.filter(i=>i.nivel>=1).map(i=>i.cod+' '+i.nome));
+  const parentPrefixes=new Set(PLANO_CONTAS.filter(i=>i.nivel>=0).map(i=>i.cod+' '+i.nome)); // include nivel 0
   parentPrefixes.forEach(parentKey=>{ const parentIdx=rows.findLastIndex(r=>!r.custom&&r.cod+' '+r.nome===parentKey);
     if(parentIdx===-1)return;
-    // Find last standard child after this parent
     const parentItem=rows[parentIdx];
     const parentNivel=parentItem.nivel;
     let insertAt=parentIdx+1;
     while(insertAt<rows.length&&!rows[insertAt].custom&&rows[insertAt].nivel>parentNivel)insertAt++;
-    // Count existing children to generate next code
     const stdChildren=rows.slice(parentIdx+1,insertAt).filter(r=>r.nivel===parentNivel+1&&!r.custom);
     const customs=(customByParent[parentKey]||[]);
     customs.forEach((c,ci)=>{ const nextNum=stdChildren.length+ci+1;
@@ -4315,9 +4313,9 @@ function FinCategorias({uid,db,reload,setM}){ const{categorias_fin}=db;
         const indent=item.nivel*20;
         const isTop=item.nivel===0;
         const isSub=item.nivel===1;
-        return React.createElement('div',{key:item.custom?item.id:item.cod||i, onDoubleClick:item.custom?()=>editarCat(item.catObj):undefined, style:{display:'flex',alignItems:'center',gap:12, paddingLeft:8+indent,paddingRight:12, paddingTop:isTop?10:isSub?6:4, paddingBottom:isTop?10:isSub?6:4, borderTop:isTop?'2px solid #e5e5e5':isSub?'1px solid #f0f0f0':'none', marginTop:isTop?8:0, cursor:item.custom?'pointer':'default'}}, // Cod
-          React.createElement('span',{style:{ fontFamily:'monospace',fontSize:isTop?14:isSub?12:11, color:isTop?'#111':isSub?'#222':'#666', fontWeight:isTop?900:isSub?700:400, minWidth:isTop?20:isSub?36:52,flexShrink:0}}, item.cod||(item.custom?'—':'')), // Nome
-          React.createElement('span',{style:{ fontSize:isTop?15:isSub?13:12, fontWeight:isTop?900:isSub?700:400, color:isTop?'#111':isSub?'#222':'#666',flex:1}}, item.nome), // Edit + add + delete
+        return React.createElement('div',{key:item.custom?item.id:item.cod||i, onDoubleClick:item.custom?()=>editarCat(item.catObj):undefined, style:{display:'flex',alignItems:'center',gap:12, paddingLeft:8+indent,paddingRight:12, paddingTop:isTop?10:isSub?6:4, paddingBottom:isTop?10:isSub?6:4, borderTop:isTop?'2px solid #e5e5e5':isSub?'1px solid #f0f0f0':'none', marginTop:isTop?8:0, cursor:item.custom?'pointer':'default', fontFamily:'inherit'}},
+          React.createElement('span',{style:{ fontSize:isTop?14:isSub?12:11, color:isTop?'#888':isSub?'#aaa':'#bbb', fontWeight:400, minWidth:isTop?20:isSub?36:52,flexShrink:0}}, item.cod||(item.custom?'—':'')),
+          React.createElement('span',{style:{ fontSize:isTop?15:isSub?13:12, fontWeight:isTop?800:isSub?700:400, color:isTop?'#111':isSub?'#333':item.custom?cor:'#666',flex:1}}, item.nome),
           React.createElement('div',{style:{display:'flex',gap:4,alignItems:'center'},onClick:e=>e.stopPropagation()}, React.createElement('button',{ onClick:()=>item.custom?setM({title:'Editar — '+item.nome,body:React.createElement(CatForm,{uid,grupo:item.catObj.grupo,tipo:item.catObj.tipo,inicial:item.catObj,reload,close:()=>setM(null)})}):setM({title:'Renomear — '+item.nome,body:React.createElement(CatForm,{uid,grupo:item.cod?item.cod+' '+item.nome:'',tipo:item.tipo,fixGrupo:true,inicial:{nome:item.nome,tipo:item.tipo,grupo:item.cod+' '+item.nome},reload,close:()=>setM(null)})}), style:{fontSize:11,color:'#555',background:'#f5f5f5',border:'none',borderRadius:4,padding:'2px 8px',cursor:'pointer'}},'✏'), React.createElement('button',{ onClick:()=>setM({title:'+ Subcategoria em '+(item.cod||item.nome),body:React.createElement(CatForm,{uid,grupo:(item.cod?item.cod+' ':'')+item.nome,tipo:item.tipo,fixGrupo:true,reload,close:()=>setM(null)})}), style:{fontSize:11,color:'#16a34a',background:'#f0fdf4',border:'none',borderRadius:4,padding:'2px 8px',cursor:'pointer',fontWeight:700}},'+'), React.createElement('button',{ onClick:e=>{e.stopPropagation();if(item.custom)excluirCat(item.id,item.nome);else toast('Contas padrão não podem ser excluídas',true);}, style:{fontSize:10,color:'#dc2626',background:'#fee2e2',border:'none',borderRadius:4,padding:'2px 7px',cursor:'pointer'}},'×')
           )
         ); })
