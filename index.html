@@ -4040,7 +4040,10 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){ const{conta
   (categorias_fin||[]).filter(c=>c.tipo===tipoFiltro).forEach(c=>{ const k=c.grupo||'';
     if(!customByParent2[k])customByParent2[k]=[];
     customByParent2[k].push(c); });
-  const stdItems=PLANO_CONTAS.filter(c=>c.nivel>=1&&c.tipo===tipoFiltro);
+  // For despesas: also include 3.2.x (DAS, impostos registered as despesa)
+  const stdItems=[...PLANO_CONTAS.filter(c=>c.nivel>=1&&c.tipo===tipoFiltro),
+    ...(!isRec?PLANO_CONTAS.filter(c=>c.nivel>=1&&(c.cod||'').startsWith('3.2')).filter(c=>!PLANO_CONTAS.find(x=>x.tipo===tipoFiltro&&x.cod===c.cod)):[])
+  ];
   // Two-pass: add customs after each parent's last std child
   const cats=[];
   stdItems.forEach(item=>{ cats.push({v:item.cod+' '+item.nome,l:item.cod+' '+item.nome,indent:(item.nivel-1)*14,bold:item.nivel===1}); });
