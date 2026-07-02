@@ -3656,160 +3656,121 @@ function ProducaoDetalhe({producao,db,close}){ const{fichas}=db;
   );
 }
 
-function PlanejamentoProducao({uid,db,reload,setM}){ const{fichas,estoque}=db;
-  const[plano,setPlano]=React.useState([]); // [{id, ficha_id, qtd, data_producao}]
-  const[ingredientesPorFicha,setIngredientesPorFicha]=React.useState({});
-  const[draggedFichaId,setDraggedFichaId]=React.useState(null);
-  const ordemKey='fichas_ordem_'+(aba||'cookie')+'_'+uid;
-  const[ordem,setOrdemState]=React.useState(()=>{ try{const s=localStorage.getItem(ordemKey);return s?JSON.parse(s):null;}catch{return null;} });
-  const setOrdem=(fn)=>setOrdemState(p=>{ const next=typeof fn==='function'?fn(p):fn; try{if(next)localStorage.setItem(ordemKey,JSON.stringify(next));else localStorage.removeItem(ordemKey);}catch{}; return next; });
-  const listaOrdenada=React.useMemo(()=>{ if(!ordem)return list; return [...list].sort((a,b)=>{ const ai=ordem.indexOf(a.id),bi=ordem.indexOf(b.id); if(ai===-1&&bi===-1)return 0; if(ai===-1)return 1; if(bi===-1)return -1; return ai-bi; }); },[list,ordem]);
-  const moveFicha=(fromId,toId)=>{ setOrdem(p=>{ const base=p||list.map(f=>f.id); const arr=[...base]; const fi=arr.indexOf(fromId),ti=arr.indexOf(toId); if(fi===-1||ti===-1)return p; const[m]=arr.splice(fi,1); arr.splice(ti,0,m); return arr; }); };
-  const[loadingIngs,setLoadingIngs]=React.useState(true);
-  const[loadingPlano,setLoadingPlano]=React.useState(true);
-  const[salvando,setSalvando]=React.useState(false);
+function PlanejamentoProducao({uid,db,reload,setM}){
+  const{fichas,estoque,pedidos_cw,ficha_ingredientes}=db;
+  const[loading,setLoading]=React.useState(false);
+  const[semanas,setSemanas]=React.useState('1');
+  const hoje=TODAY();
 
-  // Carrega o plano salvo no banco ao abrir a página
-  React.useEffect(()=>{ sb.from('planejamento_producao').select('*').eq('user_id',uid).order('criado_em',{ascending:true}).then(({data})=>{ setPlano((data||[]).map(p=>({id:p.id,ficha_id:p.ficha_id||'',qtd:String(p.quantidade||''),data_producao:p.data_producao||TODAY()})));
-      setLoadingPlano(false); }); },[uid]);
+  // Sales last N weeks per product
+  const vendas7=React.useMemo(()=>{
+    const dias=Number(semanas||1)*7;
+    const limite=new Date(hoje+'T12:00:00');
+    limite.setDate(limite.getDate()-dias);
+    const limStr=limite.toLocaleDateString('sv-SE');
+    const normN=s=>(s||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[-_\s]+/g,' ').trim();
+    const g={};
+    (pedidos_cw||[]).filter(p=>!isPedCancelado(p)&&p.data_pedido>=limStr).forEach(p=>{
+      const itens=((p.raw&&p.raw.items)||p.itens||[]).filter(it=>!isCancelledItem(it));
+      itens.forEach(it=>{
+        const nomeBruto=(it.name||it.nome||'').trim();
+        const nLow=normN(nomeBruto);
+        let nome=nomeBruto;
+        const fExata=(fichas||[]).find(f=>normN(f.nome)===nLow);
+        const fCw=(fichas||[]).find(f=>(f.nome_cw||'').split('|').map(a=>normN(a)).includes(nLow));
+        const fIf=(fichas||[]).find(f=>(f.nome_ifood||'').split('|').map(a=>normN(a)).includes(nLow));
+        const fM=fExata||fCw||fIf;
+        if(fM)nome=fM.nome;
+        const qtd=Number(it.quantity||1);
+        g[nome]=(g[nome]||0)+qtd;
+      });
+    });
+    return g;
+  },[pedidos_cw,fichas,hoje,semanas]);
 
-  React.useEffect(()=>{ if(!fichas||!fichas.length){setLoadingIngs(false);return;}
-    sb.from('ficha_ingredientes').select('*').in('ficha_id',fichas.map(f=>f.id)).then(({data})=>{ const map={};
-      (data||[]).forEach(i=>{if(!map[i.ficha_id])map[i.ficha_id]=[];map[i.ficha_id].push(i);});
-      setIngredientesPorFicha(map);
-      setLoadingIngs(false); }); },[fichas]);
+  // Build plan items per cookie ficha
+  const plano=React.useMemo(()=>{
+    const dias=Number(semanas||1)*7;
+    return (fichas||[]).filter(f=>f.categoria!=='Recheio').map(f=>{
+      const est=(estoque||[]).find(e=>e.categoria==='Cookie'&&(e.nome||'').toLowerCase()===(f.nome||'').toLowerCase());
+      const qtdEst=Number(est?.qtd||0);
+      const minimo=Number(est?.minimo||0);
+      const vendido=vendas7[f.nome]||0;
+      const diario=vendido/dias;
+      const diario7=Math.ceil(diario*7); // produzir para 1 semana
+      const precisaMin=Math.max(0,minimo-qtdEst);
+      const sugerido=Math.max(precisaMin,diario7);
+      const custo=((ficha_ingredientes||[]).filter(i=>i.ficha_id===f.id).reduce((s,i)=>{
+        const es=(estoque||[]).find(e=>e.id===i.estoque_id||e.nome===i.nome);
+        return s+(parseFloat(i.quantidade||0)*parseFloat(es?.custo||i.custo_unit||0));
+      },0))/(Number(f.rendimento||1));
+      return{id:f.id,nome:f.nome,qtdEst,minimo,vendido,diario7,sugerido,custo,custoTotal:custo*sugerido};
+    }).sort((a,b)=>b.sugerido-a.sugerido);
+  },[fichas,estoque,ficha_ingredientes,vendas7,semanas]);
 
-  // Persiste uma linha do plano no banco (debounced via blur/change direto)
-  const salvarItem=async(item)=>{ if(!item.ficha_id)return;
-    setSalvando(true);
-    const payload={user_id:uid,ficha_id:item.ficha_id,quantidade:parseFloat(item.qtd)||0,data_producao:item.data_producao||TODAY()};
-    if(item.id&&!String(item.id).startsWith('new_')){ await sb.from('planejamento_producao').update(payload).eq('id',item.id); }else{ const{data}=await sb.from('planejamento_producao').insert(payload).select().single();
-      if(data)setPlano(p=>p.map(it=>it===item||it.id===item.id?{...it,id:data.id}:it)); }
-    setSalvando(false); };
+  const totalCusto=plano.reduce((s,p)=>s+p.custoTotal,0);
+  const totalProduzir=plano.reduce((s,p)=>s+p.sugerido,0);
 
-  // Sugestão automática: produtos com estoque atual <= mínimo configurado
-  const sugerirAutomatico=async()=>{ const sugeridos=(fichas||[]).map(f=>{ const prod=(estoque||[]).find(e=>e.nome===f.nome&&e.categoria==='Cookie');
-      const qtdAtual=prod?Number(prod.qtd||0):0;
-      const minimo=prod?Number(prod.minimo||0):0;
-      if(qtdAtual<=minimo){ const sugestao=minimo>0?Math.max(minimo*2-qtdAtual,1):10;
-        return{ficha_id:f.id,qtd:String(Math.ceil(sugestao)),data_producao:TODAY()}; }
-      return null; }).filter(Boolean);
-    if(sugeridos.length===0){toast('Nenhum produto com estoque baixo encontrado',false,true);return;}
-    // Limpa plano atual no banco e insere os sugeridos
-    await sb.from('planejamento_producao').delete().eq('user_id',uid);
-    const{data}=await sb.from('planejamento_producao').insert(
-      sugeridos.map(s=>({user_id:uid,ficha_id:s.ficha_id,quantidade:parseFloat(s.qtd),data_producao:s.data_producao}))
-    ).select();
-    setPlano((data||[]).map(p=>({id:p.id,ficha_id:p.ficha_id,qtd:String(p.quantidade),data_producao:p.data_producao})));
-    toast(sugeridos.length+' produto(s) sugerido(s)!',false,true); };
-
-  const addItem=()=>setPlano(p=>[...p,{id:'new_'+Date.now(),ficha_id:'',qtd:'1',data_producao:TODAY()}]);
-
-  const updItem=(idx,campo,val)=>{ setPlano(p=>{ const novo=p.map((it,i)=>i===idx?{...it,[campo]:val}:it);
-      salvarItem(novo[idx]);
-      return novo; }); };
-
-  const delItem=async(idx)=>{ const item=plano[idx];
-    if(item.id&&!String(item.id).startsWith('new_')){ await sb.from('planejamento_producao').delete().eq('id',item.id); }
-    setPlano(p=>p.filter((_,i)=>i!==idx)); };
-
-  const limparPlano=async()=>{ await sb.from('planejamento_producao').delete().eq('user_id',uid);
-    setPlano([]); };
-
-  // Calcula a necessidade total de cada insumo somando todos os itens do plano
-  const necessidades=React.useMemo(()=>{ const map={};
-    plano.forEach(p=>{ const qtdN=parseFloat(p.qtd)||0;
-      if(!p.ficha_id||qtdN<=0)return;
-      const ings=ingredientesPorFicha[p.ficha_id]||[];
-      ings.forEach(ing=>{ if(!ing.estoque_id)return;
-        const necessarioItem=Number(ing.quantidade||0)*qtdN;
-        if(!map[ing.estoque_id]){ const item=(estoque||[]).find(e=>e.id===ing.estoque_id);
-          map[ing.estoque_id]={nome:ing.nome,unidade:ing.unidade,necessario:0,disponivel:item?Number(item.qtd||0):0,item}; }
-        map[ing.estoque_id].necessario+=necessarioItem; }); });
-    return Object.values(map); },[plano,ingredientesPorFicha,estoque]);
-
-  const faltando=necessidades.filter(n=>n.necessario>n.disponivel);
-  const custoTotalPlano=plano.reduce((s,p)=>{ const qtdN=parseFloat(p.qtd)||0;
-    const ings=ingredientesPorFicha[p.ficha_id]||[];
-    const custoUn=ings.reduce((si,i)=>si+Number(i.quantidade||0)*Number(i.custo_unit||0),0);
-    return s+custoUn*qtdN; },0);
-  const totalUnidadesPlano=plano.reduce((s,p)=>s+(parseFloat(p.qtd)||0),0);
-
-  const irProduzir=(fichaId)=>{ setM({wide:true,title:'Registrar Produção',body:React.createElement(ProducaoForm,{uid,db,reload,close:()=>setM(null),fichaIdInicial:fichaId})}); };
-
-  const imprimir=()=>{ const w=window.open('','_blank');
-    const linhas=plano.filter(p=>p.ficha_id).map(p=>{ const ficha=(fichas||[]).find(f=>f.id===p.ficha_id);
-      return'<tr><td>'+(ficha?ficha.nome:'—')+'</td><td>'+FD(p.data_producao)+'</td><td style="text-align:right">'+p.qtd+' un</td></tr>'; }).join('');
-    const insumos=necessidades.map(n=>{ const suf=n.necessario<=n.disponivel;
-      return'<tr><td>'+n.nome+'</td><td style="text-align:right">'+n.necessario.toFixed(1)+n.unidade+'</td><td style="text-align:right">'+n.disponivel.toFixed(1)+n.unidade+'</td><td style="text-align:right;color:'+(suf?'#16a34a':'#dc2626')+'">'+(suf?'OK':'FALTA '+(n.necessario-n.disponivel).toFixed(1)+n.unidade)+'</td></tr>'; }).join('');
-    w.document.write(
-      '<html><head><title>Planejamento de Producao</title><style>'+
-      '@page{margin:18mm 16mm;}'+
-      'body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0;}'+
-      'h1{font-size:20px;margin-bottom:4px;}h2{font-size:14px;margin-top:24px;margin-bottom:8px;border-bottom:2px solid #111;padding-bottom:4px;}'+
-      'table{width:100%;border-collapse:collapse;font-size:13px;page-break-inside:avoid;}td,th{padding:8px;border-bottom:1px solid #eee;text-align:left;}'+
-      '.sub{color:#888;font-size:12px;margin-bottom:16px;}'+
-      '@media print{body{padding:0;}}'+
-      '</style></head><body>'+
-      '<h1>Planejamento de Produção</h1>'+
-      '<div class="sub">Gerado em '+new Date().toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'})+'</div>'+
-      '<h2>O que produzir</h2>'+
-      '<table><tr><th>Produto</th><th>Data</th><th style="text-align:right">Quantidade</th></tr>'+linhas+'</table>'+
-      '<h2>Insumos necessários</h2>'+
-      '<table><tr><th>Insumo</th><th style="text-align:right">Necessário</th><th style="text-align:right">Disponível</th><th style="text-align:right">Status</th></tr>'+insumos+'</table>'+
-      '<h2>Resumo</h2>'+
-      '<table><tr><td>Custo estimado total</td><td style="text-align:right">'+F(custoTotalPlano)+'</td></tr>'+
-      '<tr><td>Total de unidades a produzir</td><td style="text-align:right">'+totalUnidadesPlano+' un</td></tr></table>'+
-      '</body></html>'
-    );
-    w.document.close();
-    setTimeout(()=>w.print(),300); };
-
-  const exportarCSV=()=>{ const linhas=[['Produto','Data Produção','Quantidade','Custo Estimado']];
-    plano.filter(p=>p.ficha_id).forEach(p=>{ const ficha=(fichas||[]).find(f=>f.id===p.ficha_id);
-      const ings=ingredientesPorFicha[p.ficha_id]||[];
-      const custoUn=ings.reduce((si,i)=>si+Number(i.quantidade||0)*Number(i.custo_unit||0),0);
-      linhas.push([ficha?ficha.nome:'—',p.data_producao,p.qtd,(custoUn*(parseFloat(p.qtd)||0)).toFixed(2)]); });
-    const csv=linhas.map(l=>l.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(';')).join('\n');
-    const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=url;a.download='planejamento_producao_'+TODAY()+'.csv';
-    document.body.appendChild(a);a.click();document.body.removeChild(a);
-    URL.revokeObjectURL(url); };
-
-  if(loadingPlano)return React.createElement(PW,{title:'Planejamento de Produção'}, React.createElement('div',{style:{textAlign:'center',padding:'60px',color:'#aaa'}},'Carregando plano...')
-  );
-
-  return React.createElement(PW,{title:'Planejamento de Produção',sub:'Defina o que produzir e veja se o estoque de insumos é suficiente', actions:[
-      plano.length>0&&React.createElement('button',{key:'csv',style:{background:'#f5f5f5',color:'#555',padding:'8px 14px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:exportarCSV},'⬇ Exportar .csv'), plano.length>0&&React.createElement('button',{key:'print',style:{background:'#f5f5f5',color:'#555',padding:'8px 14px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:imprimir},'🖨 Imprimir / PDF'), React.createElement('button',{key:'sug',style:{background:'#f5f5f5',color:'#dc2626',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:sugerirAutomatico},'✨ Sugerir automaticamente'), React.createElement('button',{key:'add',style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:addItem},'+ Adicionar Produto')
-    ].filter(Boolean)}, plano.length===0
-      ?React.createElement('div',{style:{textAlign:'center',padding:'60px',color:'#ccc',background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}}, React.createElement('div',{style:{fontSize:36,marginBottom:10}},'📋'), React.createElement('div',{style:{fontSize:14,marginBottom:16}},'Nenhum item no plano ainda'), React.createElement('div',{style:{display:'flex',gap:10,justifyContent:'center'}}, React.createElement('button',{style:{background:'#faf5ff',color:'#dc2626',padding:'10px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:sugerirAutomatico},'✨ Sugerir automaticamente'), React.createElement('button',{style:{background:'#dc2626',color:'#fff',padding:'10px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:addItem},'+ Adicionar manualmente')
-          )
+  return React.createElement(PW,{title:'Planejamento de Produção',sub:'Sugestão automática baseada em vendas e estoque mínimo'},
+    React.createElement('div',{style:{display:'flex',gap:10,alignItems:'center',marginBottom:16,flexWrap:'wrap'}},
+      React.createElement('div',{style:{fontSize:13,color:'#555',fontWeight:600}},'Calcular demanda com base nas últimas'),
+      React.createElement('div',{style:{display:'flex',gap:4}},
+        ['1','2','4'].map(s=>React.createElement('button',{key:s,onClick:()=>setSemanas(s),
+          style:{padding:'6px 14px',borderRadius:8,border:'none',cursor:'pointer',fontWeight:700,fontSize:12,
+            background:semanas===s?'#dc2626':'#f5f5f5',color:semanas===s?'#fff':'#555'}},s+' sem.'))
+      ),
+      React.createElement('div',{style:{marginLeft:'auto',display:'flex',gap:16}},
+        React.createElement('div',{style:{textAlign:'right'}},
+          React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700}},'TOTAL A PRODUZIR'),
+          React.createElement('div',{style:{fontSize:18,fontWeight:800,color:'#dc2626'}},totalProduzir+' un')
+        ),
+        React.createElement('div',{style:{textAlign:'right'}},
+          React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700}},'CUSTO ESTIMADO'),
+          React.createElement('div',{style:{fontSize:18,fontWeight:800,color:'#2563eb'}},F(totalCusto))
         )
-      :React.createElement('div',null, salvando&&React.createElement('div',{style:{fontSize:11,color:'#dc2626',marginBottom:8}},'Salvando...'), // KPIs do plano
-          React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}}, React.createElement(SC,{label:'Produtos no plano',val:plano.filter(p=>p.ficha_id).length,color:'#dc2626'}), React.createElement(SC,{label:'Unidades a produzir',val:totalUnidadesPlano,color:'#111'}), React.createElement(SC,{label:'Custo estimado',val:F(custoTotalPlano),color:'#dc2626'}), React.createElement(SC,{label:'Insumos em falta',val:faltando.length,color:faltando.length>0?'#dc2626':'#16a34a'})
-          ), // Lista de itens do plano
-          React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'18px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)',marginBottom:16}}, React.createElement('div',{style:{fontWeight:700,fontSize:14,marginBottom:14}},'O que produzir'), plano.map((p,idx)=>{ const ficha=(fichas||[]).find(f=>f.id===p.ficha_id);
-              const prod=ficha?(estoque||[]).find(e=>e.nome===ficha.nome&&e.categoria==='Cookie'):null;
-              const qtdAtual=prod?Number(prod.qtd||0):0;
-              return React.createElement('div',{key:p.id||idx,style:{display:'grid',gridTemplateColumns:'2fr 1fr 1fr 1fr auto',gap:10,marginBottom:10,alignItems:'center'}}, React.createElement(CustomSelect,{label:'',value:p.ficha_id,onChange:v=>updItem(idx,'ficha_id',v), options:(fichas||[]).map(f=>({v:f.id,l:f.nome})),placeholder:'— Selecione o produto —',acent:'#dc2626' }), React.createElement('div',{style:{fontSize:12,color:'#888',textAlign:'center'}},'Atual: '+qtdAtual+' un'), React.createElement(FloatInput,{label:'Qtd a produzir',acent:'#dc2626',type:'number',value:p.qtd,onChange:e=>updItem(idx,'qtd',e.target.value)}), React.createElement(MiniDatePicker,{label:'Data produção',value:p.data_producao,onChange:v=>updItem(idx,'data_producao',v),acent:'#dc2626'}), React.createElement('button',{onClick:()=>delItem(idx),style:{background:'#fee2e2',color:'#dc2626',border:'none',borderRadius:8,padding:'8px 10px',cursor:'pointer',fontWeight:700}},'×')
-              ); }), React.createElement('button',{onClick:addItem,style:{background:'#f5f5f5',color:'#dc2626',padding:'8px 16px',borderRadius:9,fontSize:12,fontWeight:600,border:'none',cursor:'pointer',marginTop:6}},'+ Adicionar outro produto')
-          ), // Necessidade de insumos
-          !loadingIngs&&necessidades.length>0&&React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'18px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}}, React.createElement('div',{style:{fontWeight:700,fontSize:14,marginBottom:14}},'Insumos necessários'), necessidades.sort((a,b)=>(b.necessario>b.disponivel?1:0)-(a.necessario>a.disponivel?1:0)).map((n,i)=>{ const suficiente=n.necessario<=n.disponivel;
-              const pct=n.disponivel>0?Math.min(100,(n.necessario/n.disponivel*100)):100;
-              return React.createElement('div',{key:i,style:{marginBottom:12,paddingBottom:12,borderBottom:i<necessidades.length-1?'1px solid #f5f5f5':'none'}}, React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:5}}, React.createElement('span',{style:{fontSize:13,fontWeight:600,color:'#111'}},n.nome), React.createElement('span',{style:{fontSize:12,fontWeight:700,color:suficiente?'#16a34a':'#dc2626'}}, n.necessario.toFixed(1)+n.unidade+' / '+n.disponivel.toFixed(1)+n.unidade+(suficiente?' ✓':' ⚠ Falta '+(n.necessario-n.disponivel).toFixed(1)+n.unidade)
-                  )
-                ), React.createElement('div',{style:{height:6,background:'#f5f5f5',borderRadius:4,overflow:'hidden'}}, React.createElement('div',{style:{height:'100%',width:Math.min(100,pct)+'%',background:suficiente?'#16a34a':'#dc2626',borderRadius:4}})
+      )
+    ),
+
+    React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+      React.createElement('table',{style:{width:'100%',borderCollapse:'collapse'}},
+        React.createElement('thead',null,
+          React.createElement('tr',{style:{background:'#f9f9fb'}},
+            ['Produto','Em estoque','Mínimo','Vendido ('+semanas+'sem)','Média/sem','Sugestão','Custo unit.','Custo total','Status'].map((h,i)=>
+              React.createElement('th',{key:i,style:{padding:'10px 12px',fontSize:11,fontWeight:700,color:'#888',textAlign:i===0?'left':'right',borderBottom:'1px solid #f0f0f0',whiteSpace:'nowrap'}},h)
+            )
+          )
+        ),
+        React.createElement('tbody',null,
+          plano.length===0
+            ?React.createElement('tr',null,React.createElement('td',{colSpan:9,style:{textAlign:'center',padding:40,color:'#ccc'}},'Nenhuma ficha técnica cadastrada'))
+            :plano.map(p=>{
+              const urgente=p.qtdEst<p.minimo;
+              const ok=p.sugerido===0;
+              const cor=ok?'#16a34a':urgente?'#dc2626':'#f59e0b';
+              const label=ok?'Estoque ok':urgente?'Crítico':'Produzir';
+              return React.createElement('tr',{key:p.id,style:{borderBottom:'1px solid #f7f7f7'}},
+                React.createElement('td',{style:{padding:'10px 12px',fontWeight:700,fontSize:13}},p.nome),
+                React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',fontWeight:p.qtdEst<p.minimo?800:400,color:p.qtdEst<p.minimo?'#dc2626':'#111'}},p.qtdEst+' un'),
+                React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',color:'#888'}},p.minimo+' un'),
+                React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',color:'#555'}},p.vendido+' un'),
+                React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',color:'#555'}},p.diario7+' un'),
+                React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',fontWeight:800,fontSize:14,color:ok?'#aaa':'#dc2626'}},ok?'—':p.sugerido+' un'),
+                React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',fontSize:12,color:'#888'}},p.custo>0?F(p.custo):'—'),
+                React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',fontWeight:600,color:'#2563eb'}},p.sugerido>0?F(p.custoTotal):'—'),
+                React.createElement('td',{style:{padding:'10px 12px',textAlign:'right'}},
+                  React.createElement('span',{style:{background:cor+'18',color:cor,padding:'3px 10px',borderRadius:20,fontSize:11,fontWeight:700}},label)
                 )
-              ); })
-          ), faltando.length===0&&!loadingIngs&&necessidades.length>0&&React.createElement('div',{style:{background:'#f0fdf4',borderRadius:12,padding:'14px 18px',marginTop:14,fontSize:13,color:'#16a34a',fontWeight:600,textAlign:'center'}}, '✓ Estoque suficiente para produzir todo o plano!'
-          ), plano.some(p=>p.ficha_id)&&React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',marginTop:16}}, React.createElement('button',{onClick:limparPlano,style:{background:'#f5f5f5',color:'#555',padding:'10px 18px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'}},'Limpar plano'), plano.filter(p=>p.ficha_id).map(p=>React.createElement('button',{key:p.ficha_id,onClick:()=>irProduzir(p.ficha_id),style:{background:'#dc2626',color:'#fff',padding:'10px 18px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}}, 'Produzir '+((fichas||[]).find(f=>f.id===p.ficha_id)||{}).nome||''
-            ))
-          )
+              );
+            })
         )
+      )
+    ),
+    React.createElement('div',{style:{marginTop:12,padding:'10px 14px',background:'#fffbeb',border:'1px solid #fcd34d',borderRadius:10,fontSize:12,color:'#92400e'}},
+      '💡 Sugestão = maior valor entre: (estoque mínimo − estoque atual) e (média de vendas da última '+semanas+' semana). Defina o estoque mínimo em Estoque → Cookies para uma sugestão mais precisa.'
+    )
   );
 }
+
 
 function ProducaoHistorico({uid,db,reload,setM}){ const{fichas}=db;
   const[producoes,setProducoes]=React.useState([]);
