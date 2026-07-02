@@ -4288,25 +4288,39 @@ function FinCategorias({uid,db,reload,setM}){ const{categorias_fin}=db;
   const nivelStyle=[
     {fontSize:15,fontWeight:900,color:'#111',paddingLeft:0,paddingTop:10,paddingBottom:6,borderTop:'2px solid #111',marginTop:8}, {fontSize:13,fontWeight:700,color:'#444',paddingLeft:20,paddingTop:6,paddingBottom:4,borderTop:'1px solid #e5e5e5',marginTop:2}, {fontSize:12,fontWeight:400,color:'#555',paddingLeft:44,paddingTop:4,paddingBottom:4}, {fontSize:11,fontWeight:400,color:'#888',paddingLeft:68,paddingTop:3,paddingBottom:3}, ];
 
-  // Build rows: PLANO_CONTAS + append custom after last child of each parent
+  // Build rows iteratively: keeps processing until all customs placed
   const rows=[];
-  // First pass: build standard rows
   PLANO_CONTAS.forEach(item=>rows.push({...item,custom:false}));
-  // Second pass: for each parent, append custom children after the last standard child
-  const parentPrefixes=new Set(PLANO_CONTAS.filter(i=>i.nivel>=0).map(i=>i.cod+' '+i.nome)); // include nivel 0
-  parentPrefixes.forEach(parentKey=>{ const parentIdx=rows.findLastIndex(r=>!r.custom&&r.cod+' '+r.nome===parentKey);
-    if(parentIdx===-1)return;
-    const parentItem=rows[parentIdx];
-    const parentNivel=parentItem.nivel;
-    let insertAt=parentIdx+1;
-    while(insertAt<rows.length&&!rows[insertAt].custom&&rows[insertAt].nivel>parentNivel)insertAt++;
-    const stdChildren=rows.slice(parentIdx+1,insertAt).filter(r=>r.nivel===parentNivel+1&&!r.custom);
-    const customs=(customByParent[parentKey]||[]);
-    customs.forEach((c,ci)=>{ const nextNum=stdChildren.length+ci+1;
-      const autoCode=parentItem.cod+'.'+nextNum;
-      rows.splice(insertAt+ci,0,{cod:autoCode,nome:c.nome,tipo:c.tipo||parentItem.tipo,nivel:parentNivel+1,custom:true,id:c.id,grupo:c.grupo,catObj:c}); }); });
-  // Custom without matching parent
-  (categorias_fin||[]).filter(c=>!rows.find(r=>r.custom&&r.id===c.id)).forEach(c=>{ rows.push({cod:'',nome:c.nome,tipo:c.tipo||'despesa',nivel:2,custom:true,id:c.id,grupo:c.grupo,catObj:c}); });
+
+  // Place customs in correct position — multiple passes to handle nested customs
+  const pendentes=[...(categorias_fin||[])];
+  let maxPasses=10;
+  while(pendentes.length&&maxPasses-->0){
+    const antes=pendentes.length;
+    for(let pi=pendentes.length-1;pi>=0;pi--){
+      const c=pendentes[pi];
+      const grupo=c.grupo||'';
+      // Find parent row by matching cod+nome or just nome
+      const parentIdx=rows.findLastIndex(r=>
+        (r.cod?r.cod+' '+r.nome:r.nome)===grupo||r.nome===grupo
+      );
+      if(parentIdx===-1)continue; // parent not placed yet
+      const parentItem=rows[parentIdx];
+      const parentNivel=parentItem.nivel;
+      // Find insert position: after all existing children of this parent
+      let insertAt=parentIdx+1;
+      while(insertAt<rows.length&&rows[insertAt].nivel>parentNivel)insertAt++;
+      // Count siblings at same level under same parent for auto-code
+      const siblings=rows.slice(parentIdx+1,insertAt).filter(r=>r.nivel===parentNivel+1);
+      const nextNum=siblings.length+1;
+      const autoCode=parentItem.cod?(parentItem.cod+'.'+nextNum):String(nextNum);
+      rows.splice(insertAt,0,{cod:autoCode,nome:c.nome,tipo:c.tipo||parentItem.tipo,nivel:parentNivel+1,custom:true,id:c.id,grupo:c.grupo,catObj:c});
+      pendentes.splice(pi,1);
+    }
+    if(pendentes.length===antes)break; // no progress, avoid infinite loop
+  }
+  // Anything still pending has no valid parent — show at bottom
+  pendentes.forEach(c=>rows.push({cod:'',nome:c.nome,tipo:c.tipo||'despesa',nivel:2,custom:true,id:c.id,grupo:c.grupo,catObj:c}));
 
   const[dragId,setDragId]=React.useState(null);
   const[reordenados,setReordenados]=React.useState(null); // null = use rows default
