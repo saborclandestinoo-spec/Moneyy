@@ -3683,7 +3683,42 @@ function PlanejamentoProducao({uid,db,reload,setM}){
   const totalCusto=plano.reduce((s,p)=>s+p.custoTotal,0);
   const totalProduzir=plano.reduce((s,p)=>s+p.sugerido,0);
 
-  return React.createElement(PW,{title:'Planejamento de Produção',sub:'Cookies abaixo do estoque mínimo'},
+  const exportarPDF=()=>{
+    const hoje=TODAY();
+    const linhas=plano.map(p=>`<tr><td>${p.nome}</td><td>${p.qtdEst} un</td><td>${p.minimo} un</td><td style="color:#dc2626;font-weight:800">+${p.sugerido} un</td><td>R$ ${p.custo.toFixed(2).replace('.',',')}</td><td style="font-weight:700">R$ ${p.custoTotal.toFixed(2).replace('.',',')}</td></tr>`).join('');
+    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Planejamento ${hoje}</title>
+    <style>*{font-family:Arial,sans-serif;margin:0;padding:0;box-sizing:border-box;}
+    body{padding:32px;color:#111;}
+    h1{font-size:20px;font-weight:800;margin-bottom:4px;}
+    .sub{color:#888;font-size:12px;margin-bottom:24px;}
+    .kpis{display:flex;gap:24px;margin-bottom:24px;}
+    .kpi{background:#f9f9fb;border-radius:8px;padding:12px 20px;}
+    .kpi-label{font-size:10px;color:#aaa;font-weight:700;margin-bottom:4px;}
+    .kpi-val{font-size:20px;font-weight:800;}
+    table{width:100%;border-collapse:collapse;font-size:12px;}
+    th{background:#f5f5f5;padding:10px 12px;text-align:left;font-weight:700;color:#555;border-bottom:2px solid #e5e5e5;}
+    td{padding:10px 12px;border-bottom:1px solid #f0f0f0;}
+    tr:last-child td{border-bottom:2px solid #e5e5e5;font-weight:800;}
+    .footer{margin-top:20px;font-size:10px;color:#aaa;}
+    @media print{body{padding:16px;}}</style></head><body>
+    <h1>Planejamento de Produção</h1>
+    <div class="sub">Gerado em ${hoje} — Cookies abaixo do estoque mínimo</div>
+    <div class="kpis">
+      <div class="kpi"><div class="kpi-label">CRÍTICOS</div><div class="kpi-val" style="color:#dc2626">${plano.length}</div></div>
+      <div class="kpi"><div class="kpi-label">TOTAL A PRODUZIR</div><div class="kpi-val">${totalProduzir} un</div></div>
+      <div class="kpi"><div class="kpi-label">CUSTO ESTIMADO</div><div class="kpi-val" style="color:#2563eb">R$ ${totalCusto.toFixed(2).replace('.',',')}</div></div>
+    </div>
+    <table><thead><tr><th>Produto</th><th>Em estoque</th><th>Mínimo</th><th>Produzir</th><th>Custo unit.</th><th>Custo total</th></tr></thead>
+    <tbody>${linhas}</tbody></table>
+    <div class="footer">Moneyy ERP — Planejamento de Produção</div>
+    <script>window.onload=()=>{window.print();}<\/script></body></html>`;
+    const w=window.open('','_blank');
+    w.document.write(html);
+    w.document.close();
+  };
+
+  return React.createElement(PW,{title:'Planejamento de Produção',sub:'Cookies abaixo do estoque mínimo',
+    actions:plano.length>0?[React.createElement('button',{key:'exp',onClick:exportarPDF,style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'}},'⬇ Exportar PDF')]:[]},
     plano.length===0
       ?React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:60,textAlign:'center',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
           React.createElement('div',{style:{fontSize:32,marginBottom:12}},'✅'),
