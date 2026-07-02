@@ -3663,117 +3663,58 @@ function ProducaoDetalhe({producao,db,close}){ const{fichas}=db;
 }
 
 function PlanejamentoProducao({uid,db,reload,setM}){
-  const{fichas,estoque,pedidos_cw,ficha_ingredientes}=db;
-  const[loading,setLoading]=React.useState(false);
-  const[semanas,setSemanas]=React.useState('1');
-  const hoje=TODAY();
+  const{fichas,estoque,ficha_ingredientes}=db;
 
-  // Sales last N weeks per product
-  const vendas7=React.useMemo(()=>{
-    const dias=Number(semanas||1)*7;
-    const limite=new Date(hoje+'T12:00:00');
-    limite.setDate(limite.getDate()-dias);
-    const limStr=limite.toLocaleDateString('sv-SE');
-    const normN=s=>(s||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[-_\s]+/g,' ').trim();
-    const g={};
-    (pedidos_cw||[]).filter(p=>!isPedCancelado(p)&&p.data_pedido>=limStr).forEach(p=>{
-      const itens=((p.raw&&p.raw.items)||p.itens||[]).filter(it=>!isCancelledItem(it));
-      itens.forEach(it=>{
-        const nomeBruto=(it.name||it.nome||'').trim();
-        const nLow=normN(nomeBruto);
-        let nome=nomeBruto;
-        const fExata=(fichas||[]).find(f=>normN(f.nome)===nLow);
-        const fCw=(fichas||[]).find(f=>(f.nome_cw||'').split('|').map(a=>normN(a)).includes(nLow));
-        const fIf=(fichas||[]).find(f=>(f.nome_ifood||'').split('|').map(a=>normN(a)).includes(nLow));
-        const fM=fExata||fCw||fIf;
-        if(fM)nome=fM.nome;
-        const qtd=Number(it.quantity||1);
-        g[nome]=(g[nome]||0)+qtd;
-      });
-    });
-    return g;
-  },[pedidos_cw,fichas,hoje,semanas]);
-
-  // Build plan items per cookie ficha
   const plano=React.useMemo(()=>{
-    const dias=Number(semanas||1)*7;
     return (fichas||[]).filter(f=>f.categoria!=='Recheio').map(f=>{
       const est=(estoque||[]).find(e=>e.categoria==='Cookie'&&(e.nome||'').toLowerCase()===(f.nome||'').toLowerCase());
       const qtdEst=Number(est?.qtd||0);
       const minimo=Number(est?.minimo||0);
-      const vendido=vendas7[f.nome]||0;
-      const diario=vendido/dias;
-      const diario7=Math.ceil(diario*7); // produzir para 1 semana
-      const precisaMin=Math.max(0,minimo-qtdEst);
-      const sugerido=Math.max(precisaMin,diario7);
+      if(minimo===0||qtdEst>=minimo)return null;
+      const sugerido=minimo; // always produce the full minimum
       const custo=((ficha_ingredientes||[]).filter(i=>i.ficha_id===f.id).reduce((s,i)=>{
         const es=(estoque||[]).find(e=>e.id===i.estoque_id||e.nome===i.nome);
         return s+(parseFloat(i.quantidade||0)*parseFloat(es?.custo||i.custo_unit||0));
       },0))/(Number(f.rendimento||1));
-      return{id:f.id,nome:f.nome,qtdEst,minimo,vendido,diario7,sugerido,custo,custoTotal:custo*sugerido};
-    }).sort((a,b)=>b.sugerido-a.sugerido);
-  },[fichas,estoque,ficha_ingredientes,vendas7,semanas]);
+      return{id:f.id,nome:f.nome,qtdEst,minimo,sugerido,custo,custoTotal:custo*sugerido,urgencia:(minimo-qtdEst)/minimo};
+    }).filter(Boolean).sort((a,b)=>b.urgencia-a.urgencia);
+  },[fichas,estoque,ficha_ingredientes]);
 
   const totalCusto=plano.reduce((s,p)=>s+p.custoTotal,0);
   const totalProduzir=plano.reduce((s,p)=>s+p.sugerido,0);
 
-  return React.createElement(PW,{title:'Planejamento de Produção',sub:'Sugestão automática baseada em vendas e estoque mínimo'},
-    React.createElement('div',{style:{display:'flex',gap:10,alignItems:'center',marginBottom:16,flexWrap:'wrap'}},
-      React.createElement('div',{style:{fontSize:13,color:'#555',fontWeight:600}},'Calcular demanda com base nas últimas'),
-      React.createElement('div',{style:{display:'flex',gap:4}},
-        ['1','2','4'].map(s=>React.createElement('button',{key:s,onClick:()=>setSemanas(s),
-          style:{padding:'6px 14px',borderRadius:8,border:'none',cursor:'pointer',fontWeight:700,fontSize:12,
-            background:semanas===s?'#dc2626':'#f5f5f5',color:semanas===s?'#fff':'#555'}},s+' sem.'))
-      ),
-      React.createElement('div',{style:{marginLeft:'auto',display:'flex',gap:16}},
-        React.createElement('div',{style:{textAlign:'right'}},
-          React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700}},'TOTAL A PRODUZIR'),
-          React.createElement('div',{style:{fontSize:18,fontWeight:800,color:'#dc2626'}},totalProduzir+' un')
-        ),
-        React.createElement('div',{style:{textAlign:'right'}},
-          React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700}},'CUSTO ESTIMADO'),
-          React.createElement('div',{style:{fontSize:18,fontWeight:800,color:'#2563eb'}},F(totalCusto))
+  return React.createElement(PW,{title:'Planejamento de Produção',sub:'Cookies abaixo do estoque mínimo'},
+    plano.length===0
+      ?React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:60,textAlign:'center',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+          React.createElement('div',{style:{fontSize:32,marginBottom:12}},'✅'),
+          React.createElement('div',{style:{fontSize:15,fontWeight:700,color:'#16a34a',marginBottom:6}},'Tudo em dia!'),
+          React.createElement('div',{style:{fontSize:13,color:'#aaa'}},'Nenhum cookie abaixo do estoque mínimo.'),
+          React.createElement('div',{style:{fontSize:12,color:'#ccc',marginTop:8}},'Defina o estoque mínimo na Ficha Técnica de cada cookie.')
         )
-      )
-    ),
-
-    React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
-      React.createElement('table',{style:{width:'100%',borderCollapse:'collapse'}},
-        React.createElement('thead',null,
-          React.createElement('tr',{style:{background:'#f9f9fb'}},
-            ['Produto','Em estoque','Mínimo','Vendido ('+semanas+'sem)','Média/sem','Sugestão','Custo unit.','Custo total','Status'].map((h,i)=>
-              React.createElement('th',{key:i,style:{padding:'10px 12px',fontSize:11,fontWeight:700,color:'#888',textAlign:i===0?'left':'right',borderBottom:'1px solid #f0f0f0',whiteSpace:'nowrap'}},h)
+      :React.createElement(React.Fragment,null,
+          React.createElement('div',{style:{display:'flex',gap:16,marginBottom:16}},
+            React.createElement('div',{style:{background:'#fff',borderRadius:12,padding:'14px 20px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)',display:'flex',gap:24}},
+              React.createElement('div',null,React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700,marginBottom:2}},'CRÍTICOS'),React.createElement('div',{style:{fontSize:22,fontWeight:800,color:'#dc2626'}},plano.length)),
+              React.createElement('div',null,React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700,marginBottom:2}},'TOTAL A PRODUZIR'),React.createElement('div',{style:{fontSize:22,fontWeight:800,color:'#111'}},totalProduzir+' un')),
+              React.createElement('div',null,React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700,marginBottom:2}},'CUSTO ESTIMADO'),React.createElement('div',{style:{fontSize:22,fontWeight:800,color:'#2563eb'}},F(totalCusto)))
+            )
+          ),
+          React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+            React.createElement('table',{style:{width:'100%',borderCollapse:'collapse'}},
+              React.createElement('thead',null,React.createElement('tr',{style:{background:'#f9f9fb'}},
+                ['Produto','Em estoque','Mínimo','Produzir','Custo unit.','Custo total'].map((h,i)=>
+                  React.createElement('th',{key:i,style:{padding:'10px 12px',fontSize:11,fontWeight:700,color:'#888',textAlign:i===0?'left':'right',borderBottom:'1px solid #f0f0f0',whiteSpace:'nowrap'}},h)))),
+              React.createElement('tbody',null, plano.map(p=>React.createElement('tr',{key:p.id,style:{borderBottom:'1px solid #f7f7f7'}},
+                React.createElement('td',{style:{padding:'12px',fontWeight:700,fontSize:13}},p.nome),
+                React.createElement('td',{style:{padding:'12px',textAlign:'right',fontWeight:700,color:'#dc2626'}},p.qtdEst+' un'),
+                React.createElement('td',{style:{padding:'12px',textAlign:'right',color:'#888'}},p.minimo+' un'),
+                React.createElement('td',{style:{padding:'12px',textAlign:'right',fontWeight:800,fontSize:15,color:'#dc2626'}},'+'+p.sugerido+' un'),
+                React.createElement('td',{style:{padding:'12px',textAlign:'right',fontSize:12,color:'#888'}},p.custo>0?F(p.custo):'—'),
+                React.createElement('td',{style:{padding:'12px',textAlign:'right',fontWeight:700,color:'#2563eb'}},p.sugerido>0?F(p.custoTotal):'—')
+              )))
             )
           )
-        ),
-        React.createElement('tbody',null,
-          plano.length===0
-            ?React.createElement('tr',null,React.createElement('td',{colSpan:9,style:{textAlign:'center',padding:40,color:'#ccc'}},'Nenhuma ficha técnica cadastrada'))
-            :plano.map(p=>{
-              const urgente=p.qtdEst<p.minimo;
-              const ok=p.sugerido===0;
-              const cor=ok?'#16a34a':urgente?'#dc2626':'#f59e0b';
-              const label=ok?'Estoque ok':urgente?'Crítico':'Produzir';
-              return React.createElement('tr',{key:p.id,style:{borderBottom:'1px solid #f7f7f7'}},
-                React.createElement('td',{style:{padding:'10px 12px',fontWeight:700,fontSize:13}},p.nome),
-                React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',fontWeight:p.qtdEst<p.minimo?800:400,color:p.qtdEst<p.minimo?'#dc2626':'#111'}},p.qtdEst+' un'),
-                React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',color:'#888'}},p.minimo+' un'),
-                React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',color:'#555'}},p.vendido+' un'),
-                React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',color:'#555'}},p.diario7+' un'),
-                React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',fontWeight:800,fontSize:14,color:ok?'#aaa':'#dc2626'}},ok?'—':p.sugerido+' un'),
-                React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',fontSize:12,color:'#888'}},p.custo>0?F(p.custo):'—'),
-                React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',fontWeight:600,color:'#2563eb'}},p.sugerido>0?F(p.custoTotal):'—'),
-                React.createElement('td',{style:{padding:'10px 12px',textAlign:'right'}},
-                  React.createElement('span',{style:{background:cor+'18',color:cor,padding:'3px 10px',borderRadius:20,fontSize:11,fontWeight:700}},label)
-                )
-              );
-            })
         )
-      )
-    ),
-    React.createElement('div',{style:{marginTop:12,padding:'10px 14px',background:'#fffbeb',border:'1px solid #fcd34d',borderRadius:10,fontSize:12,color:'#92400e'}},
-      '💡 Sugestão = maior valor entre: (estoque mínimo − estoque atual) e (média de vendas da última '+semanas+' semana). Defina o estoque mínimo em Estoque → Cookies para uma sugestão mais precisa.'
-    )
   );
 }
 
