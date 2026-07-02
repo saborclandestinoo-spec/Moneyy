@@ -1378,27 +1378,27 @@ function PedidosCW({uid,db,setDb,reload,setM,cfg,setCfg}){ const{pedidos_cw,cont
   return React.createElement(PW,{title:'Gestão de Pedidos',sub:new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',timeZone:'America/Sao_Paulo'}), actions:[
       React.createElement('div',{key:'live',style:{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#16a34a',fontWeight:600,padding:'6px 12px',background:'#f0fdf4',borderRadius:20}}, React.createElement('div',{style:{width:7,height:7,borderRadius:'50%',background:'#16a34a',animation:'pulse 1.5s infinite'}}), 'Ao vivo'
       ), React.createElement('button',{key:'sync',type:'button',style:{background:'#f5f5f5',color:'#dc2626',padding:'8px 14px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',opacity:syncing?0.6:1}, disabled:syncing, onClick:(e)=>{e.preventDefault();e.stopPropagation();sincronizar();} },syncing?'↻':'↻ Atualizar'), React.createElement('button',{key:'cfg',style:{background:'#f5f5f5',color:'#555',padding:'8px 14px',borderRadius:9,fontSize:13,fontWeight:500,border:'none',cursor:'pointer'},onClick:abrirConfig},'⚙ Configurar'), ]}, !cfg.cw_token&&React.createElement('div',{style:{background:'#eff6ff',borderRadius:12,padding:'14px 18px',marginBottom:18,fontSize:13,color:'#2563eb',display:'flex',alignItems:'center',justifyContent:'space-between'}}, React.createElement('span',null,'Configure seu token do Cardápio Web para receber pedidos em tempo real'), React.createElement('button',{style:{background:'#2563eb',color:'#fff',padding:'7px 14px',borderRadius:8,fontSize:12,fontWeight:600,border:'none',cursor:'pointer'},onClick:abrirConfig},'Configurar agora')
-    ), React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr 2fr',gap:13,marginBottom:20,alignItems:'stretch'}},
+    ), React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:13,marginBottom:20,alignItems:'stretch'}},
       ...[
         {label:'Pedidos',val:String(counts.total),sub:counts.cancelados+' cancelados'},
         {label:'Em andamento',val:String(counts.confirmados),sub:null},
         {label:'Entregues',val:String(counts.entregues),sub:null},
         {label:'Faturamento',val:F(counts.faturamento),sub:'Ticket: '+F(counts.ticketMedio)},
-      ].map(({label,val,sub})=>React.createElement('div',{key:label,style:{background:'#fff',borderRadius:12,padding:'16px',boxShadow:'0 1px 4px rgba(0,0,0,0.06)',display:'flex',flexDirection:'column',minHeight:90}},
-        React.createElement('div',{style:{fontSize:10,color:'#999',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:10}},label),
-        React.createElement('div',{style:{fontSize:28,fontWeight:800,color:'#111',lineHeight:1,flex:1}},val),
-        React.createElement('div',{style:{fontSize:11,color:'#aaa',marginTop:8,fontWeight:600,minHeight:16}},sub||'')
+      ].map(({label,val,sub})=>React.createElement('div',{key:label,style:{background:'#fff',borderRadius:12,padding:'14px 16px',boxShadow:'0 1px 4px rgba(0,0,0,0.06)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center',minHeight:80}},
+        React.createElement('div',{style:{fontSize:10,color:'#999',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:8}},label),
+        React.createElement('div',{style:{fontSize:21,fontWeight:800,color:'#111',lineHeight:1}},val),
+        React.createElement('div',{style:{fontSize:11,color:'#aaa',marginTop:6,fontWeight:600,minHeight:14}},sub||'')
       )),
-      React.createElement('div',{style:{background:'#fff',borderRadius:12,padding:'16px',boxShadow:'0 1px 4px rgba(0,0,0,0.06)',display:'flex',flexDirection:'column',minHeight:90}},
-        React.createElement('div',{style:{fontSize:10,color:'#999',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:10}},'Cookies vendidos'),
-        React.createElement('div',{style:{display:'flex',gap:20,alignItems:'flex-end',flex:1}},
-          React.createElement('div',null,React.createElement('div',{style:{fontSize:28,fontWeight:800,color:'#111',lineHeight:1}},counts.cookies),React.createElement('div',{style:{fontSize:10,color:'#aaa',marginTop:6,fontWeight:700}},'HOJE')),
-          React.createElement('div',{style:{width:1,height:36,background:'#f0f0f0',alignSelf:'center'}}),
-          React.createElement('div',null,React.createElement('div',{style:{fontSize:22,fontWeight:700,color:'#555',lineHeight:1}},cookies7!==null?cookies7:'—'),React.createElement('div',{style:{fontSize:10,color:'#aaa',marginTop:6,fontWeight:700}},'7 DIAS ATRÁS')),
-          React.createElement('div',{style:{width:1,height:36,background:'#f0f0f0',alignSelf:'center'}}),
-          React.createElement('div',null,React.createElement('div',{style:{fontSize:22,fontWeight:700,color:'#555',lineHeight:1}},cookies30!==null?cookies30:'—'),React.createElement('div',{style:{fontSize:10,color:'#aaa',marginTop:6,fontWeight:700}},'30 DIAS ATRÁS'))
+      React.createElement('div',{style:{background:'#fff',borderRadius:12,padding:'14px 16px',boxShadow:'0 1px 4px rgba(0,0,0,0.06)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center',minHeight:80}},
+        React.createElement('div',{style:{fontSize:10,color:'#999',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:8}},'Cookies vendidos'),
+        React.createElement('div',{style:{display:'flex',gap:14,alignItems:'center',justifyContent:'center'}},
+          React.createElement('div',null,React.createElement('div',{style:{fontSize:21,fontWeight:800,color:'#111',lineHeight:1}},counts.cookies),React.createElement('div',{style:{fontSize:9,color:'#aaa',marginTop:4,fontWeight:700}},'HOJE')),
+          React.createElement('div',{style:{width:1,height:28,background:'#f0f0f0'}}),
+          React.createElement('div',null,React.createElement('div',{style:{fontSize:17,fontWeight:700,color:'#555',lineHeight:1}},cookies7!==null?cookies7:'—'),React.createElement('div',{style:{fontSize:9,color:'#aaa',marginTop:4,fontWeight:700}},'7D ATRÁS')),
+          React.createElement('div',{style:{width:1,height:28,background:'#f0f0f0'}}),
+          React.createElement('div',null,React.createElement('div',{style:{fontSize:17,fontWeight:700,color:'#555',lineHeight:1}},cookies30!==null?cookies30:'—'),React.createElement('div',{style:{fontSize:9,color:'#aaa',marginTop:4,fontWeight:700}},'30D ATRÁS'))
         ),
-        React.createElement('div',{style:{minHeight:16}})
+        React.createElement('div',{style:{minHeight:14}})
       )
     ), React.createElement('div',{style:{display:'flex',gap:5,marginBottom:14,flexWrap:'wrap',alignItems:'center',justifyContent:'space-between'}}, React.createElement('div',{style:{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}, [
           {v:'',l:'Todos',bg:'#f5f5f5',c:'#555'}, {v:'waiting_confirmation',l:'Aguardando confirmação',bg:'#fef9c3',c:'#92400e'}, {v:'confirmed',l:'Em preparação',bg:'#dbeafe',c:'#1d4ed8'}, {v:'released',l:'Saiu para entrega',bg:'#dcfce7',c:'#14532d'}, {v:'waiting_to_catch',l:'Esperando retirada',bg:'#ede9fe',c:'#5b21b6'}, {v:'ready',l:'Pronto para entrega',bg:'#d1fae5',c:'#065f46'}, {v:'delivered',l:'Entregue',bg:'#d1fae5',c:'#14532d'}, {v:'closed',l:'Finalizado',bg:'#e0f2fe',c:'#0369a1'}, {v:'canceled',l:'Cancelado',bg:'#fee2e2',c:'#991b1b'}, ].map(({v,l,bg,c})=>{ const cnt=v===''?list.length:(pedidos_cw||[]).filter(p=>{ const isHoje=p.data_pedido===hoje||(p.raw?.created_at&&new Date(p.raw.created_at).toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'})===hoje);
