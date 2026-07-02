@@ -219,7 +219,7 @@ const MODS=[
   {id:'pedidos',l:'Gestão de Pedidos',i:'#',subs:PED_SUBS}, {id:'estoque',l:'Estoque',i:'[]',subs:[{id:'estoque',l:'Estoque'},{id:'fichas',l:'Fichas Técnicas'},{id:'producao_hist',l:'Produção'},{id:'producao_plan',l:'Planejamento'}]},
 ];
 const FIN_SUBS=[
-  {id:'fin_visao',l:'Visão Geral'}, {id:'fin_lancamentos',l:'Lançamentos'}, {id:'fin_receber',l:'A Receber'}, {id:'fin_pagar',l:'A Pagar'}, {id:'fin_movs',l:'Fluxo de Caixa'}, {id:'fin_contas',l:'Contas'}, {id:'fin_categorias',l:'Plano de Contas'}, {id:'fin_centros',l:'Centro de Custo'}, {id:'fin_formas',l:'Formas de Pagamento'},
+  {id:'fin_visao',l:'Visão Geral'}, {id:'fin_lancamentos',l:'Lançamentos'}, {id:'fin_receber',l:'A Receber'}, {id:'fin_pagar',l:'A Pagar'}, {id:'fin_movs',l:'Fluxo de Caixa'}, {id:'fin_contas',l:'Contas'}, {id:'fin_categorias',l:'Plano de Contas'}, {id:'ativos',l:'Ativos e Depreciação'}, {id:'fin_centros',l:'Centro de Custo'}, {id:'fin_formas',l:'Formas de Pagamento'},
 ];
 const FIN_PAGES=new Set(FIN_SUBS.map(s=>s.id));
 const DESEMP_SUBS=[
@@ -2485,7 +2485,24 @@ function DateRangePicker({dtIni,dtFim,onChangeDtIni,onChangeDtFim,openRight=fals
   );
 }
 
-function FinDRE({uid,db,reload,setM}){ const{lancamentos,categorias_fin:catsFin=[]}=db;
+function FinDRE({uid,db,reload,setM}){
+  const ativos=db.ativos||[];
+  // Calculates monthly depreciation for a given month (only active assets within useful life)
+  const calcDeprMes=(mesStr)=>{ // mesStr = 'YYYY-MM'
+    const [ano,mes]=mesStr.split('-').map(Number);
+    const ultimoDia=new Date(ano,mes,0).toLocaleDateString('sv-SE');
+    const primeiroDia=mesStr+'-01';
+    return ativos.filter(a=>a.ativo).reduce((s,a)=>{
+      const ini=new Date(a.data_aquisicao+'T12:00:00');
+      const fimVida=new Date(ini);fimVida.setFullYear(fimVida.getFullYear()+(parseInt(a.vida_util_anos)||10));
+      const fimVidaStr=fimVida.toLocaleDateString('sv-SE');
+      // Asset must have been acquired before or during this month AND not fully depreciated
+      if(a.data_aquisicao>ultimoDia)return s;
+      if(fimVidaStr<primeiroDia)return s;
+      const mensal=((parseFloat(a.valor_aquisicao)||0)-(parseFloat(a.valor_residual)||0))/((parseInt(a.vida_util_anos)||10)*12);
+      return s+mensal;
+    },0);
+  }; const{lancamentos,categorias_fin:catsFin=[]}=db;
   const[dtIni,setDtIni]=React.useState(()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),1).toISOString().split('T')[0];});
   const[dtFim,setDtFim]=React.useState(()=>new Date(new Date().getFullYear(),new Date().getMonth()+1,0).toISOString().split('T')[0]);
 
@@ -2515,7 +2532,19 @@ function FinDRE({uid,db,reload,setM}){ const{lancamentos,categorias_fin:catsFin=
   const despVendas=somaCat('4.2');
   // 4.3 — Despesas administrativas
   const despAdm=somaCat('4.3');
-  const lucroOperacional=lucroBruto-despVendas-despAdm-despFin;
+  // Depreciation: calculate for each month in period
+  const mesesPeriodo=React.useMemo(()=>{
+    const meses=new Set();
+    periodo.forEach(l=>{ const raw=l.competencia||l.data; if(!raw)return;
+      const m=raw.match(/^(\d{4}-\d{2})/);if(m)meses.add(m[1]); });
+    // Also add months from dtIni to dtFim
+    let cur=new Date(dtIni+'T12:00:00');
+    const fim=new Date(dtFim+'T12:00:00');
+    while(cur<=fim){ meses.add(cur.toLocaleDateString('sv-SE').slice(0,7)); cur.setMonth(cur.getMonth()+1); }
+    return [...meses];
+  },[periodo,dtIni,dtFim]);
+  const despDepr=mesesPeriodo.reduce((s,m)=>s+calcDeprMes(m),0);
+  const lucroOperacional=lucroBruto-despVendas-despAdm-despFin-despDepr;
 
   // 4.4 — Despesas financeiras
   const despFin=somaCat('4.4');
@@ -2535,6 +2564,7 @@ function FinDRE({uid,db,reload,setM}){ const{lancamentos,categorias_fin:catsFin=
       ), React.createElement(Linha,{label:'(=) Receita Bruta de Vendas',valor:receitaBruta,bold:true,bigHeader:true,pct:100}), // Detalhes por forma de pagamento
       React.createElement(Linha,{label:'Receita de Venda de Produtos',valor:receitaBruta,bold:true,noBorder:true,indent:2,pct:100}), ...buildDREHierarchy(periodo,'receita','3.1',receitaBruta,Linha,false,0,false,catsFin), // Outras receitas não enquadradas em 3.1
       ...periodo.filter(l=>l.tipo==='receita'&&!isRepasse(l)&&!(l.categoria||'').startsWith('3.1')&&!(l.categoria||'').startsWith('3.2')).reduce((acc,l)=>{ const k=l.categoria||l.descricao||'Outras Receitas';if(!acc.find(x=>x.k===k))acc.push({k,v:0});acc.find(x=>x.k===k).v+=Number(l.valor||0);return acc; },[]).map(g=>React.createElement(Linha,{key:g.k,label:g.k,valor:g.v,indent:3,pct:receitaBruta>0?g.v/receitaBruta*100:0})), React.createElement(Linha,{label:'(-) Deduções de Vendas',valor:-deducoes,bold:true,noBorder:true,isDespesa:true,indent:2,pct:receitaBruta>0?deducoes/receitaBruta*100:0}), ...buildDREHierarchy(deducoesPeriodo,null,'3.2',receitaBruta,Linha,true,1,false,catsFin), ...periodo.filter(l=>isDed(l)&&!(l.categoria||'').startsWith('3.2')).reduce((acc,l)=>{ const k=l.categoria||l.descricao||'Deduções';if(!acc.find(x=>x.k===k))acc.push({k,v:0});acc.find(x=>x.k===k).v+=Number(l.valor||0);return acc; },[]).map(g=>React.createElement(Linha,{key:g.k,label:g.k,valor:-g.v,isDespesa:true,indent:1,pct:receitaBruta>0?g.v/receitaBruta*100:0})), React.createElement(Linha,{label:'(=) Receita Líquida',valor:receitaLiquida,bold:true,bigHeader:true,pct:receitaBruta>0?receitaLiquida/receitaBruta*100:0}), React.createElement(Linha,{label:'(-) Custo de Mercadoria Vendida (CMV)',valor:-cmv,bold:true,cmv:true,isDespesaHeader:true,pct:receitaBruta>0?cmv/receitaBruta*100:0}), ...buildDREHierarchy(periodo,'despesa','4.1',receitaBruta,Linha,false,0,true,catsFin), React.createElement(Linha,{label:'(=) Lucro Bruto',valor:lucroBruto,bold:true,bigHeader:true,pct:receitaBruta>0?lucroBruto/receitaBruta*100:0}), React.createElement(Linha,{label:'(-) Despesas com Vendas',isDespesa:true,isDespesaHeader:true,valor:-despVendas,bold:true,pct:receitaBruta>0?despVendas/receitaBruta*100:0}), ...buildDREHierarchy(periodo,'despesa','4.2',receitaBruta,Linha,false,0,false,catsFin), React.createElement(Linha,{label:'(-) Despesas Administrativas',isDespesa:true,isDespesaHeader:true,valor:-despAdm,bold:true,pct:receitaBruta>0?despAdm/receitaBruta*100:0}), ...buildDREHierarchy(periodo,'despesa','4.3',receitaBruta,Linha,false,0,false,catsFin), React.createElement(Linha,{label:'(-) Despesas Financeiras',isDespesa:true,isDespesaHeader:true,valor:-despFin,bold:true,pct:receitaBruta>0?despFin/receitaBruta*100:0}), ...buildDREHierarchy(periodo,'despesa','4.4',receitaBruta,Linha,false,0,false,catsFin),
+ despDepr>0&&React.createElement(Linha,{label:'(-) Depreciação de Ativos',isDespesa:true,isDespesaHeader:true,bold:true,valor:-despDepr,pct:receitaBruta>0?despDepr/receitaBruta*100:0}),
  React.createElement(Linha,{label:'(=) Lucro Operacional (EBIT)',valor:lucroOperacional,bold:true,bigHeader:true,pct:receitaBruta>0?lucroOperacional/receitaBruta*100:0}), React.createElement('div',{style:{marginTop:8,paddingTop:8}}, React.createElement(Linha,{label:'(=) LUCRO LÍQUIDO DO PERÍODO',valor:lucroLiquido,bold:true,bigHeader:true,pct:receitaBruta>0?margemLiquida:0})
       )
     ), React.createElement('div',{style:{fontSize:11,color:'#aaa',marginTop:8}}, '📊 Regime de competência — inclui receitas e despesas do período independente de pagamento. Compras de estoque entram como CMV apenas quando consumidas em Produção.'
@@ -4589,6 +4619,166 @@ function ContaForm({uid,reload,close,conta,contas}){ const[nome,setNome]=React.u
   );
 }
 
+function Ativos({uid,db,reload,setM}){
+  const ativos=db.ativos||[];
+  const hoje=TODAY();
+
+  const calcDeprMensal=(a)=>{
+    const base=(parseFloat(a.valor_aquisicao)||0)-(parseFloat(a.valor_residual)||0);
+    const meses=(parseInt(a.vida_util_anos)||10)*12;
+    return meses>0?base/meses:0;
+  };
+
+  const calcDeprAcum=(a)=>{
+    const ini=new Date(a.data_aquisicao+'T12:00:00');
+    const hj=new Date(hoje+'T12:00:00');
+    const mesesDecorridos=Math.max(0,Math.floor((hj-ini)/(30.4375*24*3600*1000)));
+    const mesesTotal=(parseInt(a.vida_util_anos)||10)*12;
+    const mensal=calcDeprMensal(a);
+    return Math.min(mensal*mesesDecorridos, (parseFloat(a.valor_aquisicao)||0)-(parseFloat(a.valor_residual)||0));
+  };
+
+  const esgotado=(a)=>{
+    const ini=new Date(a.data_aquisicao+'T12:00:00');
+    const hj=new Date(hoje+'T12:00:00');
+    const anosDecorridos=(hj-ini)/(365.25*24*3600*1000);
+    return anosDecorridos>=(parseInt(a.vida_util_anos)||10);
+  };
+
+  const totalDeprMensal=ativos.filter(a=>a.ativo&&!esgotado(a)).reduce((s,a)=>s+calcDeprMensal(a),0);
+  const totalValorLiquido=ativos.filter(a=>a.ativo).reduce((s,a)=>s+(parseFloat(a.valor_aquisicao)||0)-calcDeprAcum(a),0);
+
+  const novo=()=>setM({title:'+ Novo Ativo',body:React.createElement(AtivoForm,{uid,reload,close:()=>setM(null)})});
+  const editar=(a)=>setM({title:'✏ '+a.nome,body:React.createElement(AtivoForm,{uid,reload,ativo:a,close:()=>setM(null)})});
+
+  return React.createElement(PW,{title:'Ativos e Depreciação',sub:'Controle patrimonial e depreciação mensal',
+    actions:[React.createElement('button',{key:'n',onClick:novo,style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'}},'+ Novo Ativo')]},
+
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:16}},
+      React.createElement('div',{style:{background:'#fff',borderRadius:12,padding:'16px',boxShadow:'0 1px 6px rgba(0,0,0,0.07)',textAlign:'center'}},
+        React.createElement('div',{style:{fontSize:10,color:'#dc2626',fontWeight:700,textTransform:'uppercase',marginBottom:8}},'Depreciação mensal'),
+        React.createElement('div',{style:{fontSize:28,fontWeight:800,color:'#111'}},F(totalDeprMensal)),
+        React.createElement('div',{style:{fontSize:11,color:'#aaa',marginTop:4}},F(totalDeprMensal*12)+' por ano')
+      ),
+      React.createElement('div',{style:{background:'#fff',borderRadius:12,padding:'16px',boxShadow:'0 1px 6px rgba(0,0,0,0.07)',textAlign:'center'}},
+        React.createElement('div',{style:{fontSize:10,color:'#dc2626',fontWeight:700,textTransform:'uppercase',marginBottom:8}},'Valor total bruto'),
+        React.createElement('div',{style:{fontSize:28,fontWeight:800,color:'#111'}},F(ativos.filter(a=>a.ativo).reduce((s,a)=>s+(parseFloat(a.valor_aquisicao)||0),0)))
+      ),
+      React.createElement('div',{style:{background:'#fff',borderRadius:12,padding:'16px',boxShadow:'0 1px 6px rgba(0,0,0,0.07)',textAlign:'center'}},
+        React.createElement('div',{style:{fontSize:10,color:'#dc2626',fontWeight:700,textTransform:'uppercase',marginBottom:8}},'Valor líquido contábil'),
+        React.createElement('div',{style:{fontSize:28,fontWeight:800,color:'#111'}},F(totalValorLiquido))
+      )
+    ),
+
+    React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+      ativos.length===0
+        ?React.createElement('div',{style:{textAlign:'center',padding:60,color:'#ccc'}},
+            React.createElement('div',{style:{fontSize:14,marginBottom:12}},'Nenhum ativo cadastrado'),
+            React.createElement('button',{onClick:novo,style:{background:'#dc2626',color:'#fff',padding:'10px 20px',borderRadius:10,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'}},'Cadastrar primeiro ativo')
+          )
+        :React.createElement('table',{style:{width:'100%',borderCollapse:'collapse'}},
+            React.createElement('thead',null,React.createElement('tr',{style:{background:'#f9f9fb'}},
+              ['Ativo','Categoria','Aquisição','Valor','Vida útil','Depr./mês','Depr. acum.','Valor líquido','Status'].map((h,i)=>
+                React.createElement('th',{key:i,style:{padding:'10px 12px',fontSize:11,fontWeight:700,color:'#888',textAlign:i===0?'left':'right',borderBottom:'1px solid #f0f0f0',whiteSpace:'nowrap'}},h)
+              )
+            )),
+            React.createElement('tbody',null, ativos.map(a=>{
+              const mensal=calcDeprMensal(a);
+              const acum=calcDeprAcum(a);
+              const liquido=(parseFloat(a.valor_aquisicao)||0)-acum;
+              const vencido=esgotado(a);
+              const pct=Math.min(100,acum/Math.max(1,(parseFloat(a.valor_aquisicao)||1)-(parseFloat(a.valor_residual)||0))*100);
+              return React.createElement('tr',{key:a.id,onClick:()=>editar(a),style:{borderBottom:'1px solid #f7f7f7',cursor:'pointer',opacity:!a.ativo||vencido?0.5:1}},
+                React.createElement('td',{style:{padding:'12px',fontWeight:700,fontSize:13}},a.nome),
+                React.createElement('td',{style:{padding:'12px',textAlign:'right',fontSize:11,color:'#888'}},a.categoria||'Equipamento'),
+                React.createElement('td',{style:{padding:'12px',textAlign:'right',fontSize:12,color:'#888'}},FD(a.data_aquisicao)),
+                React.createElement('td',{style:{padding:'12px',textAlign:'right',fontSize:12}},F(a.valor_aquisicao)),
+                React.createElement('td',{style:{padding:'12px',textAlign:'right',fontSize:12,color:'#888'}},(a.vida_util_anos||10)+' anos'),
+                React.createElement('td',{style:{padding:'12px',textAlign:'right',fontWeight:700,color:vencido?'#aaa':'#dc2626'}},vencido?'—':F(mensal)),
+                React.createElement('td',{style:{padding:'12px',textAlign:'right'}},
+                  React.createElement('div',{style:{fontSize:12,fontWeight:600}},F(acum)),
+                  React.createElement('div',{style:{marginTop:4,height:4,background:'#f0f0f0',borderRadius:2}},
+                    React.createElement('div',{style:{width:pct+'%',height:4,background:vencido?'#aaa':'#dc2626',borderRadius:2}})
+                  )
+                ),
+                React.createElement('td',{style:{padding:'12px',textAlign:'right',fontWeight:700,color:liquido<=0?'#aaa':'#111'}},F(Math.max(0,liquido))),
+                React.createElement('td',{style:{padding:'12px',textAlign:'right'}},
+                  React.createElement('span',{style:{fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:20,
+                    background:!a.ativo?'#f5f5f5':vencido?'#fee2e2':'#dcfce7',
+                    color:!a.ativo?'#aaa':vencido?'#dc2626':'#16a34a'}},
+                    !a.ativo?'Inativo':vencido?'Totalmente depreciado':'Ativo'
+                  )
+                )
+              ); })
+            )
+          )
+    )
+  );
+}
+
+function AtivoForm({uid,reload,close,ativo}){
+  const[nome,setNome]=React.useState(ativo?.nome||'');
+  const[cat,setCat]=React.useState(ativo?.categoria||'Equipamento');
+  const[valor,setValor]=React.useState(String(ativo?.valor_aquisicao||''));
+  const[data,setData]=React.useState(ativo?.data_aquisicao||TODAY());
+  const[vida,setVida]=React.useState(String(ativo?.vida_util_anos||10));
+  const[residual,setResidual]=React.useState(String(ativo?.valor_residual||0));
+  const[ativoFlag,setAtivoFlag]=React.useState(ativo?.ativo!==false);
+  const[ld,setLd]=React.useState(false);
+  const cor='#dc2626';
+  const CATS=['Equipamento','Máquina','Computador','Móvel','Veículo','Utensílio','Outro'];
+  const VIDAS=[{l:'5 anos (20%/ano)',v:5},{l:'10 anos (10%/ano)',v:10},{l:'25 anos (4%/ano)',v:25},{l:'Personalizado',v:'custom'}];
+
+  const deprMensal=(parseFloat(valor)||0)-(parseFloat(residual)||0)>0
+    ?(((parseFloat(valor)||0)-(parseFloat(residual)||0))/((parseInt(vida)||10)*12)):0;
+
+  const salvar=async()=>{
+    if(!nome||!valor||!data){toast('Preencha nome, valor e data',true);return;}
+    setLd(true);
+    const payload={user_id:uid,nome,categoria:cat,valor_aquisicao:parseFloat(valor)||0,data_aquisicao:data,vida_util_anos:parseInt(vida)||10,valor_residual:parseFloat(residual)||0,ativo:ativoFlag};
+    if(ativo?.id){await sb.from('ativos').update(payload).eq('id',ativo.id);}
+    else{await sb.from('ativos').insert(payload);}
+    toast(ativo?'Ativo atualizado!':'Ativo cadastrado!',false,true);reload();close();setLd(false);
+  };
+
+  const excluir=async()=>{if(!confirm('Excluir '+nome+'?'))return;await sb.from('ativos').delete().eq('id',ativo.id);toast('Excluído',false,true);reload();close();};
+
+  return React.createElement('div',null,
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'2fr 1fr',gap:10,marginBottom:10}},
+      React.createElement(FloatInput,{label:'Nome do ativo *',acent:cor,value:nome,onChange:e=>setNome(e.target.value)}),
+      React.createElement(CustomSelect,{label:'Categoria',value:cat,onChange:setCat,options:CATS,acent:cor})
+    ),
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:10}},
+      React.createElement(FloatInput,{label:'Valor de aquisição (R$) *',acent:cor,type:'number',value:valor,onChange:e=>setValor(e.target.value)}),
+      React.createElement(MiniDatePicker,{label:'Data de aquisição *',value:data,onChange:setData,acent:cor}),
+      React.createElement(FloatInput,{label:'Valor residual (R$)',acent:cor,type:'number',value:residual,onChange:e=>setResidual(e.target.value)})
+    ),
+    React.createElement('div',{style:{marginBottom:10}},
+      React.createElement(CustomSelect,{label:'Vida útil',value:String(vida),onChange:v=>setVida(v),options:[{v:'5',l:'5 anos (20%/ano — Computadores, Veículos)'},{v:'10',l:'10 anos (10%/ano — Máquinas, Móveis)'},{v:'25',l:'25 anos (4%/ano — Edificações)'},...[3,7,8,15,20].map(n=>({v:String(n),l:n+' anos'}))],acent:cor})
+    ),
+    React.createElement('div',{style:{background:'#fef2f2',borderRadius:10,padding:'12px 16px',marginBottom:14}},
+      React.createElement('div',{style:{fontSize:10,color:'#dc2626',fontWeight:700,marginBottom:4}},'DEPRECIAÇÃO CALCULADA'),
+      React.createElement('div',{style:{display:'flex',gap:24}},
+        React.createElement('div',null,React.createElement('div',{style:{fontSize:18,fontWeight:800,color:'#111'}},F(deprMensal)),React.createElement('div',{style:{fontSize:11,color:'#aaa'}},'por mês')),
+        React.createElement('div',null,React.createElement('div',{style:{fontSize:18,fontWeight:800,color:'#111'}},F(deprMensal*12)),React.createElement('div',{style:{fontSize:11,color:'#aaa'}},'por ano')),
+        React.createElement('div',null,React.createElement('div',{style:{fontSize:18,fontWeight:800,color:'#111'}},(parseFloat(vida)||10)+'x'),React.createElement('div',{style:{fontSize:11,color:'#aaa'}},'anos de vida'))
+      )
+    ),
+    ativo&&React.createElement('label',{style:{display:'flex',alignItems:'center',gap:8,fontSize:13,marginBottom:14,cursor:'pointer'}},
+      React.createElement('input',{type:'checkbox',checked:ativoFlag,onChange:e=>setAtivoFlag(e.target.checked)}),
+      'Ativo em uso'
+    ),
+    React.createElement('div',{style:{display:'flex',justifyContent:'space-between'}},
+      ativo?.id&&React.createElement('button',{onClick:excluir,style:{background:'#fee2e2',color:'#dc2626',padding:'9px 14px',borderRadius:10,fontSize:12,fontWeight:600,border:'none',cursor:'pointer'}},'Excluir'),
+      React.createElement('div',{style:{display:'flex',gap:8,marginLeft:'auto'}},
+        React.createElement('button',{onClick:close,style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'}},'Cancelar'),
+        React.createElement('button',{onClick:salvar,style:{background:cor,color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'}},ld?'Salvando...':ativo?'Salvar':'Cadastrar')
+      )
+    )
+  );
+}
+
+
 function App(){ const[user,setUser]=useState(null);const[page,setPage]=useState('pedidos');
   const[initializing,setInitializing]=useState(true);
   const[db,setDb]=useState({pedidos:[],pedidos_cw:[],estoque:[],contas:[],receber:[],pagar:[],movs:[],lancamentos:[],categorias_fin:[],centros_custo:[],formas_pag:[],caixas:[],fichas:[]});
@@ -4603,13 +4793,13 @@ function App(){ const[user,setUser]=useState(null);const[page,setPage]=useState(
 
   const reload=useCallback(async()=>{ if(!user)return;
     const uid=user.id;
-    const[pedcw,ped,est,con,rec,pag,mov,lanc,catfin,centros,formasPag,cxs,fichs,fichIngs]=await Promise.all([
-      sb.from('pedidos_cw').select('*').eq('user_id',uid).order('data_pedido',{ascending:false}).limit(200), sb.from('pedidos').select('*').eq('user_id',uid).order('criado_em',{ascending:false}), sb.from('estoque').select('*').eq('user_id',uid).order('nome'), sb.from('contas_bancarias').select('*').eq('user_id',uid).eq('ativo',true).order('criado_em'), sb.from('contas_receber').select('*').eq('user_id',uid).order('criado_em',{ascending:false}), sb.from('contas_pagar').select('*').eq('user_id',uid).order('vencimento'), sb.from('movimentacoes').select('*').eq('user_id',uid).order('data_movimentacao',{ascending:false}), sb.from('lancamentos').select('*').eq('user_id',uid).order('data',{ascending:false}).order('criado_em',{ascending:false}).limit(500), sb.from('categorias_fin').select('*').eq('user_id',uid).order('nome'), sb.from('centros_custo').select('*').eq('user_id',uid).order('nome'), sb.from('formas_pagamento').select('*').eq('user_id',uid).order('nome'), sb.from('caixas').select('*').eq('user_id',uid).order('criado_em',{ascending:false}).limit(30), sb.from('fichas_tecnicas').select('*').eq('user_id',uid).order('nome'), sb.from('ficha_ingredientes').select('*'), ]);
+    const[pedcw,ped,est,con,rec,pag,mov,lanc,catfin,centros,formasPag,cxs,fichs,fichIngs,ativ]=await Promise.all([
+      sb.from('pedidos_cw').select('*').eq('user_id',uid).order('data_pedido',{ascending:false}).limit(200), sb.from('pedidos').select('*').eq('user_id',uid).order('criado_em',{ascending:false}), sb.from('estoque').select('*').eq('user_id',uid).order('nome'), sb.from('contas_bancarias').select('*').eq('user_id',uid).eq('ativo',true).order('criado_em'), sb.from('contas_receber').select('*').eq('user_id',uid).order('criado_em',{ascending:false}), sb.from('contas_pagar').select('*').eq('user_id',uid).order('vencimento'), sb.from('movimentacoes').select('*').eq('user_id',uid).order('data_movimentacao',{ascending:false}), sb.from('lancamentos').select('*').eq('user_id',uid).order('data',{ascending:false}).order('criado_em',{ascending:false}).limit(500), sb.from('categorias_fin').select('*').eq('user_id',uid).order('nome'), sb.from('centros_custo').select('*').eq('user_id',uid).order('nome'), sb.from('formas_pagamento').select('*').eq('user_id',uid).order('nome'), sb.from('caixas').select('*').eq('user_id',uid).order('criado_em',{ascending:false}).limit(30), sb.from('fichas_tecnicas').select('*').eq('user_id',uid).order('nome'), sb.from('ficha_ingredientes').select('*'), sb.from('ativos').select('*').eq('user_id',uid).order('nome'), ]);
     const contas=con.data||[];
     if(contas.length===0){ await sb.from('contas_bancarias').insert([
         {user_id:uid,nome:'Nubank PJ',tipo:'Digital',banco:'Nubank',saldo:0,cor:'#8b5cf6',ativo:true}, {user_id:uid,nome:'Caixa',tipo:'Caixa',banco:'',saldo:0,cor:'#f59e0b',ativo:true}, ]);
       const{data:nc}=await sb.from('contas_bancarias').select('*').eq('user_id',uid);
-      setDb({pedidos:ped.data||[],pedidos_cw:pedcw.data||[],estoque:est.data||[],contas:nc||[],receber:rec.data||[],pagar:pag.data||[],movs:mov.data||[],lancamentos:lanc.data||[],categorias_fin:catfin.data||[],centros_custo:centros.data||[],formas_pag:formasPag.data||[],caixas:cxs.data||[],fichas:fichs.data||[],ficha_ingredientes:fichIngs.data||[]}); }else{ setDb({pedidos:ped.data||[],pedidos_cw:pedcw.data||[],estoque:est.data||[],contas,receber:rec.data||[],pagar:pag.data||[],movs:mov.data||[],lancamentos:lanc.data||[],categorias_fin:catfin.data||[],centros_custo:centros.data||[],formas_pag:formasPag.data||[],caixas:cxs.data||[],fichas:fichs.data||[],ficha_ingredientes:fichIngs.data||[]}); }
+      setDb({pedidos:ped.data||[],pedidos_cw:pedcw.data||[],estoque:est.data||[],contas:nc||[],receber:rec.data||[],pagar:pag.data||[],movs:mov.data||[],lancamentos:lanc.data||[],categorias_fin:catfin.data||[],centros_custo:centros.data||[],formas_pag:formasPag.data||[],caixas:cxs.data||[],fichas:fichs.data||[],ficha_ingredientes:fichIngs.data||[],ativos:ativ.data||[]}); }else{ setDb({pedidos:ped.data||[],pedidos_cw:pedcw.data||[],estoque:est.data||[],contas,receber:rec.data||[],pagar:pag.data||[],movs:mov.data||[],lancamentos:lanc.data||[],categorias_fin:catfin.data||[],centros_custo:centros.data||[],formas_pag:formasPag.data||[],caixas:cxs.data||[],fichas:fichs.data||[],ficha_ingredientes:fichIngs.data||[],ativos:ativ.data||[]}); }
     // load config
     const{data:cfgRows}=await sb.from('config_usuario').select('*').eq('user_id',uid);
     const cfgMap={};(cfgRows||[]).forEach(r=>{cfgMap[r.chave]=r.valor;});
