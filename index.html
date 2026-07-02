@@ -1385,9 +1385,9 @@ function PedidosCW({uid,db,setDb,reload,setM,cfg,setCfg}){ const{pedidos_cw,cont
         {label:'Entregues',val:String(counts.entregues),sub:null},
         {label:'Faturamento',val:F(counts.faturamento),sub:'Ticket: '+F(counts.ticketMedio)},
       ].map(({label,val,sub})=>React.createElement('div',{key:label,style:{background:'#fff',borderRadius:12,padding:'14px 16px',boxShadow:'0 1px 4px rgba(0,0,0,0.06)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center',minHeight:80}},
-        React.createElement('div',{style:{fontSize:10,color:'#999',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:8}},label),
-        React.createElement('div',{style:{fontSize:21,fontWeight:800,color:'#111',lineHeight:1}},val),
-        React.createElement('div',{style:{fontSize:11,color:'#aaa',marginTop:6,fontWeight:600,minHeight:14}},sub||'')
+        React.createElement('div',{style:{fontSize:11,color:'#999',fontWeight:700,letterSpacing:'0.5px',textTransform:'uppercase',marginBottom:10}},label),
+        React.createElement('div',{style:{fontSize:36,fontWeight:800,color:'#111',lineHeight:1}},val),
+        React.createElement('div',{style:{fontSize:12,color:'#aaa',marginTop:8,fontWeight:600,minHeight:14}},sub||'')
       )),
       React.createElement('div',{style:{background:'#fff',borderRadius:12,padding:'14px 16px',boxShadow:'0 1px 4px rgba(0,0,0,0.06)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center',minHeight:80}},
         React.createElement('div',{style:{fontSize:10,color:'#999',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:8}},'Cookies vendidos'),
