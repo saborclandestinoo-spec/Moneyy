@@ -1385,18 +1385,18 @@ function PedidosCW({uid,db,setDb,reload,setM,cfg,setCfg}){ const{pedidos_cw,cont
         {label:'Entregues',val:String(counts.entregues),sub:null},
         {label:'Faturamento',val:F(counts.faturamento),sub:'Ticket: '+F(counts.ticketMedio)},
       ].map(({label,val,sub})=>React.createElement('div',{key:label,style:{background:'#fff',borderRadius:12,padding:'14px 16px',boxShadow:'0 1px 4px rgba(0,0,0,0.06)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center',minHeight:80}},
-        React.createElement('div',{style:{fontSize:11,color:'#999',fontWeight:700,letterSpacing:'0.5px',textTransform:'uppercase',marginBottom:10}},label),
+        React.createElement('div',{style:{fontSize:12,color:'#dc2626',fontWeight:700,letterSpacing:'0.5px',textTransform:'uppercase',marginBottom:10}},label),
         React.createElement('div',{style:{fontSize:36,fontWeight:800,color:'#111',lineHeight:1}},val),
-        React.createElement('div',{style:{fontSize:12,color:'#aaa',marginTop:8,fontWeight:600,minHeight:14}},sub||'')
+        React.createElement('div',{style:{fontSize:13,color:'#888',marginTop:8,fontWeight:600,minHeight:16}},sub||'')
       )),
       React.createElement('div',{style:{background:'#fff',borderRadius:12,padding:'14px 16px',boxShadow:'0 1px 4px rgba(0,0,0,0.06)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center',minHeight:80}},
-        React.createElement('div',{style:{fontSize:10,color:'#999',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',marginBottom:8}},'Cookies vendidos'),
+        React.createElement('div',{style:{fontSize:12,color:'#dc2626',fontWeight:700,letterSpacing:'0.5px',textTransform:'uppercase',marginBottom:10}},'Cookies vendidos'),
         React.createElement('div',{style:{display:'flex',gap:14,alignItems:'center',justifyContent:'center'}},
-          React.createElement('div',null,React.createElement('div',{style:{fontSize:21,fontWeight:800,color:'#111',lineHeight:1}},counts.cookies),React.createElement('div',{style:{fontSize:9,color:'#aaa',marginTop:4,fontWeight:700}},'HOJE')),
-          React.createElement('div',{style:{width:1,height:28,background:'#f0f0f0'}}),
-          React.createElement('div',null,React.createElement('div',{style:{fontSize:17,fontWeight:700,color:'#555',lineHeight:1}},cookies7!==null?cookies7:'—'),React.createElement('div',{style:{fontSize:9,color:'#aaa',marginTop:4,fontWeight:700}},'7D ATRÁS')),
-          React.createElement('div',{style:{width:1,height:28,background:'#f0f0f0'}}),
-          React.createElement('div',null,React.createElement('div',{style:{fontSize:17,fontWeight:700,color:'#555',lineHeight:1}},cookies30!==null?cookies30:'—'),React.createElement('div',{style:{fontSize:9,color:'#aaa',marginTop:4,fontWeight:700}},'30D ATRÁS'))
+          React.createElement('div',null,React.createElement('div',{style:{fontSize:36,fontWeight:800,color:'#111',lineHeight:1}},counts.cookies),React.createElement('div',{style:{fontSize:10,color:'#aaa',marginTop:6,fontWeight:700}},'HOJE')),
+          React.createElement('div',{style:{width:1,height:36,background:'#f0f0f0'}}),
+          React.createElement('div',null,React.createElement('div',{style:{fontSize:28,fontWeight:700,color:'#555',lineHeight:1}},cookies7!==null?cookies7:'—'),React.createElement('div',{style:{fontSize:10,color:'#aaa',marginTop:6,fontWeight:700}},'7D ATRÁS')),
+          React.createElement('div',{style:{width:1,height:36,background:'#f0f0f0'}}),
+          React.createElement('div',null,React.createElement('div',{style:{fontSize:28,fontWeight:700,color:'#555',lineHeight:1}},cookies30!==null?cookies30:'—'),React.createElement('div',{style:{fontSize:10,color:'#aaa',marginTop:6,fontWeight:700}},'30D ATRÁS'))
         ),
         React.createElement('div',{style:{minHeight:14}})
       )
