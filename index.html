@@ -1342,6 +1342,15 @@ function PedidosCW({uid,db,setDb,reload,setM,cfg,setCfg}){ const{pedidos_cw,cont
     return c; },[list]);
 
   const[syncing,setSyncing]=React.useState(false);
+  const[cookies7,setCookies7]=React.useState(null);
+  const[cookies30,setCookies30]=React.useState(null);
+  React.useEffect(()=>{ const hj=TODAY();
+    const dtM7=(()=>{const d=new Date(hj+'T12:00:00');d.setDate(d.getDate()-7);return d.toLocaleDateString('sv-SE');})();
+    const dtM30=(()=>{const d=new Date(hj+'T12:00:00');d.setDate(d.getDate()-30);return d.toLocaleDateString('sv-SE');})();
+    const cnt=(peds)=>(peds||[]).filter(p=>!isPedCancelado(p)).reduce((s,p)=>{ const itens=((p.raw&&p.raw.items)||p.itens||[]).filter(it=>!isCancelledItem(it)&&Number(it.quantity||0)>0); return s+itens.reduce((a,it)=>a+Number(it.quantity||1),0); },0);
+    sb.from('pedidos_cw').select('raw,itens,status').eq('user_id',uid).eq('data_pedido',dtM7).then(({data})=>setCookies7(cnt(data)));
+    sb.from('pedidos_cw').select('raw,itens,status').eq('user_id',uid).eq('data_pedido',dtM30).then(({data})=>setCookies30(cnt(data)));
+  },[uid]);
   const sincronizar=async(silent=false)=>{ if(!cfg.cw_token||syncing)return;
     setSyncing(true);
     try{ const hoje=TODAY();
@@ -1369,7 +1378,26 @@ function PedidosCW({uid,db,setDb,reload,setM,cfg,setCfg}){ const{pedidos_cw,cont
   return React.createElement(PW,{title:'Gestão de Pedidos',sub:new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',timeZone:'America/Sao_Paulo'}), actions:[
       React.createElement('div',{key:'live',style:{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#16a34a',fontWeight:600,padding:'6px 12px',background:'#f0fdf4',borderRadius:20}}, React.createElement('div',{style:{width:7,height:7,borderRadius:'50%',background:'#16a34a',animation:'pulse 1.5s infinite'}}), 'Ao vivo'
       ), React.createElement('button',{key:'sync',type:'button',style:{background:'#f5f5f5',color:'#dc2626',padding:'8px 14px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',opacity:syncing?0.6:1}, disabled:syncing, onClick:(e)=>{e.preventDefault();e.stopPropagation();sincronizar();} },syncing?'↻':'↻ Atualizar'), React.createElement('button',{key:'cfg',style:{background:'#f5f5f5',color:'#555',padding:'8px 14px',borderRadius:9,fontSize:13,fontWeight:500,border:'none',cursor:'pointer'},onClick:abrirConfig},'⚙ Configurar'), ]}, !cfg.cw_token&&React.createElement('div',{style:{background:'#eff6ff',borderRadius:12,padding:'14px 18px',marginBottom:18,fontSize:13,color:'#2563eb',display:'flex',alignItems:'center',justifyContent:'space-between'}}, React.createElement('span',null,'Configure seu token do Cardápio Web para receber pedidos em tempo real'), React.createElement('button',{style:{background:'#2563eb',color:'#fff',padding:'7px 14px',borderRadius:8,fontSize:12,fontWeight:600,border:'none',cursor:'pointer'},onClick:abrirConfig},'Configurar agora')
-    ), React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:13,marginBottom:20}}, React.createElement(SC,{label:'Total',val:counts.total}), React.createElement(SC,{label:'Em andamento',val:counts.confirmados,color:'#2563eb'}), React.createElement(SC,{label:'Entregues',val:counts.entregues,color:'#16a34a'}), React.createElement(SC,{label:'Faturamento',val:F(counts.faturamento),color:'#dc2626'}), React.createElement(SC,{label:'Cookies vendidos',val:counts.cookies,color:'#f59e0b'}), React.createElement(SC,{label:'Ticket médio',val:F(counts.ticketMedio),color:'#7c3aed'})
+    ), React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:13,marginBottom:20}}, React.createElement(SC,{label:'Total',val:counts.total}), React.createElement(SC,{label:'Em andamento',val:counts.confirmados,color:'#2563eb'}), React.createElement(SC,{label:'Entregues',val:counts.entregues,color:'#16a34a'}), React.createElement(SC,{label:'Faturamento',val:F(counts.faturamento),color:'#dc2626'}),
+      React.createElement('div',{style:{background:'#fff',borderRadius:12,padding:'12px 16px',boxShadow:'0 1px 4px rgba(0,0,0,0.06)'}},
+        React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700,marginBottom:6}},'COOKIES VENDIDOS'),
+        React.createElement('div',{style:{display:'flex',gap:12,alignItems:'flex-end'}},
+          React.createElement('div',null,
+            React.createElement('div',{style:{fontSize:22,fontWeight:800,color:'#f59e0b',lineHeight:1}},counts.cookies),
+            React.createElement('div',{style:{fontSize:9,color:'#aaa',marginTop:2}},'hoje')
+          ),
+          React.createElement('div',{style:{width:1,height:28,background:'#f0f0f0'}}),
+          React.createElement('div',null,
+            React.createElement('div',{style:{fontSize:16,fontWeight:700,color:'#888'}},cookies7!==null?cookies7:'—'),
+            React.createElement('div',{style:{fontSize:9,color:'#aaa',marginTop:2}},'7 dias atrás')
+          ),
+          React.createElement('div',{style:{width:1,height:28,background:'#f0f0f0'}}),
+          React.createElement('div',null,
+            React.createElement('div',{style:{fontSize:16,fontWeight:700,color:'#888'}},cookies30!==null?cookies30:'—'),
+            React.createElement('div',{style:{fontSize:9,color:'#aaa',marginTop:2}},'30 dias atrás')
+          )
+        )
+      ), React.createElement(SC,{label:'Ticket médio',val:F(counts.ticketMedio),color:'#7c3aed'})
     ), React.createElement('div',{style:{display:'flex',gap:5,marginBottom:14,flexWrap:'wrap',alignItems:'center',justifyContent:'space-between'}}, React.createElement('div',{style:{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}, [
           {v:'',l:'Todos',bg:'#f5f5f5',c:'#555'}, {v:'waiting_confirmation',l:'Aguardando confirmação',bg:'#fef9c3',c:'#92400e'}, {v:'confirmed',l:'Em preparação',bg:'#dbeafe',c:'#1d4ed8'}, {v:'released',l:'Saiu para entrega',bg:'#dcfce7',c:'#14532d'}, {v:'waiting_to_catch',l:'Esperando retirada',bg:'#ede9fe',c:'#5b21b6'}, {v:'ready',l:'Pronto para entrega',bg:'#d1fae5',c:'#065f46'}, {v:'delivered',l:'Entregue',bg:'#d1fae5',c:'#14532d'}, {v:'closed',l:'Finalizado',bg:'#e0f2fe',c:'#0369a1'}, {v:'canceled',l:'Cancelado',bg:'#fee2e2',c:'#991b1b'}, ].map(({v,l,bg,c})=>{ const cnt=v===''?list.length:(pedidos_cw||[]).filter(p=>{ const isHoje=p.data_pedido===hoje||(p.raw?.created_at&&new Date(p.raw.created_at).toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'})===hoje);
             return isHoje&&p.status===v; }).length;
