@@ -4868,6 +4868,167 @@ function AtivoForm({uid,reload,close,ativo}){
 }
 
 
+function ConsumoInterno({uid,db,reload,setM}){
+  const{fichas,estoque,ficha_ingredientes}=db;
+  const[historico,setHistorico]=React.useState([]);
+  const[loading,setLoading]=React.useState(true);
+
+  React.useEffect(()=>{
+    sb.from('lancamentos').select('*').eq('user_id',uid).eq('obs','consumo_interno')
+      .order('data',{ascending:false}).limit(50)
+      .then(({data})=>{setHistorico(data||[]);setLoading(false);});
+  },[uid]);
+
+  const novo=()=>setM({title:'+ Consumo Interno',body:React.createElement(ConsumoForm,{uid,db,reload,close:()=>{setM(null);reload();}})});
+
+  const totalMes=historico.filter(h=>{
+    const hoje=TODAY(); return (h.data||'').startsWith(hoje.slice(0,7));
+  }).reduce((s,h)=>s+Number(h.valor||0),0);
+
+  return React.createElement(PW,{title:'Consumo Interno',sub:'Cookies para marketing, funcionários e quebras',
+    actions:[React.createElement('button',{key:'n',onClick:novo,style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'}},'+ Registrar Consumo')]},
+
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:16}},
+      React.createElement('div',{style:{background:'#fff',borderRadius:12,padding:'16px',boxShadow:'0 1px 6px rgba(0,0,0,0.07)',textAlign:'center'}},
+        React.createElement('div',{style:{fontSize:10,color:'#dc2626',fontWeight:700,textTransform:'uppercase',marginBottom:8}},'Custo este mês'),
+        React.createElement('div',{style:{fontSize:28,fontWeight:800,color:'#111'}},F(totalMes))
+      ),
+      React.createElement('div',{style:{background:'#fff',borderRadius:12,padding:'16px',boxShadow:'0 1px 6px rgba(0,0,0,0.07)',textAlign:'center'}},
+        React.createElement('div',{style:{fontSize:10,color:'#dc2626',fontWeight:700,textTransform:'uppercase',marginBottom:8}},'Registros este mês'),
+        React.createElement('div',{style:{fontSize:28,fontWeight:800,color:'#111'}},historico.filter(h=>(h.data||'').startsWith(TODAY().slice(0,7))).length)
+      ),
+      React.createElement('div',{style:{background:'#fff',borderRadius:12,padding:'16px',boxShadow:'0 1px 6px rgba(0,0,0,0.07)',textAlign:'center'}},
+        React.createElement('div',{style:{fontSize:10,color:'#dc2626',fontWeight:700,textTransform:'uppercase',marginBottom:8}},'Total registros'),
+        React.createElement('div',{style:{fontSize:28,fontWeight:800,color:'#111'}},historico.length)
+      )
+    ),
+
+    React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+      loading?React.createElement('div',{style:{padding:40,textAlign:'center',color:'#ccc'}},'Carregando...'):
+      historico.length===0?React.createElement('div',{style:{padding:60,textAlign:'center',color:'#ccc'}},
+        React.createElement('div',{style:{fontSize:32,marginBottom:12}},'🍪'),
+        React.createElement('div',{style:{fontSize:14,marginBottom:16}},'Nenhum consumo registrado'),
+        React.createElement('button',{onClick:novo,style:{background:'#dc2626',color:'#fff',padding:'10px 20px',borderRadius:10,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'}},'Registrar primeiro')
+      ):
+      React.createElement('table',{style:{width:'100%',borderCollapse:'collapse'}},
+        React.createElement('thead',null,React.createElement('tr',{style:{background:'#f9f9fb'}},
+          ['Data','Cookie','Qtd','Finalidade','Custo unitário','Custo total','Categoria DRE'].map((h,i)=>
+            React.createElement('th',{key:i,style:{padding:'10px 12px',fontSize:11,fontWeight:700,color:'#888',textAlign:i===0?'left':'right',borderBottom:'1px solid #f0f0f0',whiteSpace:'nowrap'}},h)
+          )
+        )),
+        React.createElement('tbody',null, historico.map(h=>{
+          const fin=FINALIDADES_CONSUMO.find(f=>f.v===h.centro_custo)||FINALIDADES_CONSUMO[0];
+          return React.createElement('tr',{key:h.id,style:{borderBottom:'1px solid #f7f7f7'}},
+            React.createElement('td',{style:{padding:'10px 12px',fontSize:12}},FD(h.data)),
+            React.createElement('td',{style:{padding:'10px 12px',fontWeight:700,fontSize:13,textAlign:'right'}},h.descricao?.replace('Consumo interno — ','')||'—'),
+            React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',fontSize:12}},h.estoque_qtd||'—'),
+            React.createElement('td',{style:{padding:'10px 12px',textAlign:'right'}},
+              React.createElement('span',{style:{background:fin.bg,color:fin.cor,padding:'3px 10px',borderRadius:20,fontSize:11,fontWeight:700}},fin.l)
+            ),
+            React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',fontSize:12,color:'#888'}},h.estoque_qtd?F(h.valor/h.estoque_qtd):'—'),
+            React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',fontWeight:700,color:'#dc2626'}},F(h.valor)),
+            React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',fontSize:11,color:'#888'}},h.categoria||'—')
+          );
+        }))
+      )
+    )
+  );
+}
+
+const FINALIDADES_CONSUMO=[
+  {v:'marketing',    l:'Marketing',    cat:'4.1.5 Amostras e Brindes',  cor:'#7c3aed',bg:'#f5f3ff'},
+  {v:'funcionarios', l:'Funcionários', cat:'4.3.8 Benefícios',          cor:'#2563eb',bg:'#eff6ff'},
+  {v:'quebra',       l:'Quebra',       cat:'4.2.6 Perdas de Produção',  cor:'#dc2626',bg:'#fef2f2'},
+  {v:'degustacao',   l:'Degustação',   cat:'4.1.6 Degustação',          cor:'#16a34a',bg:'#f0fdf4'},
+  {v:'outro',        l:'Outro',        cat:'4.3.9 Outros Consumos',     cor:'#888',   bg:'#f5f5f5'},
+];
+
+function ConsumoForm({uid,db,reload,close}){
+  const{fichas,estoque,ficha_ingredientes}=db;
+  const[cookie,setCookie]=React.useState('');
+  const[qtd,setQtd]=React.useState('');
+  const[finalidade,setFinalidade]=React.useState('marketing');
+  const[data,setData]=React.useState(TODAY());
+  const[obs,setObs]=React.useState('');
+  const[ld,setLd]=React.useState(false);
+  const cor='#dc2626';
+
+  const cookiesFichas=(fichas||[]).filter(f=>f.categoria!=='Recheio');
+  const fichaSel=cookiesFichas.find(f=>f.nome===cookie);
+
+  const custoUnit=React.useMemo(()=>{
+    if(!fichaSel)return 0;
+    const ings=(ficha_ingredientes||[]).filter(i=>i.ficha_id===fichaSel.id);
+    const total=ings.reduce((s,i)=>{ const e=(estoque||[]).find(x=>x.id===i.estoque_id||x.nome===i.nome);
+      return s+(parseFloat(i.quantidade||0)*parseFloat(e?.custo||i.custo_unit||0)); },0);
+    return total/(Number(fichaSel.rendimento)||1);
+  },[fichaSel,ficha_ingredientes,estoque]);
+
+  const custoTotal=custoUnit*Number(qtd||0);
+  const fin=FINALIDADES_CONSUMO.find(f=>f.v===finalidade)||FINALIDADES_CONSUMO[0];
+
+  const estItem=(estoque||[]).find(e=>e.categoria==='Cookie'&&(e.nome||'').toLowerCase()===(cookie||'').toLowerCase());
+  const qtdEst=Number(estItem?.qtd||0);
+  const insuficiente=Number(qtd||0)>qtdEst;
+
+  const salvar=async()=>{
+    if(!cookie||!qtd){toast('Selecione o cookie e a quantidade',true);return;}
+    if(insuficiente&&!confirm('Estoque insuficiente ('+qtdEst+' un). Registrar mesmo assim?'))return;
+    setLd(true);
+
+    // 1. Baixar estoque
+    if(estItem){
+      const novaQtd=Math.max(0,qtdEst-Number(qtd));
+      await sb.from('estoque').update({qtd:novaQtd}).eq('id',estItem.id);
+    }
+
+    // 2. Lançar despesa
+    await sb.from('lancamentos').insert({
+      user_id:uid, tipo:'despesa', descricao:'Consumo interno — '+cookie,
+      valor:parseFloat(custoTotal.toFixed(2)), categoria:fin.cat,
+      data, venc:data, competencia:data.slice(0,7),
+      pago:true, data_pag:data, conta_id:null, forma_pag:null,
+      centro_custo:finalidade, obs:'consumo_interno',
+      estoque_id:estItem?.id||null, estoque_qtd:Number(qtd),
+      fornecedor:obs||null
+    });
+
+    toast('✅ Consumo registrado! Estoque atualizado.',false,true);
+    reload();close();setLd(false);
+  };
+
+  return React.createElement('div',null,
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'2fr 1fr',gap:10,marginBottom:10}},
+      React.createElement(CustomSelect,{label:'Cookie *',value:cookie,onChange:setCookie,
+        options:[{v:'',l:'— Selecionar —'},...cookiesFichas.map(f=>({v:f.nome,l:f.nome}))],acent:cor}),
+      React.createElement(FloatInput,{label:'Quantidade (un) *',acent:cor,type:'number',value:qtd,onChange:e=>setQtd(e.target.value)})
+    ),
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}},
+      React.createElement(CustomSelect,{label:'Finalidade *',value:finalidade,onChange:setFinalidade,
+        options:FINALIDADES_CONSUMO.map(f=>({v:f.v,l:f.l})),acent:cor}),
+      React.createElement(MiniDatePicker,{label:'Data',value:data,onChange:setData,acent:cor})
+    ),
+    React.createElement(FloatInput,{label:'Observação (opcional)',acent:cor,value:obs,onChange:e=>setObs(e.target.value)}),
+
+    // Preview
+    cookie&&qtd&&React.createElement('div',{style:{background:fin.bg,borderRadius:12,padding:'14px 16px',marginTop:14,marginBottom:4}},
+      React.createElement('div',{style:{fontSize:10,color:fin.cor,fontWeight:700,marginBottom:8,textTransform:'uppercase'}},'Resumo do lançamento'),
+      React.createElement('div',{style:{display:'flex',gap:24,flexWrap:'wrap'}},
+        React.createElement('div',null,React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700}},'CUSTO UNITÁRIO'),React.createElement('div',{style:{fontSize:16,fontWeight:800,color:'#111'}},F(custoUnit))),
+        React.createElement('div',null,React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700}},'CUSTO TOTAL'),React.createElement('div',{style:{fontSize:16,fontWeight:800,color:fin.cor}},F(custoTotal))),
+        React.createElement('div',null,React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700}},'CATEGORIA DRE'),React.createElement('div',{style:{fontSize:12,fontWeight:700,color:'#555'}},fin.cat)),
+        React.createElement('div',null,React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700}},'ESTOQUE ATUAL'),React.createElement('div',{style:{fontSize:16,fontWeight:800,color:insuficiente?'#dc2626':'#16a34a'}},qtdEst+' un'+( insuficiente?' ⚠':'')))
+      )
+    ),
+
+    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',marginTop:14}},
+      React.createElement('button',{onClick:close,style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'}},'Cancelar'),
+      React.createElement('button',{onClick:salvar,disabled:ld,style:{background:cor,color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',opacity:ld?0.6:1}},ld?'Registrando...':'Registrar')
+    )
+  );
+}
+
+
 function App(){ const[user,setUser]=useState(null);const[page,setPage]=useState('pedidos');
   const[initializing,setInitializing]=useState(true);
   const[db,setDb]=useState({pedidos:[],pedidos_cw:[],estoque:[],contas:[],receber:[],pagar:[],movs:[],lancamentos:[],categorias_fin:[],centros_custo:[],formas_pag:[],caixas:[],fichas:[]});
