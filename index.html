@@ -4342,7 +4342,27 @@ function FinCategorias({uid,db,reload,setM}){ const{categorias_fin}=db;
   const[dragId,setDragId]=React.useState(null);
   const[reordenados,setReordenados]=React.useState(null); // null = use rows default
   const rowsWithOverrides=React.useMemo(()=>rows.map(r=>r.custom?r:{...r,nome:overrides[r.cod]||r.nome}),[rows,overrides]);
-  const rowsOrdenados=reordenados||rowsWithOverrides;
+
+  // Apply saved order from DB
+  const ordemSalva=React.useMemo(()=>{
+    const row=(db.categorias_fin||[]).find(c=>c.obs==='plano_ordem');
+    if(!row)return null;
+    try{return JSON.parse(row.nome);}catch{return null;}
+  },[db.categorias_fin]);
+
+  const rowsComOrdem=React.useMemo(()=>{
+    if(!ordemSalva)return rowsWithOverrides;
+    return [...rowsWithOverrides].sort((a,b)=>{
+      const ai=ordemSalva.indexOf(a.custom?a.id:a.cod);
+      const bi=ordemSalva.indexOf(b.custom?b.id:b.cod);
+      if(ai===-1&&bi===-1)return 0;
+      if(ai===-1)return 1;
+      if(bi===-1)return -1;
+      return ai-bi;
+    });
+  },[rowsWithOverrides,ordemSalva]);
+
+  const rowsOrdenados=reordenados||rowsComOrdem;
 
   const moveRow=(fromIdx,toIdx)=>{
     if(fromIdx===toIdx)return;
@@ -4378,14 +4398,21 @@ function FinCategorias({uid,db,reload,setM}){ const{categorias_fin}=db;
 
   const salvarReordenamento=async()=>{
     if(!reordenados)return;
-    // Save updated grupos for custom items
-    const updates=reordenados.filter(r=>r.custom);
-    for(const item of updates){
+    // 1. Save updated grupos for custom items (parent changes)
+    for(const item of reordenados.filter(r=>r.custom)){
       const parent=reordenados.slice(0,reordenados.indexOf(item)).reverse().find(r=>r.nivel===item.nivel-1);
-      if(parent){
-        await sb.from('categorias_fin').update({grupo:parent.cod?parent.cod+' '+parent.nome:parent.nome}).eq('id',item.id);
+      const novoGrupo=parent?(parent.cod?parent.cod+' '+parent.nome:parent.nome):'';
+      const atual=(db.categorias_fin||[]).find(c=>c.id===item.id);
+      if(atual&&atual.grupo!==novoGrupo){
+        await sb.from('categorias_fin').update({grupo:novoGrupo}).eq('id',item.id);
       }
     }
+    // 2. Save full order as JSON in a special categorias_fin row
+    const ordemIds=reordenados.map(r=>r.custom?r.id:r.cod).filter(Boolean);
+    const ordemStr=JSON.stringify(ordemIds);
+    const existing=(db.categorias_fin||[]).find(c=>c.obs==='plano_ordem');
+    if(existing){ await sb.from('categorias_fin').update({nome:ordemStr}).eq('id',existing.id); }
+    else{ await sb.from('categorias_fin').insert({user_id:uid,nome:ordemStr,grupo:'',tipo:'despesa',obs:'plano_ordem'}); }
     toast('Ordem salva!',false,true);
     reload();
     setReordenados(null);
