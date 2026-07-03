@@ -4339,11 +4339,13 @@ function FinCategorias({uid,db,reload,setM}){ const{categorias_fin}=db;
     setEditingCod(null);
   };
 
+  const ordemKey='plano_ordem_v2_'+uid;
+  const[ordemIds,setOrdemIds]=React.useState(()=>{ try{const s=localStorage.getItem(ordemKey);return s?JSON.parse(s):null;}catch{return null;} });
   const[dragId,setDragId]=React.useState(null);
-  const[reordenados,setReordenados]=React.useState(null); // null = use rows default
+  const[alterado,setAlterado]=React.useState(false);
+
   const rowsWithOverrides=React.useMemo(()=>rows.map(r=>r.custom?r:{...r,nome:overrides[r.cod]||r.nome}),[rows,overrides]);
 
-  // Apply saved order from DB
   const ordemSalva=React.useMemo(()=>{
     const row=(db.categorias_fin||[]).find(c=>c.obs==='plano_ordem');
     if(!row)return null;
@@ -4351,75 +4353,52 @@ function FinCategorias({uid,db,reload,setM}){ const{categorias_fin}=db;
   },[db.categorias_fin]);
 
   const rowsComOrdem=React.useMemo(()=>{
-    if(!ordemSalva)return rowsWithOverrides;
+    const saved=ordemIds||ordemSalva;
+    if(!saved)return rowsWithOverrides;
     return [...rowsWithOverrides].sort((a,b)=>{
-      const ai=ordemSalva.indexOf(a.custom?a.id:a.cod);
-      const bi=ordemSalva.indexOf(b.custom?b.id:b.cod);
+      const key=r=>r.custom?r.id:r.cod;
+      const ai=saved.indexOf(key(a)),bi=saved.indexOf(key(b));
       if(ai===-1&&bi===-1)return 0;
-      if(ai===-1)return 1;
-      if(bi===-1)return -1;
+      if(ai===-1)return 1;if(bi===-1)return -1;
       return ai-bi;
     });
-  },[rowsWithOverrides,ordemSalva]);
-
-  const rowsOrdenados=reordenados||rowsComOrdem;
+  },[rowsWithOverrides,ordemIds,ordemSalva]);
 
   const moveRow=(fromIdx,toIdx)=>{
     if(fromIdx===toIdx)return;
-    setReordenados(p=>{
-      const base=[...(p||rows)];
-      const[m]=base.splice(fromIdx,1);
-      base.splice(toIdx,0,m);
-      // Recalculate codes and styles based on new positions
-      return recalcCodes(base);
+    setOrdemIds(prev=>{
+      const cur=prev||rowsComOrdem.map(r=>r.custom?r.id:r.cod);
+      const arr=[...cur];
+      const[m]=arr.splice(fromIdx,1);
+      arr.splice(toIdx,0,m);
+      try{localStorage.setItem(ordemKey,JSON.stringify(arr));}catch{}
+      return arr;
     });
-  };
-
-  const recalcCodes=(arr)=>{
-    const result=arr.map((item,i)=>({...item}));
-    result.forEach((item,i)=>{
-      // Recalc codes for all items based on their new position
-      // Find nearest parent (item before with nivel = this.nivel - 1)
-      let parent=null;
-      for(let j=i-1;j>=0;j--){ if(result[j].nivel===item.nivel-1){parent=result[j];break;} }
-      if(!parent)return;
-      // Count siblings before this item with same parent
-      const siblings=result.slice(0,i).filter(r=>r.nivel===item.nivel&&result.slice(0,i).some((x,xi)=>xi<i&&result[xi].nivel===item.nivel-1&&result[xi].cod===parent.cod));
-      // Count all items (std+custom) with this parent and same level before this one
-      let sibCount=0;
-      for(let j=0;j<i;j++){ if(result[j].nivel===item.nivel){ let par=null; for(let k=j-1;k>=0;k--){if(result[k].nivel===item.nivel-1){par=result[k];break;}} if(par&&par.cod===parent.cod)sibCount++; } }
-      item.cod=parent.cod+'.'+(sibCount+1);
-      item.nivel=parent.nivel+1;
-      // Inherit tipo from parent
-      item.tipo=parent.tipo||item.tipo;
-    });
-    return result;
+    setAlterado(true);
   };
 
   const salvarReordenamento=async()=>{
-    if(!reordenados)return;
-    // 1. Save updated grupos for custom items (parent changes)
-    for(const item of reordenados.filter(r=>r.custom)){
-      const parent=reordenados.slice(0,reordenados.indexOf(item)).reverse().find(r=>r.nivel===item.nivel-1);
-      const novoGrupo=parent?(parent.cod?parent.cod+' '+parent.nome:parent.nome):'';
+    const ids=rowsComOrdem.map(r=>r.custom?r.id:r.cod).filter(Boolean);
+    // Save grupo changes for custom items
+    for(let i=0;i<rowsComOrdem.length;i++){
+      const item=rowsComOrdem[i];
+      if(!item.custom)continue;
+      const parent=[...rowsComOrdem].slice(0,i).reverse().find(r=>r.nivel===item.nivel-1);
+      const novoGrupo=parent?parent.nome:'';
       const atual=(db.categorias_fin||[]).find(c=>c.id===item.id);
-      if(atual&&atual.grupo!==novoGrupo){
-        await sb.from('categorias_fin').update({grupo:novoGrupo}).eq('id',item.id);
-      }
+      if(atual&&atual.grupo!==novoGrupo){await sb.from('categorias_fin').update({grupo:novoGrupo}).eq('id',item.id);}
     }
-    // 2. Save full order as JSON in a special categorias_fin row
-    const ordemIds=reordenados.map(r=>r.custom?r.id:r.cod).filter(Boolean);
-    const ordemStr=JSON.stringify(ordemIds);
+    // Save order to DB
     const existing=(db.categorias_fin||[]).find(c=>c.obs==='plano_ordem');
-    if(existing){ await sb.from('categorias_fin').update({nome:ordemStr}).eq('id',existing.id); }
-    else{ await sb.from('categorias_fin').insert({user_id:uid,nome:ordemStr,grupo:'',tipo:'despesa',obs:'plano_ordem'}); }
+    if(existing){await sb.from('categorias_fin').update({nome:JSON.stringify(ids)}).eq('id',existing.id);}
+    else{await sb.from('categorias_fin').insert({user_id:uid,nome:JSON.stringify(ids),grupo:'',tipo:'despesa',obs:'plano_ordem'});}
     toast('Ordem salva!',false,true);
+    setAlterado(false);
     reload();
-    setReordenados(null);
   };
 
   return React.createElement(PW,{title:'Plano de Contas',sub:'Arraste para reordenar • Clique duplo para editar personalizadas', actions:[
-      React.createElement('button',{key:'r',style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:()=>novaCategoria('despesa')},'+ Despesa'), React.createElement('button',{key:'re',style:{background:'#16a34a',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',marginLeft:8},onClick:()=>novaCategoria('receita')},'+ Receita'), reordenados&&React.createElement('button',{key:'sv',style:{background:'#2563eb',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',marginLeft:8},onClick:salvarReordenamento},'💾 Salvar ordem'), ]}, React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'8px 16px 16px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}}, rowsOrdenados.map((item,i)=>{ const cor=COR[item.tipo]||'#555';
+      React.createElement('button',{key:'r',style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:()=>novaCategoria('despesa')},'+ Despesa'), React.createElement('button',{key:'re',style:{background:'#16a34a',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',marginLeft:8},onClick:()=>novaCategoria('receita')},'+ Receita'), alterado&&React.createElement('button',{key:'sv',style:{background:'#2563eb',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',marginLeft:8},onClick:salvarReordenamento},'💾 Salvar ordem'), ]}, React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'8px 16px 16px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}}, rowsOrdenados.map((item,i)=>{ const cor=COR[item.tipo]||'#555';
         const indent=item.nivel*20;
         const isTop=item.nivel===0;
         const isSub=item.nivel===1;
