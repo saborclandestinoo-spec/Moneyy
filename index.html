@@ -4318,16 +4318,25 @@ function FinCategorias({uid,db,reload,setM}){ const{categorias_fin}=db;
   // Anything still pending has no valid parent — show at bottom
   pendentes.forEach(c=>rows.push({cod:'',nome:c.nome,tipo:c.tipo||'despesa',nivel:2,custom:true,id:c.id,grupo:c.grupo,catObj:c}));
 
+  // Inline edit state
+  const[editingCod,setEditingCod]=React.useState(null);
+  const[editingNome,setEditingNome]=React.useState('');
+
   // Name overrides for standard items (stored in Supabase)
-  const overridesRaw=db.plano_overrides||[];
+  const[overridesRaw,setOverridesRaw]=React.useState(db.plano_overrides||[]);
+  React.useEffect(()=>setOverridesRaw(db.plano_overrides||[]),[db.plano_overrides]);
   const overrides=React.useMemo(()=>Object.fromEntries((overridesRaw||[]).map(o=>[o.cod,o.nome])),[overridesRaw]);
   const saveOverride=async(cod,nome)=>{
     try{
       const existing=(overridesRaw||[]).find(o=>o.cod===cod);
       if(existing){ await sb.from('plano_overrides').update({nome}).eq('id',existing.id); }
       else{ await sb.from('plano_overrides').insert({user_id:uid,cod,nome}); }
-      reload();
+      // Refresh overrides immediately without full reload
+      const{data}=await sb.from('plano_overrides').select('*').eq('user_id',uid);
+      if(data)setOverridesRaw(data);
+      toast('Nome atualizado!',false,true);
     }catch(e){ toast('Crie a tabela plano_overrides no Supabase primeiro.',true); }
+    setEditingCod(null);
   };
 
   const[dragId,setDragId]=React.useState(null);
@@ -4347,10 +4356,9 @@ function FinCategorias({uid,db,reload,setM}){ const{categorias_fin}=db;
   };
 
   const recalcCodes=(arr)=>{
-    // For each item, find its parent (nearest preceding item with nivel = item.nivel - 1)
     const result=arr.map((item,i)=>({...item}));
     result.forEach((item,i)=>{
-      if(!item.custom)return; // keep standard codes
+      // Recalc codes for all items based on their new position
       // Find nearest parent (item before with nivel = this.nivel - 1)
       let parent=null;
       for(let j=i-1;j>=0;j--){ if(result[j].nivel===item.nivel-1){parent=result[j];break;} }
@@ -4401,11 +4409,21 @@ function FinCategorias({uid,db,reload,setM}){ const{categorias_fin}=db;
           style:{display:'flex',alignItems:'center',gap:8, paddingLeft:8+indent,paddingRight:12, paddingTop:isTop?10:isSub?6:4, paddingBottom:isTop?10:isSub?6:4, borderTop:isTop?'2px solid #e5e5e5':isSub?'1px solid #f0f0f0':'none', marginTop:isTop?8:0, opacity:dragId===item.id?0.4:1, cursor:item.custom?'grab':'default', fontFamily:'inherit'}},
           React.createElement('span',{style:{color:'#ccc',fontSize:13,userSelect:'none',marginRight:4,cursor:'grab'}},'⠿'),
           React.createElement('span',{style:{fontSize,fontWeight,color,minWidth:isTop?20:isSub?36:52,flexShrink:0}}, item.cod||(item.custom?'':'')),
-          React.createElement('span',{style:{fontSize,fontWeight,color,flex:1}}, item.nome),
-          React.createElement('div',{style:{display:'flex',gap:4,alignItems:'center'},onClick:e=>e.stopPropagation()}, React.createElement('button',{onClick:()=>{
-              if(item.custom){setM({title:'Editar — '+item.nome,body:React.createElement(CatForm,{uid,grupo:item.catObj.grupo,tipo:item.catObj.tipo,inicial:item.catObj,isEdit:true,reload,close:()=>setM(null)})});}
-              else{const novo=window.prompt('Renomear para:',item.nome);if(novo&&novo.trim()&&novo.trim()!==item.nome){saveOverride(item.cod,novo.trim()).then(()=>toast('Nome atualizado!',false,true));}}
-            },style:{fontSize:11,color:'#555',background:'#f5f5f5',border:'none',borderRadius:4,padding:'2px 8px',cursor:'pointer'}},'✏'), React.createElement('button',{ onClick:()=>setM({title:'+ Subcategoria em '+(item.cod||item.nome),body:React.createElement(CatForm,{uid,grupo:(item.cod?item.cod+' ':'')+item.nome,tipo:item.tipo,fixGrupo:true,reload,close:()=>setM(null)})}), style:{fontSize:11,color:'#16a34a',background:'#f0fdf4',border:'none',borderRadius:4,padding:'2px 8px',cursor:'pointer',fontWeight:700}},'+'), React.createElement('button',{ onClick:e=>{e.stopPropagation();if(item.custom)excluirCat(item.id,item.nome);else toast('Contas padrão não podem ser excluídas',true);}, style:{fontSize:10,color:'#dc2626',background:'#fee2e2',border:'none',borderRadius:4,padding:'2px 7px',cursor:'pointer'}},'×')
+          editingCod===item.cod
+            ?React.createElement('div',{style:{display:'flex',gap:6,flex:1,alignItems:'center'}},
+                React.createElement('input',{autoFocus:true,value:editingNome,onChange:e=>setEditingNome(e.target.value),
+                  onKeyDown:e=>{if(e.key==='Enter')saveOverride(item.cod,editingNome);if(e.key==='Escape')setEditingCod(null);},
+                  style:{flex:1,border:'1.5px solid #dc2626',borderRadius:7,padding:'4px 8px',fontSize:13,outline:'none'}}),
+                React.createElement('button',{onClick:()=>saveOverride(item.cod,editingNome),style:{background:'#dc2626',color:'#fff',border:'none',borderRadius:7,padding:'4px 10px',fontSize:12,cursor:'pointer',fontWeight:700}},'✓'),
+                React.createElement('button',{onClick:()=>setEditingCod(null),style:{background:'#f5f5f5',color:'#888',border:'none',borderRadius:7,padding:'4px 8px',fontSize:12,cursor:'pointer'}},'✕')
+              )
+            :React.createElement('span',{style:{fontSize,fontWeight,color,flex:1}}, item.nome),
+          React.createElement('div',{style:{display:'flex',gap:4,alignItems:'center'},onClick:e=>e.stopPropagation()},
+            React.createElement('button',{
+              onClick:()=>{if(item.custom){setM({title:'Editar — '+item.nome,body:React.createElement(CatForm,{uid,grupo:item.catObj.grupo,tipo:item.catObj.tipo,inicial:item.catObj,isEdit:true,reload,close:()=>setM(null)})});}else{setEditingCod(item.cod);setEditingNome(overrides[item.cod]||item.nome);}},
+              style:{fontSize:11,color:'#555',background:'#f5f5f5',border:'none',borderRadius:4,padding:'2px 8px',cursor:'pointer'}},'✏'),
+            React.createElement('button',{ onClick:()=>setM({title:'+ Subcategoria em '+(item.cod||item.nome),body:React.createElement(CatForm,{uid,grupo:(item.cod?item.cod+' ':'')+item.nome,tipo:item.tipo,fixGrupo:true,reload,close:()=>setM(null)})}), style:{fontSize:11,color:'#16a34a',background:'#f0fdf4',border:'none',borderRadius:4,padding:'2px 8px',cursor:'pointer',fontWeight:700}},'+'),
+            React.createElement('button',{ onClick:e=>{e.stopPropagation();if(item.custom)excluirCat(item.id,item.nome);else toast('Contas padrão não podem ser excluídas',true);}, style:{fontSize:10,color:'#dc2626',background:'#fee2e2',border:'none',borderRadius:4,padding:'2px 7px',cursor:'pointer'}},'×')
           )
         ); })
     )
