@@ -4318,9 +4318,19 @@ function FinCategorias({uid,db,reload,setM}){ const{categorias_fin}=db;
   // Anything still pending has no valid parent — show at bottom
   pendentes.forEach(c=>rows.push({cod:'',nome:c.nome,tipo:c.tipo||'despesa',nivel:2,custom:true,id:c.id,grupo:c.grupo,catObj:c}));
 
+  // Name overrides for standard items (stored in Supabase)
+  const overridesRaw=db.plano_overrides||[];
+  const overrides=Object.fromEntries(overridesRaw.map(o=>[o.cod,o.nome]));
+  const saveOverride=async(cod,nome)=>{
+    const existing=overridesRaw.find(o=>o.cod===cod);
+    if(existing){ await sb.from('plano_overrides').update({nome}).eq('id',existing.id); }
+    else{ await sb.from('plano_overrides').insert({user_id:uid,cod,nome}); }
+    reload();
+  };
+
   const[dragId,setDragId]=React.useState(null);
   const[reordenados,setReordenados]=React.useState(null); // null = use rows default
-  const rowsOrdenados=reordenados||rows;
+  const rowsOrdenados=reordenados||rowsWithOverrides;
 
   const moveRow=(fromIdx,toIdx)=>{
     if(fromIdx===toIdx)return;
@@ -4389,7 +4399,10 @@ function FinCategorias({uid,db,reload,setM}){ const{categorias_fin}=db;
           React.createElement('span',{style:{color:'#ccc',fontSize:13,userSelect:'none',marginRight:4,cursor:'grab'}},'⠿'),
           React.createElement('span',{style:{fontSize,fontWeight,color,minWidth:isTop?20:isSub?36:52,flexShrink:0}}, item.cod||(item.custom?'':'')),
           React.createElement('span',{style:{fontSize,fontWeight,color,flex:1}}, item.nome),
-          React.createElement('div',{style:{display:'flex',gap:4,alignItems:'center'},onClick:e=>e.stopPropagation()}, item.custom&&React.createElement('button',{ onClick:()=>setM({title:'Editar — '+item.nome,body:React.createElement(CatForm,{uid,grupo:item.catObj.grupo,tipo:item.catObj.tipo,inicial:item.catObj,isEdit:true,reload,close:()=>setM(null)})}), style:{fontSize:11,color:'#555',background:'#f5f5f5',border:'none',borderRadius:4,padding:'2px 8px',cursor:'pointer'}},'✏'), React.createElement('button',{ onClick:()=>setM({title:'+ Subcategoria em '+(item.cod||item.nome),body:React.createElement(CatForm,{uid,grupo:(item.cod?item.cod+' ':'')+item.nome,tipo:item.tipo,fixGrupo:true,reload,close:()=>setM(null)})}), style:{fontSize:11,color:'#16a34a',background:'#f0fdf4',border:'none',borderRadius:4,padding:'2px 8px',cursor:'pointer',fontWeight:700}},'+'), React.createElement('button',{ onClick:e=>{e.stopPropagation();if(item.custom)excluirCat(item.id,item.nome);else toast('Contas padrão não podem ser excluídas',true);}, style:{fontSize:10,color:'#dc2626',background:'#fee2e2',border:'none',borderRadius:4,padding:'2px 7px',cursor:'pointer'}},'×')
+          React.createElement('div',{style:{display:'flex',gap:4,alignItems:'center'},onClick:e=>e.stopPropagation()}, React.createElement('button',{onClick:()=>{
+              if(item.custom){setM({title:'Editar — '+item.nome,body:React.createElement(CatForm,{uid,grupo:item.catObj.grupo,tipo:item.catObj.tipo,inicial:item.catObj,isEdit:true,reload,close:()=>setM(null)})});}
+              else{const novo=window.prompt('Renomear para:',item.nome);if(novo&&novo.trim()&&novo.trim()!==item.nome){saveOverride(item.cod,novo.trim()).then(()=>toast('Nome atualizado!',false,true));}}
+            },style:{fontSize:11,color:'#555',background:'#f5f5f5',border:'none',borderRadius:4,padding:'2px 8px',cursor:'pointer'}},'✏'), React.createElement('button',{ onClick:()=>setM({title:'+ Subcategoria em '+(item.cod||item.nome),body:React.createElement(CatForm,{uid,grupo:(item.cod?item.cod+' ':'')+item.nome,tipo:item.tipo,fixGrupo:true,reload,close:()=>setM(null)})}), style:{fontSize:11,color:'#16a34a',background:'#f0fdf4',border:'none',borderRadius:4,padding:'2px 8px',cursor:'pointer',fontWeight:700}},'+'), React.createElement('button',{ onClick:e=>{e.stopPropagation();if(item.custom)excluirCat(item.id,item.nome);else toast('Contas padrão não podem ser excluídas',true);}, style:{fontSize:10,color:'#dc2626',background:'#fee2e2',border:'none',borderRadius:4,padding:'2px 7px',cursor:'pointer'}},'×')
           )
         ); })
     )
@@ -4841,13 +4854,13 @@ function App(){ const[user,setUser]=useState(null);const[page,setPage]=useState(
 
   const reload=useCallback(async()=>{ if(!user)return;
     const uid=user.id;
-    const[pedcw,ped,est,con,rec,pag,mov,lanc,catfin,centros,formasPag,cxs,fichs,fichIngs,ativ]=await Promise.all([
-      sb.from('pedidos_cw').select('*').eq('user_id',uid).order('data_pedido',{ascending:false}).limit(200), sb.from('pedidos').select('*').eq('user_id',uid).order('criado_em',{ascending:false}), sb.from('estoque').select('*').eq('user_id',uid).order('nome'), sb.from('contas_bancarias').select('*').eq('user_id',uid).eq('ativo',true).order('criado_em'), sb.from('contas_receber').select('*').eq('user_id',uid).order('criado_em',{ascending:false}), sb.from('contas_pagar').select('*').eq('user_id',uid).order('vencimento'), sb.from('movimentacoes').select('*').eq('user_id',uid).order('data_movimentacao',{ascending:false}), sb.from('lancamentos').select('*').eq('user_id',uid).order('data',{ascending:false}).order('criado_em',{ascending:false}).limit(500), sb.from('categorias_fin').select('*').eq('user_id',uid).order('nome'), sb.from('centros_custo').select('*').eq('user_id',uid).order('nome'), sb.from('formas_pagamento').select('*').eq('user_id',uid).order('nome'), sb.from('caixas').select('*').eq('user_id',uid).order('criado_em',{ascending:false}).limit(30), sb.from('fichas_tecnicas').select('*').eq('user_id',uid).order('nome'), sb.from('ficha_ingredientes').select('*'), sb.from('ativos').select('*').eq('user_id',uid).order('nome'), ]);
+    const[pedcw,ped,est,con,rec,pag,mov,lanc,catfin,centros,formasPag,cxs,fichs,fichIngs,ativ,planOv]=await Promise.all([
+      sb.from('pedidos_cw').select('*').eq('user_id',uid).order('data_pedido',{ascending:false}).limit(200), sb.from('pedidos').select('*').eq('user_id',uid).order('criado_em',{ascending:false}), sb.from('estoque').select('*').eq('user_id',uid).order('nome'), sb.from('contas_bancarias').select('*').eq('user_id',uid).eq('ativo',true).order('criado_em'), sb.from('contas_receber').select('*').eq('user_id',uid).order('criado_em',{ascending:false}), sb.from('contas_pagar').select('*').eq('user_id',uid).order('vencimento'), sb.from('movimentacoes').select('*').eq('user_id',uid).order('data_movimentacao',{ascending:false}), sb.from('lancamentos').select('*').eq('user_id',uid).order('data',{ascending:false}).order('criado_em',{ascending:false}).limit(500), sb.from('categorias_fin').select('*').eq('user_id',uid).order('nome'), sb.from('centros_custo').select('*').eq('user_id',uid).order('nome'), sb.from('formas_pagamento').select('*').eq('user_id',uid).order('nome'), sb.from('caixas').select('*').eq('user_id',uid).order('criado_em',{ascending:false}).limit(30), sb.from('fichas_tecnicas').select('*').eq('user_id',uid).order('nome'), sb.from('ficha_ingredientes').select('*'), sb.from('ativos').select('*').eq('user_id',uid).order('nome'), sb.from('plano_overrides').select('*').eq('user_id',uid), ]);
     const contas=con.data||[];
     if(contas.length===0){ await sb.from('contas_bancarias').insert([
         {user_id:uid,nome:'Nubank PJ',tipo:'Digital',banco:'Nubank',saldo:0,cor:'#8b5cf6',ativo:true}, {user_id:uid,nome:'Caixa',tipo:'Caixa',banco:'',saldo:0,cor:'#f59e0b',ativo:true}, ]);
       const{data:nc}=await sb.from('contas_bancarias').select('*').eq('user_id',uid);
-      setDb({pedidos:ped.data||[],pedidos_cw:pedcw.data||[],estoque:est.data||[],contas:nc||[],receber:rec.data||[],pagar:pag.data||[],movs:mov.data||[],lancamentos:lanc.data||[],categorias_fin:catfin.data||[],centros_custo:centros.data||[],formas_pag:formasPag.data||[],caixas:cxs.data||[],fichas:fichs.data||[],ficha_ingredientes:fichIngs.data||[],ativos:ativ.data||[]}); }else{ setDb({pedidos:ped.data||[],pedidos_cw:pedcw.data||[],estoque:est.data||[],contas,receber:rec.data||[],pagar:pag.data||[],movs:mov.data||[],lancamentos:lanc.data||[],categorias_fin:catfin.data||[],centros_custo:centros.data||[],formas_pag:formasPag.data||[],caixas:cxs.data||[],fichas:fichs.data||[],ficha_ingredientes:fichIngs.data||[],ativos:ativ.data||[]}); }
+      setDb({pedidos:ped.data||[],pedidos_cw:pedcw.data||[],estoque:est.data||[],contas:nc||[],receber:rec.data||[],pagar:pag.data||[],movs:mov.data||[],lancamentos:lanc.data||[],categorias_fin:catfin.data||[],centros_custo:centros.data||[],formas_pag:formasPag.data||[],caixas:cxs.data||[],fichas:fichs.data||[],ficha_ingredientes:fichIngs.data||[],ativos:ativ.data||[],plano_overrides:planOv.data||[]}); }else{ setDb({pedidos:ped.data||[],pedidos_cw:pedcw.data||[],estoque:est.data||[],contas,receber:rec.data||[],pagar:pag.data||[],movs:mov.data||[],lancamentos:lanc.data||[],categorias_fin:catfin.data||[],centros_custo:centros.data||[],formas_pag:formasPag.data||[],caixas:cxs.data||[],fichas:fichs.data||[],ficha_ingredientes:fichIngs.data||[],ativos:ativ.data||[],plano_overrides:planOv.data||[]}); }
     // load config
     const{data:cfgRows}=await sb.from('config_usuario').select('*').eq('user_id',uid);
     const cfgMap={};(cfgRows||[]).forEach(r=>{cfgMap[r.chave]=r.valor;});
