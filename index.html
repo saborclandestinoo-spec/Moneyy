@@ -2058,7 +2058,7 @@ function FichasTecnicas({uid,db,reload,setM}){ const{fichas,estoque}=db;
           React.createElement(Tbl,{cols:isRecheio?['Recheio','Rendimento','Custo Total','Custo/Un','Qtd em Estoque']:['Produto','Estoque','Categoria','Custo Unit','Custo Total','Preço Venda','Lucro Unit','Margem','Receita Pot.','Status'],
             rows:listaOrdenada.map(f=>{
               const ings=ingredientesPorFicha[f.id]||[];
-              const custoTotalIng=ings.reduce((s,i)=>s+Number(i.quantidade||0)*Number(i.custo_unit||0),0);
+              const custoTotalIng=ings.reduce((s,i)=>{ const est=(estoque||[]).find(e=>e.id===i.estoque_id||e.nome===i.nome); return s+Number(i.quantidade||0)*Number(est?.custo||i.custo_unit||0); },0);
               const rend=Number(f.rendimento||1);
 
               if(isRecheio){
