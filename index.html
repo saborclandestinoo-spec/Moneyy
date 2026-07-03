@@ -1773,20 +1773,23 @@ function ProduzirRecheioModal({uid,db,reload,close,ficha,estoqueItem}){
   const produzir=async()=>{
     if(!ficha?.id){toast('Ficha inválida',true);return;}
     setLd(true);
-    // Consume raw materials
+    // Consume raw materials + record movement
     for(const ing of ings){
       if(!ing.estoque_id&&!ing.nome)continue;
       const qtdConsumida=parseFloat(ing.quantidade||0)*lotesN;
       let esItem=ing.estoque_id?(estoque||[]).find(e=>e.id===ing.estoque_id):(estoque||[]).find(e=>e.nome===ing.nome);
-      if(esItem){ const novaQtd=Math.max(0,Number(esItem.qtd||0)-qtdConsumida);
-        await sb.from('estoque').update({qtd:novaQtd}).eq('id',esItem.id); }
+      if(esItem){ const qtdAnt=Number(esItem.qtd||0); const novaQtd=Math.max(0,qtdAnt-qtdConsumida);
+        await sb.from('estoque').update({qtd:novaQtd}).eq('id',esItem.id);
+        await registrarMovEstoque(uid,{estoqueId:String(esItem.id),nomeItem:esItem.nome,tipo:'saida',quantidade:qtdConsumida,saldoAntes:qtdAnt,saldoDepois:novaQtd,motivo:'producao_recheio',descricao:'Produção de '+ficha.nome+' ('+lotesN+' lote(s))',custoUnit:esItem.custo}); }
     }
-    // Add to recheio stock
+    // Add to recheio stock + record movement
     const novoRecheioQtd=Number(estoqueItem?.qtd||0)+rendTotal;
     if(estoqueItem){
       await sb.from('estoque').update({qtd:novoRecheioQtd,custo:custoPorUnit}).eq('id',estoqueItem.id);
+      await registrarMovEstoque(uid,{estoqueId:String(estoqueItem.id),nomeItem:ficha.nome,tipo:'entrada',quantidade:rendTotal,saldoAntes:Number(estoqueItem.qtd||0),saldoDepois:novoRecheioQtd,motivo:'producao_recheio',descricao:'Produzido '+lotesN+' lote(s) — '+rendTotal+unidRend,custoUnit:custoPorUnit});
     }else{
-      await sb.from('estoque').insert({user_id:uid,nome:ficha.nome,categoria:'Recheio',unidade:unidRend,qtd:rendTotal,minimo:0,custo:custoPorUnit,fornecedor:''});
+      const{data:newEst}=await sb.from('estoque').insert({user_id:uid,nome:ficha.nome,categoria:'Recheio',unidade:unidRend,qtd:rendTotal,minimo:0,custo:custoPorUnit,fornecedor:''}).select().single();
+      if(newEst)await registrarMovEstoque(uid,{estoqueId:String(newEst.id),nomeItem:ficha.nome,tipo:'entrada',quantidade:rendTotal,saldoAntes:0,saldoDepois:rendTotal,motivo:'producao_recheio',descricao:'Produzido '+lotesN+' lote(s) — '+rendTotal+unidRend,custoUnit:custoPorUnit});
     }
     toast('Produção registrada! +'+rendTotal+unidRend+' de '+ficha.nome,false,true);
     reload();close();setLd(false);
