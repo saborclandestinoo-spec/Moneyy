@@ -1677,7 +1677,11 @@ function FichaRecheioForm({uid,db,reload,close,ficha}){
   const isEdit=!!ficha?.id;
   const cor='#7c3aed';
 
-  React.useEffect(()=>{ if(ficha?.id)sb.from('ficha_ingredientes').select('*').eq('ficha_id',ficha.id).then(({data})=>setIngs((data||[]).map(i=>({...i,tipo:i.tipo||'Insumo'}))));  },[ficha?.id]);
+  React.useEffect(()=>{ if(ficha?.id)sb.from('ficha_ingredientes').select('*').eq('ficha_id',ficha.id).then(({data})=>setIngs((data||[]).map(i=>{
+    // Use live estoque custo instead of stored custo_unit
+    const est=i.estoque_id?(estoque||[]).find(e=>e.id===i.estoque_id):(estoque||[]).find(e=>e.nome===i.nome);
+    return{...i,custo_unit:est?String(est.custo):String(i.custo_unit||0)};
+  })));  },[ficha?.id]);
 
   const addIng=()=>setIngs(p=>[...p,{id:'new_'+Date.now()+Math.random(),nome:'',quantidade:'',unidade:'g',custo_unit:'',estoque_id:''}]);
   const updIng=(id,k,v)=>setIngs(p=>p.map(i=>i.id===id?{...i,[k]:v}:i));
