@@ -4634,7 +4634,7 @@ function Ativos({uid,db,reload,setM}){
       const mensal=((parseFloat(a.valor_aquisicao)||0)-(parseFloat(a.valor_residual)||0))/((parseInt(a.vida_util_anos)||10)*12);
       if(mensal<=0)return;
       rows.push({user_id:uid,tipo:'despesa',descricao:'Depreciação — '+a.nome,valor:parseFloat(mensal.toFixed(2)),
-        categoria:'4.3.3.7 Depreciação',conta_id:null,forma_pag:'pix',
+        categoria:'4.3.3.7 Depreciação',conta_id:null,forma_pag:null,
         data:ultimoDia,venc:ultimoDia,competencia,pago:true,data_pag:ultimoDia,
         obs:obsDepr,fornecedor:a.categoria||'Equipamento',centro_custo:null});
     });
