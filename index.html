@@ -1927,6 +1927,7 @@ function NovoEst({uid,reload,close,item,catInicial}){ const[nome,setNome]=React.
   const[custo,setCusto]=React.useState(String(item?.custo||''));
   const[fornecedor,setFornecedor]=React.useState(item?.fornecedor||'');
   const[validade,setValidade]=React.useState(item?.validade||'');
+  const[dataInicial,setDataInicial]=React.useState(item?.data_estoque_inicial||TODAY());
   const[ld,setLd]=React.useState(false);
   const isEdit=!!item?.id;
 
@@ -1943,16 +1944,28 @@ function NovoEst({uid,reload,close,item,catInicial}){ const[nome,setNome]=React.
     const embN=parseFloat(qtdEmb)||1;
     const estN=parseFloat(qtdEst)||0;
     const qtdTotal=embN*estN;
-    const payload={user_id:uid,nome,categoria:cat,unidade,qtd:qtdTotal,qtd_embalagem:embN,qtd_estoque:estN,minimo:parseFloat(minimo)||0,custo:parseFloat(custo)||0,fornecedor,validade:validade||null};
+    const payload={user_id:uid,nome,categoria:cat,unidade,qtd:qtdTotal,qtd_embalagem:embN,qtd_estoque:estN,minimo:parseFloat(minimo)||0,custo:parseFloat(custo)||0,fornecedor,validade:validade||null,data_estoque_inicial:dataInicial||null};
     if(isEdit){await sb.from('estoque').update(payload).eq('id',item.id);}
-    else{await sb.from('estoque').insert(payload);}
+    else{
+      const{data:newEst}=await sb.from('estoque').insert(payload).select().single();
+      // Register initial stock movement if qtd > 0
+      if(newEst&&qtdTotal>0){
+        await registrarMovEstoque(uid,{estoqueId:String(newEst.id),nomeItem:nome,tipo:'entrada',quantidade:qtdTotal,saldoAntes:0,saldoDepois:qtdTotal,motivo:'estoque_inicial',descricao:'Estoque inicial em '+FD(dataInicial),custoUnit:parseFloat(custo)||0});
+      }
+    }
     toast(isEdit?'Atualizado!':'Criado!',false,true);reload();close();setLd(false); };
 
   return React.createElement('div',null, React.createElement(FloatInput,{label:'Nome *',acent:'#dc2626',value:nome,onChange:e=>setNome(e.target.value)}), React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}, React.createElement(CustomSelect,{label:'Categoria',value:cat,onChange:setCat,options:CATS,acent:'#dc2626'}), React.createElement(CustomSelect,{label:'Unidade',value:unidade,onChange:setUnidade,options:UNIDS,acent:'#dc2626'})
     ), React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}, React.createElement(FloatInput,{label:'Qtd por Embalagem',acent:'#dc2626',type:'number',value:qtdEmb,onChange:e=>setQtdEmb(e.target.value)}), React.createElement(FloatInput,{label:'Embalagens em Estoque',acent:'#dc2626',type:'number',value:qtdEst,onChange:e=>setQtdEst(e.target.value)})
     ), React.createElement('div',{style:{background:'#eff6ff',borderRadius:9,padding:'9px 12px',marginBottom:10,fontSize:12,color:'#2563eb'}},'Qtd total disponível: '+(parseFloat(qtdEmb||0)*parseFloat(qtdEst||0)).toFixed(0)+' '+unidade), React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}, React.createElement(FloatInput,{label:'Valor pago por embalagem (R$)',acent:'#dc2626',type:'number',value:valorEmb,onChange:e=>setValorEmb(e.target.value)}), React.createElement(FloatInput,{label:'Mínimo ('+unidade+')',acent:'#dc2626',type:'number',value:minimo,onChange:e=>setMinimo(e.target.value)})
     ), React.createElement('div',{style:{background:'#f0fdf4',borderRadius:9,padding:'9px 12px',marginBottom:10,fontSize:12,color:'#16a34a'}}, 'Custo por '+unidade+': '+(custo?('R$ '+parseFloat(custo).toFixed(4).replace('.',',')):'—')
-    ), React.createElement(FloatInput,{label:'Fornecedor',acent:'#dc2626',value:fornecedor,onChange:e=>setFornecedor(e.target.value)}), React.createElement(MiniDatePicker,{label:'Validade',value:validade,onChange:setValidade,acent:'#dc2626'}), React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',marginTop:8}}, React.createElement('button',{style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'},onClick:close},'Cancelar'), React.createElement('button',{style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:salvar},ld?'Salvando...':isEdit?'Salvar':'Criar')
+    ),
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}},
+      React.createElement(FloatInput,{label:'Fornecedor',acent:'#dc2626',value:fornecedor,onChange:e=>setFornecedor(e.target.value)}),
+      React.createElement(MiniDatePicker,{label:'Data do estoque inicial',value:dataInicial,onChange:setDataInicial,acent:'#dc2626'})
+    ),
+    React.createElement(MiniDatePicker,{label:'Validade',value:validade,onChange:setValidade,acent:'#dc2626'}),
+    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',marginTop:8}}, React.createElement('button',{style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'},onClick:close},'Cancelar'), React.createElement('button',{style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:salvar},ld?'Salvando...':isEdit?'Salvar':'Criar')
     )
   );
 }
