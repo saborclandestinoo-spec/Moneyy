@@ -4332,6 +4332,7 @@ function FinCategorias({uid,db,reload,setM}){ const{categorias_fin}=db;
 
   const[dragId,setDragId]=React.useState(null);
   const[reordenados,setReordenados]=React.useState(null); // null = use rows default
+  const rowsWithOverrides=React.useMemo(()=>rows.map(r=>r.custom?r:{...r,nome:overrides[r.cod]||r.nome}),[rows,overrides]);
   const rowsOrdenados=reordenados||rowsWithOverrides;
 
   const moveRow=(fromIdx,toIdx)=>{
@@ -4856,8 +4857,10 @@ function App(){ const[user,setUser]=useState(null);const[page,setPage]=useState(
 
   const reload=useCallback(async()=>{ if(!user)return;
     const uid=user.id;
-    const[pedcw,ped,est,con,rec,pag,mov,lanc,catfin,centros,formasPag,cxs,fichs,fichIngs,ativ,planOv]=await Promise.all([
-      sb.from('pedidos_cw').select('*').eq('user_id',uid).order('data_pedido',{ascending:false}).limit(200), sb.from('pedidos').select('*').eq('user_id',uid).order('criado_em',{ascending:false}), sb.from('estoque').select('*').eq('user_id',uid).order('nome'), sb.from('contas_bancarias').select('*').eq('user_id',uid).eq('ativo',true).order('criado_em'), sb.from('contas_receber').select('*').eq('user_id',uid).order('criado_em',{ascending:false}), sb.from('contas_pagar').select('*').eq('user_id',uid).order('vencimento'), sb.from('movimentacoes').select('*').eq('user_id',uid).order('data_movimentacao',{ascending:false}), sb.from('lancamentos').select('*').eq('user_id',uid).order('data',{ascending:false}).order('criado_em',{ascending:false}).limit(500), sb.from('categorias_fin').select('*').eq('user_id',uid).order('nome'), sb.from('centros_custo').select('*').eq('user_id',uid).order('nome'), sb.from('formas_pagamento').select('*').eq('user_id',uid).order('nome'), sb.from('caixas').select('*').eq('user_id',uid).order('criado_em',{ascending:false}).limit(30), sb.from('fichas_tecnicas').select('*').eq('user_id',uid).order('nome'), sb.from('ficha_ingredientes').select('*'), sb.from('ativos').select('*').eq('user_id',uid).order('nome'), sb.from('plano_overrides').select('*').eq('user_id',uid).catch(()=>({data:[]})), ]);
+    const[pedcw,ped,est,con,rec,pag,mov,lanc,catfin,centros,formasPag,cxs,fichs,fichIngs,ativ]=await Promise.all([
+      sb.from('pedidos_cw').select('*').eq('user_id',uid).order('data_pedido',{ascending:false}).limit(200), sb.from('pedidos').select('*').eq('user_id',uid).order('criado_em',{ascending:false}), sb.from('estoque').select('*').eq('user_id',uid).order('nome'), sb.from('contas_bancarias').select('*').eq('user_id',uid).eq('ativo',true).order('criado_em'), sb.from('contas_receber').select('*').eq('user_id',uid).order('criado_em',{ascending:false}), sb.from('contas_pagar').select('*').eq('user_id',uid).order('vencimento'), sb.from('movimentacoes').select('*').eq('user_id',uid).order('data_movimentacao',{ascending:false}), sb.from('lancamentos').select('*').eq('user_id',uid).order('data',{ascending:false}).order('criado_em',{ascending:false}).limit(500), sb.from('categorias_fin').select('*').eq('user_id',uid).order('nome'), sb.from('centros_custo').select('*').eq('user_id',uid).order('nome'), sb.from('formas_pagamento').select('*').eq('user_id',uid).order('nome'), sb.from('caixas').select('*').eq('user_id',uid).order('criado_em',{ascending:false}).limit(30), sb.from('fichas_tecnicas').select('*').eq('user_id',uid).order('nome'), sb.from('ficha_ingredientes').select('*'), sb.from('ativos').select('*').eq('user_id',uid).order('nome'), ]);
+    let planOv={data:[]};
+    try{ planOv=await sb.from('plano_overrides').select('*').eq('user_id',uid); }catch(e){}
     const contas=con.data||[];
     if(contas.length===0){ await sb.from('contas_bancarias').insert([
         {user_id:uid,nome:'Nubank PJ',tipo:'Digital',banco:'Nubank',saldo:0,cor:'#8b5cf6',ativo:true}, {user_id:uid,nome:'Caixa',tipo:'Caixa',banco:'',saldo:0,cor:'#f59e0b',ativo:true}, ]);
