@@ -4363,6 +4363,7 @@ function FinCategorias({uid,db,reload,setM}){ const{categorias_fin}=db;
       return ai-bi;
     });
   },[rowsWithOverrides,ordemIds,ordemSalva]);
+  const rowsOrdenados=rowsComOrdem;
 
   const moveRow=(fromIdx,toIdx)=>{
     if(fromIdx===toIdx)return;
