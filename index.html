@@ -4029,7 +4029,7 @@ function ProducaoForm({uid,db,reload,close,fichaIdInicial}){ const{fichas,estoqu
 
   const produzir=async()=>{ if(!fichaId){toast('Selecione a ficha técnica',true);return;}
     if(qtdN<=0){toast('Informe a quantidade produzida',true);return;}
-    if(faltando.length>0&&!confirm('Estoque insuficiente para: '+faltando.map(f=>f.nome).join(', ')+'. Produzir mesmo assim?'))return;
+    if(faltando.length>0){toast('⚠ Estoque insuficiente para: '+faltando.map(f=>f.nome).join(', ')+'. Verifique os ingredientes.',true);return;}
 
     setLd(true);
 
@@ -5106,7 +5106,7 @@ function ConsumoForm({uid,db,reload,close}){
 
   const salvar=async()=>{
     if(!cookie||!qtd){toast('Selecione o cookie e a quantidade',true);return;}
-    if(insuficiente&&!confirm('Estoque insuficiente ('+qtdEst+' un). Registrar mesmo assim?'))return;
+    // insuficiente: proceed anyway, toast already shows warning above
     setLd(true);
 
     // 1. Baixar estoque
