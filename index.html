@@ -4219,7 +4219,7 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){ const{conta
       else{await reload();close();} };
     if(!desc||!valor){toast('Preencha descricao e valor',true);return;}
     setLd(true);
-    const estQtdTotal=vincularEstoque&&estoqueId?(()=>{const it=(estoque||[]).find(e=>e.id===estoqueId);return(parseFloat(estoqueQtdEmb)||0)*((it&&it.qtd_embalagem)||1);})():null;
+    const estQtdTotal=vincularEstoque&&estoqueId?(parseFloat(estoqueQtdEmb)||0):null;
     // Compra de insumo vinculada ao estoque é Ativo (entra no estoque), não é despesa do DRE ainda.
     // O custo só se torna despesa (CMV) quando a Produção consome o ingrediente.
     const catFinal=(()=>{ if(!vincularEstoque||!estoqueId)return cat;
@@ -4294,11 +4294,23 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){ const{conta
     ), !isTransf&&React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}, React.createElement(CustomSelect,{label:'Categoria *',value:cat,onChange:v=>{setCat(v);if((v||'').startsWith('3.2')||/(das|simples nacional)/i.test(v))setTipo('despesa');},options:cats,placeholder:'Selecione uma categoria',acent}), React.createElement(CustomSelect,{label:'Centro de custo',value:centroCusto,onChange:setCentroCusto, options:[...(centros_custo||[]).map(c=>({v:c.id,l:c.nome})),...(centros_custo||[]).length===0?['Producao','Vendas','Administrativo','Marketing','Logistica','Geral'].map(n=>({v:n,l:n})):[]], placeholder:'—',acent})
     ), !isTransf&&!isRec&&React.createElement('div',{style:{marginBottom:14}}, React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10,marginBottom:vincularEstoque?10:0}}, React.createElement('label',{style:{position:'relative',display:'inline-block',width:38,height:21,cursor:'pointer'}}, React.createElement('input',{type:'checkbox',checked:vincularEstoque,onChange:e=>setVincularEstoque(e.target.checked),style:{opacity:0,width:0,height:0}}), React.createElement('span',{style:{position:'absolute',inset:0,borderRadius:21,background:vincularEstoque?acent:'#e0e0e0',transition:'background 0.2s'}}), React.createElement('span',{style:{position:'absolute',left:vincularEstoque?19:2,top:2,width:17,height:17,borderRadius:'50%',background:'#fff',transition:'left 0.2s',boxShadow:'0 1px 4px rgba(0,0,0,0.15)'}})
         ), React.createElement('span',{style:{fontSize:13,fontWeight:600,color:'#111'}},'Vincular Produtos')
-      ), vincularEstoque&&React.createElement('div',{style:{background:'#fff5f5',borderRadius:10,padding:'12px 14px',border:'1px solid #fee2e2'}}, React.createElement('div',{style:{display:'grid',gridTemplateColumns:'2fr 1fr',gap:10}}, React.createElement(CustomSelect,{label:'Item do estoque',value:estoqueId,onChange:setEstoqueId, options:[{v:'',l:'— Selecione —'},...(estoque||[]).filter(e=>e.id&&!String(e.id).startsWith('f_')&&Number(e.qtd||0)>0).sort((a,b)=>a.categoria.localeCompare(b.categoria)).map(e=>({v:e.id,l:e.nome+' — '+Number(e.qtd||0).toFixed(0)+' '+e.unidade+' em estoque'}))], placeholder:'— Selecione —',acent}), React.createElement(FloatInput,{label:'Qtd de embalagens',acent,type:'number',value:estoqueQtdEmb,onChange:e=>setEstoqueQtdEmb(e.target.value)})
-        ), estoqueId&&React.createElement('div',{style:{fontSize:11,color:'#7c3aed',marginTop:8,lineHeight:1.6}}, (()=>{ const it=(estoque||[]).find(e=>e.id===estoqueId);if(!it)return'';
-            const totalUn=(parseFloat(estoqueQtdEmb)||0)*(it.qtd_embalagem||1);
-            const novoCusto=totalUn>0?(v/totalUn):0;
-            return React.createElement('div',null, React.createElement('div',null,'Entrada de '+totalUn.toFixed(0)+' '+it.unidade+' ('+estoqueQtdEmb+' embalagem(s) de '+it.qtd_embalagem+it.unidade+')'), novoCusto>0&&React.createElement('div',{style:{fontWeight:700,marginTop:2}},'Novo custo/'+it.unidade+': R$ '+novoCusto.toFixed(4).replace('.',',')+' (substituirá o custo atual de R$ '+Number(it.custo||0).toFixed(4).replace('.',',')+')')
+      ), vincularEstoque&&React.createElement('div',{style:{background:'#fff5f5',borderRadius:10,padding:'12px 14px',border:'1px solid #fee2e2'}}, React.createElement('div',{style:{display:'grid',gridTemplateColumns:'2fr 1fr',gap:10}}, React.createElement(CustomSelect,{label:'Item do estoque',value:estoqueId,onChange:setEstoqueId,
+            options:[{v:'',l:'— Selecione —'},...(()=>{
+              // Only real estoque items, no fake IDs, no Recheios, deduplicate by nome+categoria
+              const seen=new Set();
+              return (estoque||[])
+                .filter(e=>e.id&&!String(e.id).startsWith('f_')&&e.categoria!=='Recheio'&&Number(e.qtd||0)>0)
+                .filter(e=>{ const k=e.nome+'|'+e.categoria; if(seen.has(k))return false; seen.add(k); return true; })
+                .sort((a,b)=>a.categoria.localeCompare(b.categoria))
+                .map(e=>({v:e.id,l:e.nome+' — '+Number(e.qtd||0).toFixed(0)+' '+e.unidade}));
+            })()],
+            placeholder:'— Selecione —',acent}), React.createElement(FloatInput,{label:'Qtd (un)',acent,type:'number',value:estoqueQtdEmb,onChange:e=>setEstoqueQtdEmb(e.target.value)})
+        ), estoqueId&&React.createElement('div',{style:{fontSize:11,color:acent,marginTop:8,lineHeight:1.6}}, (()=>{ const it=(estoque||[]).find(e=>e.id===estoqueId);if(!it)return'';
+            const totalUn=parseFloat(estoqueQtdEmb)||0;
+            const saldoApos=isRec?Number(it.qtd||0)+totalUn:Math.max(0,Number(it.qtd||0)-totalUn);
+            return React.createElement('div',null,
+              React.createElement('div',{style:{fontWeight:700}},(isRec?'↑ Entrada':'↓ Saída')+' de '+totalUn.toFixed(0)+' '+it.unidade),
+              React.createElement('div',{style:{color:'#888'}},'Estoque atual: '+Number(it.qtd||0).toFixed(0)+' → '+saldoApos.toFixed(0)+' '+it.unidade)
             ); })()
         )
       )
