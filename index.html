@@ -4130,7 +4130,12 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){ const{conta
   const[valor,setValor]=React.useState(inicial&&String(inicial.valor||'')||'');
   const[contaId,setContaId]=React.useState(inicial&&inicial.conta_id||contas&&contas[0]&&contas[0].id||'');
   const[contaDestId,setContaDestId]=React.useState(contas&&contas[1]?contas[1].id:contas&&contas[0]?contas[0].id:'');
-  const[venc,setVenc]=React.useState(inicial&&inicial.venc||TODAY());
+  const dateKey='lanc_ultima_data_'+tipo;
+  const[venc,setVenc]=React.useState(()=>{
+    if(inicial?.venc||inicial?.data)return inicial.venc||inicial.data;
+    try{const s=localStorage.getItem(dateKey);return s||TODAY();}catch{return TODAY();}
+  });
+  React.useEffect(()=>{if(!inicial?.id&&venc)try{localStorage.setItem(dateKey,venc);}catch{}},[venc]);
   const[competencia,setCompetencia]=React.useState(inicial&&inicial.competencia||'');
   const compEfetivo=competencia||venc;
   const[fornecedor,setFornecedor]=React.useState(inicial&&inicial.fornecedor||'');
@@ -4222,10 +4227,7 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){ const{conta
     const estQtdTotal=vincularEstoque&&estoqueId?(parseFloat(estoqueQtdEmb)||0):null;
     // Compra de insumo vinculada ao estoque é Ativo (entra no estoque), não é despesa do DRE ainda.
     // O custo só se torna despesa (CMV) quando a Produção consome o ingrediente.
-    const catFinal=(()=>{ if(!vincularEstoque||!estoqueId)return cat;
-      const it=(estoque||[]).find(e=>e.id===estoqueId);
-      const ehEmbalagem=it&&(it.categoria==='Embalagem'||it.categoria==='Descartável');
-      return ehEmbalagem?'1.1.5 Estoque de Embalagens':'1.1.4 Estoque de Ingredientes'; })();
+    const catFinal=cat; // Always use user's selected category
     const tipoFinal=isTransf?'despesa':(cat||'').startsWith('3.2')||/(das|simples nacional)/i.test(cat||'')?'despesa':tipo;
     const obsOriginal=inicial?.obs&&!vincularEstoque?inicial.obs:'';
     const base={user_id:uid,tipo:tipoFinal,descricao:desc,valor:totalFinal,categoria:catFinal,conta_id:contaId||null, forma_pag:formaPag,data:venc,venc,competencia:compEfetivo||null,fornecedor:fornecedor||null, centro_custo:centroCusto||null,pago,obs:vincularEstoque?(tipoFinal==='despesa'?'saida_estoque':'compra_estoque'):obsOriginal,juros:jv||null,multa:mv||null,desconto:dv||null, estoque_id:vincularEstoque?estoqueId||null:null,estoque_qtd:vincularEstoque?estQtdTotal:null};
