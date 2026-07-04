@@ -1632,7 +1632,7 @@ function EstoqueHistoricoModal({uid, estoqueId, nomeItem, close}){
       React.createElement('div',{style:{overflowY:'auto',flex:1}},
         React.createElement('table',{style:{width:'100%',borderCollapse:'collapse'}},
           React.createElement('thead',null,React.createElement('tr',{style:{background:'#f9f9fb',position:'sticky',top:0}},
-            ['Data/Hora','Tipo','Qtd','Saldo Antes','Saldo Depois','Motivo','Descrição'].map((h,i)=>
+            ['Data/Hora','Tipo','Qtd','Saldo Antes','Saldo Depois','Motivo','Descrição',''].map((h,i)=>
               React.createElement('th',{key:i,style:{padding:'8px 12px',fontSize:10,fontWeight:700,color:'#888',textAlign:i<2?'left':'right',borderBottom:'1px solid #f0f0f0',whiteSpace:'nowrap'}},h)
             )
           )),
@@ -1652,7 +1652,23 @@ function EstoqueHistoricoModal({uid, estoqueId, nomeItem, close}){
               React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',fontSize:12,color:'#aaa'}},m.saldo_antes!=null?Number(m.saldo_antes).toFixed(2):'—'),
               React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',fontSize:12,fontWeight:700,color:'#111'}},m.saldo_depois!=null?Number(m.saldo_depois).toFixed(2):'—'),
               React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',fontSize:11,color:'#888'}},m.motivo||'—'),
-              React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',fontSize:11,color:'#aaa',maxWidth:180,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},m.descricao||'—')
+              React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',fontSize:11,color:'#aaa',maxWidth:180,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},m.descricao||'—'),
+              React.createElement('td',{style:{padding:'10px 12px',textAlign:'right'}},
+                React.createElement('button',{onClick:async()=>{
+                  if(!confirm('Estornar esta movimentação? O estoque será revertido.'))return;
+                  const estoqueOp=m.tipo==='entrada'||m.tipo==='producao'?'saida':'entrada';
+                  const{data:est}=await sb.from('estoque').select('qtd').eq('id',m.estoque_id).maybeSingle();
+                  if(est){
+                    const qtdAnt=Number(est.qtd||0);
+                    const qtdNova=estoqueOp==='entrada'?qtdAnt+Number(m.quantidade||0):Math.max(0,qtdAnt-Number(m.quantidade||0));
+                    await sb.from('estoque').update({qtd:qtdNova}).eq('id',m.estoque_id);
+                    await registrarMovEstoque(uid,{estoqueId:String(m.estoque_id),nomeItem:m.nome_item,tipo:'ajuste',quantidade:Number(m.quantidade||0),saldoAntes:qtdAnt,saldoDepois:qtdNova,motivo:'estorno',descricao:'Estorno de: '+m.motivo,custoUnit:m.custo_unit});
+                    await sb.from('estoque_movimentos').delete().eq('id',m.id);
+                    toast('Estornado!',false,true);
+                    setMovs(p=>p.filter(x=>x.id!==m.id));
+                  }
+                },style:{background:'#fff3cd',color:'#856404',border:'none',borderRadius:6,padding:'3px 8px',fontSize:10,cursor:'pointer',fontWeight:700,whiteSpace:'nowrap'}},'↩ Estornar')
+              )
             );
           }))
         )
@@ -1875,7 +1891,7 @@ function Estoque({uid,db,reload,setM}){ const{estoque,fichas,ficha_ingredientes}
   };
   const mov=async(e)=>{
     if(e._fichaId&&sec==='Recheio'){
-      setM({title:'Produzir Recheio — '+e.nome,body:React.createElement(ProduzirRecheioModal,{uid,db,reload,ficha:(fichas||[]).find(f=>f.id===e._fichaId),estoqueItem:!e._isFromFicha?(estoque||[]).find(x=>x.id===e.id):null,close:()=>setM(null)})});
+      toast('Use a aba Produção para produzir recheios.',false,true);
       return;
     }
     if(e._isFromFicha){ const{data:newEst}=await sb.from('estoque').insert({user_id:uid,nome:e.nome,categoria:'Cookie',unidade:'un',qtd:0,minimo:0,custo:e.custo,fornecedor:''}).select().single();
@@ -3935,23 +3951,30 @@ function ProducaoHistorico({uid,db,reload,setM}){ const{fichas}=db;
   const novaProducao=()=>setM({wide:true,title:'Registrar Produção',body:React.createElement(ProducaoForm,{uid,db,reload:()=>{fetchProducoes();reload();},close:()=>setM(null)})});
   const verDetalhe=(p)=>setM({title:'Detalhes da Produção',body:React.createElement(ProducaoDetalhe,{producao:p,db,close:()=>setM(null)})});
 
-  const excluirProducao=async(p)=>{ setM({title:'Excluir Produção',body:React.createElement('div',null, React.createElement('div',{style:{fontSize:13,color:'#666',marginBottom:18,lineHeight:1.6}}, 'Excluir a produção de '+p.quantidade+'x '+p.ficha_nome+'? Os ingredientes serão devolvidos ao estoque e o produto acabado será retirado.'
+  const excluirProducao=async(p)=>{ setM({title:'Excluir Produção',body:React.createElement('div',null, React.createElement('div',{style:{fontSize:13,color:'#666',marginBottom:18,lineHeight:1.6}}, 'Excluir a produção de '+p.quantidade+'x '+p.ficha_nome+'? Os ingredientes serão devolvidos ao estoque e o produto será retirado.'
       ), React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}}, React.createElement('button',{onClick:()=>setM(null),style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'}},'Cancelar'), React.createElement('button',{onClick:async()=>{ setM(null);
+          const fichaProd=(db.fichas||[]).find(f=>f.id===p.ficha_id);
+          const isRecheioFicha=fichaProd?.categoria==='Recheio';
+          const qtdN=Number(p.quantidade||0);
           // Devolve ingredientes
           const{data:ings}=await sb.from('ficha_ingredientes').select('*').eq('ficha_id',p.ficha_id);
           for(const ing of(ings||[])){ if(ing.estoque_id){ const{data:item}=await sb.from('estoque').select('*').eq('id',ing.estoque_id).maybeSingle();
-              if(item){ const necessario=Number(ing.quantidade||0)*Number(p.quantidade||0);
+              if(item){ const necessario=Number(ing.quantidade||0)*qtdN;
                 const novaQtd=Number(item.qtd||0)+necessario;
                 const emb=Number(item.qtd_embalagem||1);
-                await sb.from('estoque').update({qtd:novaQtd,qtd_estoque:emb>0?novaQtd/emb:0}).eq('id',ing.estoque_id); } } }
-          // Remove produto acabado
-          const{data:prod}=await sb.from('estoque').select('*').eq('user_id',uid).eq('nome',p.ficha_nome).eq('categoria','Cookie').maybeSingle();
-          if(prod){ const novaQtd=Math.max(0,Number(prod.qtd||0)-Number(p.quantidade||0));
-            await sb.from('estoque').update({qtd:novaQtd,qtd_estoque:novaQtd}).eq('id',prod.id); }
+                await sb.from('estoque').update({qtd:novaQtd,qtd_estoque:emb>0?novaQtd/emb:0}).eq('id',ing.estoque_id);
+                await registrarMovEstoque(uid,{estoqueId:String(ing.estoque_id),nomeItem:item.nome,tipo:'entrada',quantidade:necessario,saldoAntes:Number(item.qtd||0),saldoDepois:novaQtd,motivo:'estorno_producao',descricao:'Estorno: '+p.ficha_nome,custoUnit:item.custo}); } } }
+          // Remove produto acabado (cookie ou recheio)
+          const catProd=isRecheioFicha?'Recheio':'Cookie';
+          const qtdProduzida=isRecheioFicha?qtdN*(Number(fichaProd.rendimento)||1):qtdN;
+          const{data:prod}=await sb.from('estoque').select('*').eq('user_id',uid).eq('nome',p.ficha_nome).eq('categoria',catProd).maybeSingle();
+          if(prod){ const novaQtd=Math.max(0,Number(prod.qtd||0)-qtdProduzida);
+            await sb.from('estoque').update({qtd:novaQtd,qtd_estoque:novaQtd}).eq('id',prod.id);
+            await registrarMovEstoque(uid,{estoqueId:String(prod.id),nomeItem:p.ficha_nome,tipo:'saida',quantidade:qtdProduzida,saldoAntes:Number(prod.qtd||0),saldoDepois:novaQtd,motivo:'estorno_producao',descricao:'Estorno de produção em '+FD(p.data)}); }
           // Remove lançamento vinculado
           if(p.lancamento_id)await sb.from('lancamentos').delete().eq('id',p.lancamento_id);
           await sb.from('producoes').delete().eq('id',p.id);
-          toast('Produção excluída!',false,true);fetchProducoes();reload(); },style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},'Excluir')
+          toast('Produção excluída e estoque revertido!',false,true);fetchProducoes();reload(); },style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},'Excluir')
       )
     )}); };
 
@@ -4013,15 +4036,19 @@ function ProducaoForm({uid,db,reload,close,fichaIdInicial}){ const{fichas,estoqu
         const novaQtdEstoque=emb>0?novaQtd/emb:0;
         await sb.from('estoque').update({qtd:novaQtd,qtd_estoque:novaQtdEstoque}).eq('id',c.item.id); } }
 
-    // 2. Dá entrada no produto acabado (busca ou cria item "Produto Acabado" com nome da ficha)
-    const{data:prodExistente}=await sb.from('estoque').select('*').eq('user_id',uid).eq('nome',ficha.nome).eq('categoria','Cookie').maybeSingle();
+    // 2. Dá entrada no produto acabado — cookie ou recheio
+    const isRecheioFicha=ficha.categoria==='Recheio';
+    const catProd=isRecheioFicha?'Recheio':'Cookie';
+    const unidProd=isRecheioFicha?(ficha.unidade_rendimento||'g'):'un';
+    const qtdProduzida=isRecheioFicha?qtdN*(Number(ficha.rendimento)||1):qtdN;
+    const{data:prodExistente}=await sb.from('estoque').select('*').eq('user_id',uid).eq('nome',ficha.nome).eq('categoria',catProd).maybeSingle();
     let prodAcabadoId=prodExistente?.id;
     let saldoApos;
-    if(prodExistente){ saldoApos=Number(prodExistente.qtd||0)+qtdN;
-      await sb.from('estoque').update({ qtd:saldoApos, qtd_estoque:Number(prodExistente.qtd_estoque||0)+qtdN, custo:custoUnitario }).eq('id',prodExistente.id); }else{ saldoApos=qtdN;
-      const{data:novoItem}=await sb.from('estoque').insert({ user_id:uid,nome:ficha.nome,categoria:'Cookie',unidade:'un', qtd:qtdN,qtd_embalagem:1,qtd_estoque:qtdN,minimo:0,custo:custoUnitario,fornecedor:'' }).select().single();
+    if(prodExistente){ saldoApos=Number(prodExistente.qtd||0)+qtdProduzida;
+      await sb.from('estoque').update({ qtd:saldoApos, qtd_estoque:isRecheioFicha?saldoApos:Number(prodExistente.qtd_estoque||0)+qtdN, custo:isRecheioFicha?custoTotal/qtdProduzida:custoUnitario }).eq('id',prodExistente.id); }else{ saldoApos=qtdProduzida;
+      const{data:novoItem}=await sb.from('estoque').insert({ user_id:uid,nome:ficha.nome,categoria:catProd,unidade:unidProd, qtd:qtdProduzida,qtd_embalagem:1,qtd_estoque:qtdProduzida,minimo:0,custo:isRecheioFicha?custoTotal/qtdProduzida:custoUnitario,fornecedor:'' }).select().single();
       prodAcabadoId=novoItem?.id; }
-    if(prodAcabadoId){ await sb.from('estoque_movimentos').insert({ user_id:uid,estoque_id:prodAcabadoId,produto_nome:ficha.nome, tipo:'entrada_producao',quantidade:qtdN,saldo_apos:saldoApos, referencia:'producao_'+data, descricao:'Produção de '+qtdN+' unidade(s) em '+FD(data) }); }
+    if(prodAcabadoId){ await registrarMovEstoque(uid,{estoqueId:String(prodAcabadoId),nomeItem:ficha.nome,tipo:'entrada',quantidade:qtdProduzida,saldoAntes:saldoApos-qtdProduzida,saldoDepois:saldoApos,motivo:isRecheioFicha?'producao_recheio':'producao_cookie',descricao:'Produção de '+qtdN+(isRecheioFicha?' lote(s)':' un')+' em '+FD(data)}); }
 
     // 3. Cria lançamento de despesa (custo de produção) — opcional, ajuda no financeiro
     const{data:lancData}=await sb.from('lancamentos').insert({ user_id:uid,tipo:'despesa',descricao:'Produção: '+qtdN+'x '+ficha.nome, valor:parseFloat(custoTotal.toFixed(2)),data,venc:data,data_pag:data,pago:true, categoria:'4.1.1.1 Ingredientes Consumidos',forma_pag:'',obs:'producao_interna' }).select().single();
@@ -4033,7 +4060,7 @@ function ProducaoForm({uid,db,reload,close,fichaIdInicial}){ const{fichas,estoqu
     reload();close();setLd(false); };
 
   return React.createElement('div',{style:{minWidth:480}}, React.createElement('div',{style:{background:'#faf5ff',borderRadius:10,padding:'12px 14px',marginBottom:16,fontSize:12,color:'#dc2626',lineHeight:1.7}}, 'Selecione a ficha técnica e quantos foram produzidos. O sistema dá baixa nos ingredientes do estoque e entrada no produto acabado automaticamente.'
-    ), React.createElement('div',{style:{marginBottom:14}}, React.createElement(CustomSelect,{label:'Ficha Técnica *',value:fichaId,onChange:setFichaId, options:(fichas||[]).map(f=>({v:f.id,l:f.nome})),placeholder:'— Selecione a ficha técnica —',acent:'#dc2626' })
+    ), React.createElement('div',{style:{marginBottom:14}}, React.createElement(CustomSelect,{label:'Ficha Técnica *',value:fichaId,onChange:setFichaId, options:[{v:'',l:'— Selecione —'},{v:'__sep_cookie',l:'── Cookies ──',disabled:true},...(fichas||[]).filter(f=>f.categoria!=='Recheio').map(f=>({v:f.id,l:f.nome})),{v:'__sep_recheio',l:'── Recheios ──',disabled:true},...(fichas||[]).filter(f=>f.categoria==='Recheio').map(f=>({v:f.id,l:f.nome+' (Recheio)'}))],placeholder:'— Selecione a ficha técnica —',acent:'#dc2626' })
     ), React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:14}}, React.createElement(FloatInput,{label:'Quantidade produzida',acent:'#dc2626',type:'number',value:qtd,onChange:e=>setQtd(e.target.value)}), React.createElement(MiniDatePicker,{label:'Data',value:data,onChange:setData,acent:'#dc2626'}), React.createElement(FloatInput,{label:'Hora',acent:'#dc2626',type:'time',value:hora,onChange:e=>setHora(e.target.value)})
     ), React.createElement(FloatInput,{label:'Observação (opcional)',acent:'#dc2626',value:obs,onChange:e=>setObs(e.target.value)}), fichaId&&React.createElement('div',null, // Custo preview
       React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}, React.createElement('div',{style:{background:'#f8f9fc',borderRadius:9,padding:'10px 12px'}}, React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:3}},'Custo/Unidade'), React.createElement('div',{style:{fontWeight:700,fontSize:15}},F(custoUnitario))
