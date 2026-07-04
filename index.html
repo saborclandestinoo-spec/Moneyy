@@ -4215,7 +4215,8 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){ const{conta
       const ehEmbalagem=it&&(it.categoria==='Embalagem'||it.categoria==='Descartável');
       return ehEmbalagem?'1.1.5 Estoque de Embalagens':'1.1.4 Estoque de Ingredientes'; })();
     const tipoFinal=isTransf?'despesa':(cat||'').startsWith('3.2')||/(das|simples nacional)/i.test(cat||'')?'despesa':tipo;
-    const base={user_id:uid,tipo:tipoFinal,descricao:desc,valor:totalFinal,categoria:catFinal,conta_id:contaId||null, forma_pag:formaPag,data:venc,venc,competencia:compEfetivo||null,fornecedor:fornecedor||null, centro_custo:centroCusto||null,pago,obs:vincularEstoque?'compra_estoque':'',juros:jv||null,multa:mv||null,desconto:dv||null, estoque_id:vincularEstoque?estoqueId||null:null,estoque_qtd:vincularEstoque?estQtdTotal:null};
+    const obsOriginal=inicial?.obs&&!vincularEstoque?inicial.obs:'';
+    const base={user_id:uid,tipo:tipoFinal,descricao:desc,valor:totalFinal,categoria:catFinal,conta_id:contaId||null, forma_pag:formaPag,data:venc,venc,competencia:compEfetivo||null,fornecedor:fornecedor||null, centro_custo:centroCusto||null,pago,obs:vincularEstoque?'compra_estoque':obsOriginal,juros:jv||null,multa:mv||null,desconto:dv||null, estoque_id:vincularEstoque?estoqueId||null:null,estoque_qtd:vincularEstoque?estQtdTotal:null};
     let rows=[];
     if(tipoLanc==='Parcelado'){ const gid=uid_gen();
       for(let i=0;i<numParc;i++){ const dt=advanceDate(venc,freqParc,i);
