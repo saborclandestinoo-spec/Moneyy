@@ -216,7 +216,7 @@ const PED_SUBS=[
 ];
 const PED_PAGES=new Set(PED_SUBS.map(s=>s.id));
 const MODS=[
-  {id:'pedidos',l:'Gestão de Pedidos',i:'#',subs:PED_SUBS}, {id:'estoque',l:'Estoque',i:'[]',subs:[{id:'estoque',l:'Estoque'},{id:'fichas',l:'Fichas Técnicas'},{id:'producao_hist',l:'Produção'},{id:'producao_plan',l:'Planejamento'},{id:'consumo_interno',l:'Consumo Interno'}]},
+  {id:'pedidos',l:'Gestão de Pedidos',i:'#',subs:PED_SUBS}, {id:'estoque',l:'Estoque',i:'[]',subs:[{id:'estoque',l:'Estoque'},{id:'fichas',l:'Fichas Técnicas'},{id:'producao_hist',l:'Produção'},{id:'producao_plan',l:'Planejamento'}]},
 ];
 const FIN_SUBS=[
   {id:'fin_visao',l:'Visão Geral'}, {id:'fin_lancamentos',l:'Lançamentos'}, {id:'fin_receber',l:'A Receber'}, {id:'fin_pagar',l:'A Pagar'}, {id:'fin_movs',l:'Fluxo de Caixa'}, {id:'fin_contas',l:'Contas'}, {id:'fin_categorias',l:'Plano de Contas'}, {id:'ativos',l:'Ativos e Depreciação'}, {id:'fin_centros',l:'Centro de Custo'}, {id:'fin_formas',l:'Formas de Pagamento'},
@@ -4155,6 +4155,18 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){ const{conta
     const emb=it&&it.qtd_embalagem||1;
     return emb>0?String(Number(inicial.estoque_qtd)/emb):'1'; });
 
+  // Auto-calc valor when product + qty change
+  React.useEffect(()=>{
+    if(!vincularEstoque||!estoqueId)return;
+    const it=(db.estoque||[]).find(e=>e.id===estoqueId);
+    if(!it)return;
+    const qtdEmb=parseFloat(estoqueQtdEmb||1)||1;
+    const emb=Number(it.qtd_embalagem||1);
+    const qtdTotal=qtdEmb*emb;
+    const custo=Number(it.custo||0);
+    if(custo>0)setValor((qtdTotal*custo).toFixed(2));
+  },[estoqueId,estoqueQtdEmb,vincularEstoque]);
+
   const v=parseFloat(String(valor||'0').replace(',','.'));
   const jv=parseFloat(juros||0);const mv=parseFloat(multa||0);const dv=parseFloat(desconto||0);
   const totalFinal=v+jv+mv-dv;
@@ -5345,7 +5357,7 @@ function App(){ const[user,setUser]=useState(null);const[page,setPage]=useState(
   const uid=user.id;
   const PAGES={ pedidos:()=>React.createElement(PedidosCW,{uid,db,setDb,reload,setM:setModal,cfg,setCfg}), ped_historico:()=>React.createElement(PedHistorico,{uid,db,reload,setM:setModal}), ped_mesas:()=>React.createElement(PedMesas,{uid,db,reload,setM:setModal}), ped_kds:()=>React.createElement(PedKDS,{uid,db,reload,setM:setModal}), ped_caixa:()=>React.createElement(PedCaixa,{uid,db,setDb,reload:async()=>{await refreshCaixas(uid);await refreshLanc(uid);},setM:setModal}), ped_entregas:()=>React.createElement(PedEntregas,{uid,db,reload,setM:setModal}), estoque:()=>React.createElement(Estoque,{uid,db,reload:async()=>{const{data}=await sb.from('estoque').select('*').eq('user_id',uid).order('nome');if(data)setDb(p=>({...p,estoque:data}));},setM:setModal}), fichas:()=>React.createElement(FichasTecnicas,{uid,db,reload:async()=>{ const{data}=await sb.from('fichas_tecnicas').select('*').eq('user_id',uid).order('nome');
       if(data)setDb(p=>({...p,fichas:data}));
-      await refreshEstoque(uid); },setM:setModal}), producao_hist:()=>React.createElement(ProducaoHistorico,{uid,db,reload,setM:setModal}), producao_plan:()=>React.createElement(PlanejamentoProducao,{uid,db,reload,setM:setModal}), consumo_interno:()=>React.createElement(ConsumoInterno,{uid,db,reload,setM:setModal}), fin_visao:()=>React.createElement(FinVisao,{uid,db,reload,setM:setModal}), fin_dre:()=>React.createElement(FinDRE,{uid,db,reload,setM:setModal}), fin_balanco:()=>React.createElement(FinBalanco,{uid,db,reload,setM:setModal}), analise_vendas:()=>React.createElement(AnaliseVendas,{uid,db,reload,setM:setModal}), analise_produtos:()=>React.createElement(AnaliseProdutos,{uid,db,reload,setM:setModal}), fin_lancamentos:()=>React.createElement(FinLancamentos,{uid,db,reload,setM:setModal,refreshLanc:()=>refreshLanc(uid),refreshContas:()=>refreshContas(uid),refreshEstoque:()=>refreshEstoque(uid)}), fin_receber:()=>React.createElement(FinReceber,{uid,db,reload,setM:setModal}), fin_pagar:()=>React.createElement(FinPagar,{uid,db,reload,setM:setModal}), fin_movs:()=>React.createElement(FinMovs,{uid,db,reload,setM:setModal}), fin_contas:()=>React.createElement(FinContas,{uid,db,reload:()=>refreshContas(uid),setM:setModal}), fin_categorias:()=>React.createElement(FinCategorias,{uid,db,reload:()=>refreshCategorias(uid),setM:setModal}), ativos:()=>React.createElement(Ativos,{uid,db,reload,setM:setModal}), fin_centros:()=>React.createElement(FinCentros,{uid,db,reload:()=>refreshCentros(uid),setM:setModal}), fin_formas:()=>React.createElement(FinFormas,{uid,db,reload:()=>refreshFormasPag(uid),setM:setModal}), imp_config:()=>React.createElement(ImpressaoConfig,{uid}), };
+      await refreshEstoque(uid); },setM:setModal}), producao_hist:()=>React.createElement(ProducaoHistorico,{uid,db,reload,setM:setModal}), producao_plan:()=>React.createElement(PlanejamentoProducao,{uid,db,reload,setM:setModal}), fin_visao:()=>React.createElement(FinVisao,{uid,db,reload,setM:setModal}), fin_dre:()=>React.createElement(FinDRE,{uid,db,reload,setM:setModal}), fin_balanco:()=>React.createElement(FinBalanco,{uid,db,reload,setM:setModal}), analise_vendas:()=>React.createElement(AnaliseVendas,{uid,db,reload,setM:setModal}), analise_produtos:()=>React.createElement(AnaliseProdutos,{uid,db,reload,setM:setModal}), fin_lancamentos:()=>React.createElement(FinLancamentos,{uid,db,reload,setM:setModal,refreshLanc:()=>refreshLanc(uid),refreshContas:()=>refreshContas(uid),refreshEstoque:()=>refreshEstoque(uid)}), fin_receber:()=>React.createElement(FinReceber,{uid,db,reload,setM:setModal}), fin_pagar:()=>React.createElement(FinPagar,{uid,db,reload,setM:setModal}), fin_movs:()=>React.createElement(FinMovs,{uid,db,reload,setM:setModal}), fin_contas:()=>React.createElement(FinContas,{uid,db,reload:()=>refreshContas(uid),setM:setModal}), fin_categorias:()=>React.createElement(FinCategorias,{uid,db,reload:()=>refreshCategorias(uid),setM:setModal}), ativos:()=>React.createElement(Ativos,{uid,db,reload,setM:setModal}), fin_centros:()=>React.createElement(FinCentros,{uid,db,reload:()=>refreshCentros(uid),setM:setModal}), fin_formas:()=>React.createElement(FinFormas,{uid,db,reload:()=>refreshFormasPag(uid),setM:setModal}), imp_config:()=>React.createElement(ImpressaoConfig,{uid}), };
   const PC=PAGES[page]||PAGES.pedidos;
 
   return React.createElement(React.Fragment,null, React.createElement('div',{style:{display:'flex',height:'100vh',background:'#f4f4f5',overflow:'hidden'}}, React.createElement(Sidebar,{page,setPage,user,logout,col,setCol}), React.createElement('main',{style:{flex:1,overflow:'auto',background:'#f4f4f5'}},PC())
