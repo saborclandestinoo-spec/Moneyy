@@ -835,6 +835,21 @@ function FecharCaixaModal({uid,caixa,vendasPrincipais,abertura,suprimentos,sangr
 
   const confirmar=async(imprimir)=>{ setLd2(true);setLd&&setLd(true);
     const n=await gerarLancamentos();
+    // FIX: lançamentos usam valor CONTADO no fechamento (não o esperado dos pedidos)
+    try{ const dataCx=caixa.data;
+      const{data:lancDia}=await sb.from('lancamentos').select('id,descricao,valor').eq('user_id',uid).eq('data',dataCx).eq('obs','consolidado_cw').eq('tipo','receita');
+      const normF=s=>(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+      for(const f of formasOrdenadas){
+        if(contadoPorForma[f]==='')continue; // campo vazio = mantém esperado
+        const diff=(parseFloat(contadoPorForma[f])||0)-esperadoPorForma[f];
+        if(Math.abs(diff)<0.005)continue;
+        const l=(lancDia||[]).find(x=>normF(x.descricao)==='vendas '+normF(f))
+          ||(lancDia||[]).find(x=>normF(x.descricao).includes(normF(f)));
+        if(!l)continue;
+        const novo=Math.max(0,Number(l.valor)+diff);
+        await sb.from('lancamentos').update({valor:parseFloat(novo.toFixed(2))}).eq('id',l.id);
+      }
+    }catch(e){console.error('Ajuste contado falhou:',e);}
     await sb.from('caixas').update({ status:'fechado', saldo_fechamento:totalContado, fechado_em:new Date().toISOString(), obs:obs||null }).eq('id',caixa.id);
     toast(n+' lançamentos gerados! Caixa fechado.',false,true);
     reload();close();setLd2(false);setLd&&setLd(false);
@@ -4243,12 +4258,13 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){ const{conta
     const obsOriginal=inicial?.obs&&!vincularEstoque?inicial.obs:'';
     const base={user_id:uid,tipo:tipoFinal,descricao:desc,valor:totalFinal,categoria:catFinal,conta_id:contaId||null, forma_pag:formaPag,data:venc,venc,competencia:compEfetivo||null,fornecedor:fornecedor||null, centro_custo:centroCusto||null,pago,obs:vincularEstoque?(tipoFinal==='despesa'?'saida_estoque':'compra_estoque'):obsOriginal,juros:jv||null,multa:mv||null,desconto:dv||null, estoque_id:vincularEstoque?estoqueId||null:null,estoque_qtd:vincularEstoque?estQtdTotal:null};
     let rows=[];
-    if(tipoLanc==='Parcelado'){ const gid=uid_gen();
+    const isEditLanc=!!(inicial&&inicial.id); // FIX: edição nunca regenera parcelas/recorrências
+    if(tipoLanc==='Parcelado'&&!isEditLanc){ const gid=uid_gen();
       for(let i=0;i<numParc;i++){ const dt=advanceDate(venc,freqParc,i);
         const dtCompP=competencia?advanceDate(competencia,freqParc,i):(()=>{ const[yr,mo,dy]=dt.split('-').map(Number);
           const prev=new Date(yr,mo-1-1,dy);
           return prev.getFullYear()+'-'+String(prev.getMonth()+1).padStart(2,'0')+'-'+String(prev.getDate()).padStart(2,'0'); })();
-        rows.push({...base,data:dt,venc:dt,competencia:dtCompP,data_pag:i===0&&pago?dataPag:null,pago:i===0?pago:false,grupo_id:gid,parcela:(i+1)+'/'+numParc,descricao:desc+' ('+(i+1)+'/'+numParc+')'}); } }else if(tipoLanc==='Recorrente'){ const gid=uid_gen();
+        rows.push({...base,data:dt,venc:dt,competencia:dtCompP,data_pag:i===0&&pago?dataPag:null,pago:i===0?pago:false,grupo_id:gid,parcela:(i+1)+'/'+numParc,descricao:desc+' ('+(i+1)+'/'+numParc+')'}); } }else if(tipoLanc==='Recorrente'&&!isEditLanc){ const gid=uid_gen();
       for(let i=0;i<numRep;i++){ const dt=advanceDate(venc,freqRec,i);
         // Competência: se definida pelo usuário, avança pelo mesmo freq; senão usa 1 período antes do venc
         const dtComp=competencia?advanceDate(competencia,freqRec,i):(()=>{ const[yr,mo,dy]=dt.split('-').map(Number);
@@ -4268,11 +4284,15 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){ const{conta
     if(inicial&&inicial.id&&rows.length===1){ // UPDATE existing
       const{error:e}=await sb.from('lancamentos').update(rows[0]).eq('id',inicial.id);
       error=e;
-      // Reverse old saldo effect if was pago, apply new
-      if(!error&&inicial.pago&&contaId){ const conta=(contas||[]).find(c=>c.id===contaId);
-        if(conta){ const oldDelta=inicial.tipo==='receita'?-Number(inicial.valor):Number(inicial.valor);
-          const newDelta=isRec?totalFinal:-totalFinal;
-          await sb.from('contas_bancarias').update({saldo:Number(conta.saldo)+oldDelta+newDelta}).eq('id',contaId); } } }else{ const{error:e}=await sb.from('lancamentos').insert(rows);
+      // FIX: ajusta saldo em qualquer transição (pendente→pago, pago→pendente, valor/conta alterados)
+      if(!error){ const oldDelta=inicial.pago?(inicial.tipo==='receita'?-Number(inicial.valor):Number(inicial.valor)):0;
+        const newDelta=pago?(isRec?totalFinal:-totalFinal):0;
+        const oldConta=(contas||[]).find(c=>c.id===inicial.conta_id);
+        const newConta=(contas||[]).find(c=>c.id===contaId);
+        if(oldConta&&newConta&&oldConta.id===newConta.id){ const d=oldDelta+newDelta;
+          if(Math.abs(d)>0.005)await sb.from('contas_bancarias').update({saldo:Number(oldConta.saldo)+d}).eq('id',oldConta.id);
+        }else{ if(oldConta&&Math.abs(oldDelta)>0.005)await sb.from('contas_bancarias').update({saldo:Number(oldConta.saldo)+oldDelta}).eq('id',oldConta.id);
+          if(newConta&&Math.abs(newDelta)>0.005)await sb.from('contas_bancarias').update({saldo:Number(newConta.saldo)+newDelta}).eq('id',newConta.id); } } }else{ const{error:e}=await sb.from('lancamentos').insert(rows);
       error=e; }
     if(error){toast('Erro: '+error.message,true);setLd(false);return;}
     if(pago&&contaId&&!(inicial&&inicial.id)){ const conta=(contas||[]).find(c=>c.id===contaId);
