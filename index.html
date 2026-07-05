@@ -976,9 +976,10 @@ function PedCaixa({uid,db,setDb,reload,setM}){ const{pedidos_cw,lancamentos,cont
   const[pedidosLocal,setPedidosLocal]=React.useState([]);
 
   // Carrega pedidos do dia no mount e a cada 30s
-  React.useEffect(()=>{ const fn=async()=>{ try{ const{data}=await sb.from('pedidos_cw').select('*').eq('user_id',uid).gte('data_pedido',hoje).order('criado_em',{ascending:false});
+  React.useEffect(()=>{ const fn=async()=>{ try{ const iniDate=dataCaixa||hoje;
+        const{data}=await sb.from('pedidos_cw').select('*').eq('user_id',uid).gte('data_pedido',iniDate).lte('data_pedido',hoje).order('criado_em',{ascending:false});
         if(data)setPedidosLocal(data); }catch(e){} };
-    fn();const t=setInterval(fn,30000);return()=>clearInterval(t); },[uid,hoje]);
+    fn();const t=setInterval(fn,30000);return()=>clearInterval(t); },[uid,dataCaixa,hoje]);
 
   // Também usa pedidos do db state quando atualizados por realtime
   React.useEffect(()=>{ if(pedidos_cw&&pedidos_cw.length>0)setPedidosLocal(prev=>{ const seen=new Set(pedidos_cw.map(p=>p.id));
@@ -988,8 +989,9 @@ function PedCaixa({uid,db,setDb,reload,setM}){ const{pedidos_cw,lancamentos,cont
   const caixaAberto=caixaHoje&&caixaHoje.status==='aberto';
   const caixaFechado=caixaHoje&&caixaHoje.status==='fechado';
 
-  const dataCaixa=hoje; // sempre filtra pedidos de hoje
-  const pedidosHoje=(pedidosLocal||[]).filter(p=>{ if((p.data_pedido||'').startsWith(dataCaixa))return true;
+  // dataCaixa = data de abertura do caixa (acumula até fechar, mesmo que mude o dia)
+  const dataCaixa=caixaHoje?.data||hoje;
+  const pedidosHoje=(pedidosLocal||[]).filter(p=>{ if((p.data_pedido||'')>=dataCaixa&&(p.data_pedido||'')<=hoje)return true;
     const r=p.raw||{};
     if(r.created_at)return new Date(r.created_at).toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'})===dataCaixa;
     return false; });
@@ -4130,12 +4132,13 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){ const{conta
   const[valor,setValor]=React.useState(inicial&&String(inicial.valor||'')||'');
   const[contaId,setContaId]=React.useState(inicial&&inicial.conta_id||contas&&contas[0]&&contas[0].id||'');
   const[contaDestId,setContaDestId]=React.useState(contas&&contas[1]?contas[1].id:contas&&contas[0]?contas[0].id:'');
-  const dateKey='lanc_ultima_data_'+tipo;
-  const[venc,setVenc]=React.useState(()=>{
+  const dateKey='lanc_ultima_data_'+uid;
+  const[venc,setVencRaw]=React.useState(()=>{
     if(inicial?.venc||inicial?.data)return inicial.venc||inicial.data;
-    try{const s=localStorage.getItem(dateKey);return s||TODAY();}catch{return TODAY();}
+    try{const s=localStorage.getItem(dateKey);if(s&&s.match(/^\d{4}-\d{2}-\d{2}$/))return s;}catch{}
+    return TODAY();
   });
-  React.useEffect(()=>{if(!inicial?.id&&venc)try{localStorage.setItem(dateKey,venc);}catch{}},[venc]);
+  const setVenc=(v)=>{setVencRaw(v);if(!inicial?.id&&v){try{localStorage.setItem(dateKey,v);}catch{}}};
   const[competencia,setCompetencia]=React.useState(inicial&&inicial.competencia||'');
   const compEfetivo=competencia||venc;
   const[fornecedor,setFornecedor]=React.useState(inicial&&inicial.fornecedor||'');
