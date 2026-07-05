@@ -773,6 +773,9 @@ function AbrirCaixaModal({uid,reload,close}){ const[valor,setValor]=React.useSta
   const[ld,setLd]=React.useState(false);
   const confirmar=async()=>{ setLd(true);
     const hoje=TODAY();
+    // Guard: check if there's already an open caixa
+    const{data:abertos}=await sb.from('caixas').select('id').eq('user_id',uid).eq('status','aberto').limit(1);
+    if(abertos&&abertos.length>0){ toast('Já existe um caixa aberto! Feche-o antes de abrir outro.',true);setLd(false);close();return; }
     await sb.from('caixas').insert({user_id:uid,data:hoje,status:'aberto',saldo_abertura:parseFloat(valor)||0,suprimentos:0,sangrias:0,obs});
     toast('Caixa aberto!',false,true);reload();close();setLd(false); };
   return React.createElement('div',null, React.createElement('div',{style:{background:'#eff6ff',borderRadius:10,padding:'12px 14px',fontSize:12,color:'#2563eb',marginBottom:16,lineHeight:1.7}}, '💰 Informe quanto dinheiro físico tem no caixa agora (fundo de troco). O caixa abre zerado por padrão.'
@@ -985,7 +988,12 @@ function PedCaixa({uid,db,setDb,reload,setM}){ const{pedidos_cw,lancamentos,cont
   React.useEffect(()=>{ if(pedidos_cw&&pedidos_cw.length>0)setPedidosLocal(prev=>{ const seen=new Set(pedidos_cw.map(p=>p.id));
       return [...pedidos_cw,...prev.filter(p=>!seen.has(p.id))]; }); },[pedidos_cw]);
 
-  const caixaHoje=(caixas||[]).find(c=>c.status==='aberto')||(caixas||[]).find(c=>c.data===hoje)||(caixas||[]).find(c=>c.fechado_em&&c.fechado_em.startsWith(hoje))||null;
+  // Prefer most recent open caixa; fallback to today's or most recent closed
+  const caixaHoje=(()=>{
+    const abertos=(caixas||[]).filter(c=>c.status==='aberto').sort((a,b)=>(b.aberto_em||b.criado_em||'').localeCompare(a.aberto_em||a.criado_em||''));
+    if(abertos.length>0)return abertos[0];
+    return (caixas||[]).find(c=>c.data===hoje)||(caixas||[]).find(c=>c.fechado_em&&c.fechado_em.startsWith(hoje))||null;
+  })();
   const caixaAberto=caixaHoje&&caixaHoje.status==='aberto';
   const caixaFechado=caixaHoje&&caixaHoje.status==='fechado';
 
@@ -1048,10 +1056,10 @@ function PedCaixa({uid,db,setDb,reload,setM}){ const{pedidos_cw,lancamentos,cont
         if(!grupos[ch])grupos[ch]={forma:forma&&forma.nome||pmNome,contaId,bruto:0,taxa:0,dias};
         grupos[ch].bruto+=valor;grupos[ch].taxa+=taxa; }); });
     const rows=[];
-    for(const g of Object.values(grupos)){ let dt=hoje;
-      if(g.dias>0){const d=new Date(hoje+'T12:00:00');d.setDate(d.getDate()+g.dias);dt=d.toISOString().split('T')[0];}
-      rows.push({user_id:uid,tipo:'receita',descricao:'Vendas '+g.forma,valor:parseFloat(g.bruto.toFixed(2)),data:hoje,venc:dt,competencia:hoje,data_pag:g.dias===0?dt:null,pago:g.dias===0,conta_id:g.contaId,categoria:'3.1 Receita de Venda de Produtos',forma_pag:g.forma,obs:'consolidado_cw'});
-      if(g.taxa>0)rows.push({user_id:uid,tipo:'despesa',descricao:'Taxa '+g.forma,valor:parseFloat(g.taxa.toFixed(2)),data:hoje,venc:dt,competencia:hoje,data_pag:g.dias===0?dt:null,pago:g.dias===0,conta_id:g.contaId,categoria:'4.2.4 Taxas',forma_pag:g.forma,obs:'consolidado_cw'}); }
+    for(const g of Object.values(grupos)){ let dt=dataCaixa;
+      if(g.dias>0){const d=new Date(dataCaixa+'T12:00:00');d.setDate(d.getDate()+g.dias);dt=d.toISOString().split('T')[0];}
+      rows.push({user_id:uid,tipo:'receita',descricao:'Vendas '+g.forma,valor:parseFloat(g.bruto.toFixed(2)),data:dataCaixa,venc:dt,competencia:dataCaixa,data_pag:g.dias===0?dt:null,pago:g.dias===0,conta_id:g.contaId,categoria:'3.1 Receita de Venda de Produtos',forma_pag:g.forma,obs:'consolidado_cw'});
+      if(g.taxa>0)rows.push({user_id:uid,tipo:'despesa',descricao:'Taxa '+g.forma,valor:parseFloat(g.taxa.toFixed(2)),data:dataCaixa,venc:dt,competencia:dataCaixa,data_pag:g.dias===0?dt:null,pago:g.dias===0,conta_id:g.contaId,categoria:'4.2.4 Taxas',forma_pag:g.forma,obs:'consolidado_cw'}); }
     if(rows.length)await sb.from('lancamentos').insert(rows);
     return rows.length; };
 
