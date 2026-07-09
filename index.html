@@ -223,7 +223,7 @@ const FIN_SUBS=[
 ];
 const FIN_PAGES=new Set(FIN_SUBS.map(s=>s.id));
 const DESEMP_SUBS=[
-  {id:'indicadores',l:'Indicadores'}, {id:'fin_dre',l:'DRE'}, {id:'fin_balanco',l:'Balanço Patrimonial'}, {id:'analise_vendas',l:'Análise de Vendas'}, {id:'analise_produtos',l:'Análise de Produtos'},
+  {id:'fin_dre',l:'DRE'}, {id:'fin_balanco',l:'Balanço Patrimonial'}, {id:'analise_vendas',l:'Análise de Vendas'}, {id:'analise_produtos',l:'Análise de Produtos'},
 ];
 const DESEMP_PAGES=new Set(DESEMP_SUBS.map(s=>s.id));
 
@@ -2936,146 +2936,6 @@ function FinBalanco({uid,db,reload,setM}){ const{contas,lancamentos,estoque}=db;
   );
 }
 
-// ============ INDICADORES (painel de KPIs) ============
-function Indicadores({uid,db,reload,setM}){
-  const{fichas,estoque,ficha_ingredientes,lancamentos}=db;
-  const el=React.createElement;
-  const hoje=TODAY();
-  const[dtIni,setDtIni]=React.useState(()=>{const d=new Date();d.setDate(1);return d.toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});});
-  const[dtFim,setDtFim]=React.useState(hoje);
-  const[pedidos,setPedidos]=React.useState([]);
-  const[pedidosAnt,setPedidosAnt]=React.useState([]);
-  const[loading,setLoading]=React.useState(false);
-  const canvasRef=React.useRef(null);const chartRef=React.useRef(null);
-
-  const diasPeriodo=Math.max(1,Math.round((new Date(dtFim)-new Date(dtIni))/86400000)+1);
-  const dtIniAnt=(()=>{const d=new Date(dtIni+'T12:00:00');d.setDate(d.getDate()-diasPeriodo);return d.toLocaleDateString('sv-SE');})();
-  const dtFimAnt=(()=>{const d=new Date(dtIni+'T12:00:00');d.setDate(d.getDate()-1);return d.toLocaleDateString('sv-SE');})();
-
-  const fetchPeriodo=async(ini,fim,setter)=>{ let all=[];let from=0;const pageSize=1000;
-    while(true){ const{data,error}=await sb.from('pedidos_cw').select('*').eq('user_id',uid)
-        .gte('data_pedido',ini).lte('data_pedido',fim).order('data_pedido',{ascending:true}).range(from,from+pageSize-1);
-      if(error||!data||data.length===0)break; all=all.concat(data);
-      if(data.length<pageSize)break; from+=pageSize; }
-    setter(all); };
-  React.useEffect(()=>{ let cancel=false;setLoading(true);
-    Promise.all([fetchPeriodo(dtIni,dtFim,d=>!cancel&&setPedidos(d)),fetchPeriodo(dtIniAnt,dtFimAnt,d=>!cancel&&setPedidosAnt(d))]).then(()=>!cancel&&setLoading(false));
-    return()=>{cancel=true;}; },[uid,dtIni,dtFim]);
-
-  const naoCanc=React.useMemo(()=>pedidos.filter(p=>!isPedCancelado(p)),[pedidos]);
-  const naoCancAnt=React.useMemo(()=>pedidosAnt.filter(p=>!isPedCancelado(p)),[pedidosAnt]);
-
-  const normN=s=>(s||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[-_\s]+/g,' ').trim();
-  const matchFicha=(nomeBruto)=>{ const nLow=normN(nomeBruto);
-    const aliasMatch=(campo)=>(f)=>(f[campo]||'').split('|').map(a=>normN(a)).includes(nLow);
-    return (fichas||[]).find(f=>normN(f.nome)===nLow)||(fichas||[]).find(aliasMatch('nome_cw'))||(fichas||[]).find(aliasMatch('nome_ifood'))||null; };
-  const calcCustoFicha=(f)=>{ if(!f)return 0;
-    const ings=(ficha_ingredientes||[]).filter(i=>i.ficha_id===f.id);
-    return ings.reduce((s,i)=>{ const est=(estoque||[]).find(e2=>e2.id===i.estoque_id||e2.nome===i.nome);
-      return s+(parseFloat(i.quantidade||0)*parseFloat(est?.custo||i.custo_unit||0)); },0); };
-
-  // Agrega itens: qtd, valor, custo por produto
-  const agg=React.useMemo(()=>{ const g={};let custoVar=0;let qtdTotal=0;
-    naoCanc.forEach(p=>{ const itens=((p.raw&&p.raw.items)||p.itens||[]).filter(it=>!isCancelledItem(it));
-      itens.forEach(it=>{ const nomeBruto=(it.name||it.nome||'Sem nome').trim();
-        const f=matchFicha(nomeBruto); const nome=f?f.nome:nomeBruto;
-        const qtd=Number(it.quantity||1); const valor=Number(it.price||it.unit_price||0)*qtd;
-        const custoU=f?calcCustoFicha(f):0;
-        if(!g[nome])g[nome]={qtd:0,valor:0,custo:0,semFicha:!f};
-        g[nome].qtd+=qtd;g[nome].valor+=valor;g[nome].custo+=custoU*qtd;
-        custoVar+=custoU*qtd;qtdTotal+=qtd; }); });
-    return{porProduto:Object.entries(g).map(([nome,v])=>({nome,...v,margem:v.valor>0?(v.valor-v.custo)/v.valor*100:0})).sort((a,b)=>b.valor-a.valor),custoVar,qtdTotal}; },[naoCanc,fichas,ficha_ingredientes,estoque]);
-
-  const fat=naoCanc.reduce((s,p)=>s+Number(p.total||0),0);
-  const fatAnt=naoCancAnt.reduce((s,p)=>s+Number(p.total||0),0);
-  const nPed=naoCanc.length,nPedAnt=naoCancAnt.length;
-  const ticket=nPed>0?fat/nPed:0,ticketAnt=nPedAnt>0?fatAnt/nPedAnt:0;
-  const cmvPct=fat>0?agg.custoVar/fat*100:0;
-  const margemPct=fat>0?100-cmvPct:0;
-  const margemUnit=agg.qtdTotal>0?(fat-agg.custoVar)/agg.qtdTotal:0;
-
-  // Custos fixos: despesas do período, exclui estoque (ativo/CMV) e transferências
-  const fixos=React.useMemo(()=>(lancamentos||[]).filter(l=>l.tipo==='despesa'&&l.data>=dtIni&&l.data<=dtFim&&!['compra_estoque','saida_estoque'].includes(l.obs||'')&&(l.categoria||'')!=='Transferencia').reduce((s,l)=>s+Number(l.valor||0),0),[lancamentos,dtIni,dtFim]);
-  const peReais=margemPct>0?fixos/(margemPct/100):0;
-  const peUnid=margemUnit>0?Math.ceil(fixos/margemUnit):0;
-  const lucroOper=fat-agg.custoVar-fixos;
-
-  // Recompra: clientes com 2+ pedidos no período
-  const recompra=React.useMemo(()=>{ const c={};
-    naoCanc.forEach(p=>{ const k=(p.raw&&p.raw.customer&&(p.raw.customer.phone||p.raw.customer.name))||p.cliente||null;
-      if(!k)return; c[k]=(c[k]||0)+1; });
-    const tot=Object.keys(c).length; const rec=Object.values(c).filter(n=>n>=2).length;
-    return{tot,rec,pct:tot>0?rec/tot*100:0}; },[naoCanc]);
-
-  // Canais
-  const canais=React.useMemo(()=>{ const r={ifood:{n:0,v:0},delivery:{n:0,v:0},retirada:{n:0,v:0}};
-    naoCanc.forEach(p=>{ const k=p.canal==='ifood'?'ifood':(p.raw&&p.raw.order_type==='delivery'?'delivery':'retirada');
-      r[k].n++;r[k].v+=Number(p.total||0); }); return r; },[naoCanc]);
-
-  // Faturamento médio por dia da semana
-  const dow=React.useMemo(()=>{ const soma=[0,0,0,0,0,0,0];const dias=[new Set(),new Set(),new Set(),new Set(),new Set(),new Set(),new Set()];
-    naoCanc.forEach(p=>{ const d=(p.data_pedido||'').slice(0,10); if(!d)return;
-      const w=new Date(d+'T12:00:00').getDay(); soma[w]+=Number(p.total||0); dias[w].add(d); });
-    return soma.map((s,i)=>dias[i].size>0?s/dias[i].size:0); },[naoCanc]);
-
-  React.useEffect(()=>{ if(!canvasRef.current)return;
-    if(chartRef.current)chartRef.current.destroy();
-    chartRef.current=new Chart(canvasRef.current,{type:'bar',data:{labels:['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'],datasets:[{label:'Faturamento médio/dia',data:dow.map(v=>v.toFixed(2)),backgroundColor:'rgba(220,38,38,0.75)',borderRadius:8}]},options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{callback:v=>'R$ '+v}}},responsive:true,maintainAspectRatio:false}});
-    return()=>{if(chartRef.current)chartRef.current.destroy();}; },[dow]);
-
-  const delta=(atual,ant)=>{ if(!ant)return null; const d=(atual-ant)/ant*100;
-    return el('span',{style:{fontSize:11,fontWeight:700,color:d>=0?'#16a34a':'#dc2626'}},(d>=0?'▲ ':'▼ ')+Math.abs(d).toFixed(1)+'%'); };
-  const card=(titulo,valor,extra,sub)=>el('div',{style:{background:'#fff',borderRadius:14,border:'1px solid #f0f0f0',padding:'16px 18px',minWidth:0}},
-    el('div',{style:{fontSize:11,color:'#999',fontWeight:600,textTransform:'uppercase',letterSpacing:0.4,marginBottom:6}},titulo),
-    el('div',{style:{display:'flex',alignItems:'baseline',gap:8,flexWrap:'wrap'}},el('span',{style:{fontSize:22,fontWeight:800,color:'#111'}},valor),extra||null),
-    sub?el('div',{style:{fontSize:11,color:'#aaa',marginTop:4}},sub):null);
-  const inp={padding:'8px 11px',borderRadius:9,border:'1px solid #eee',fontSize:12.5,color:'#333',background:'#fff'};
-
-  return el('div',null,
-    el('div',{style:{display:'flex',alignItems:'center',gap:10,marginBottom:16,flexWrap:'wrap'}},
-      el('h2',{style:{fontSize:18,fontWeight:800,margin:0,flex:1}},'Indicadores'),
-      el('input',{type:'date',value:dtIni,onChange:e=>setDtIni(e.target.value),style:inp}),
-      el('span',{style:{color:'#bbb',fontSize:12}},'até'),
-      el('input',{type:'date',value:dtFim,onChange:e=>setDtFim(e.target.value),style:inp}),
-      loading&&el('span',{style:{fontSize:12,color:'#999'}},'Carregando...')),
-    el('div',{style:{fontSize:11,color:'#bbb',marginBottom:10}},'Comparado com período anterior ('+FD(dtIniAnt)+' a '+FD(dtFimAnt)+')'),
-    el('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))',gap:10,marginBottom:14}},
-      card('Faturamento',F(fat),delta(fat,fatAnt)),
-      card('Pedidos',String(nPed),delta(nPed,nPedAnt)),
-      card('Ticket médio',F(ticket),delta(ticket,ticketAnt)),
-      card('CMV',cmvPct.toFixed(1)+'%',null,'Meta: 25–35% · custo insumos '+F(agg.custoVar)),
-      card('Margem de contribuição',margemPct.toFixed(1)+'%',null,F(margemUnit)+' por unidade'),
-      card('Recompra',recompra.pct.toFixed(0)+'%',null,recompra.rec+' de '+recompra.tot+' clientes voltaram')),
-    el('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))',gap:10,marginBottom:14}},
-      card('Custos fixos (período)',F(fixos),null,'Despesas lançadas fora estoque'),
-      card('Ponto de equilíbrio',F(peReais),null,peUnid>0?('≈ '+peUnid+' unidades no período'):'—'),
-      card('Resultado operacional',F(lucroOper),el('span',{style:{fontSize:11,fontWeight:700,color:lucroOper>=0?'#16a34a':'#dc2626'}},lucroOper>=0?'lucro':'prejuízo'),'Faturamento − CMV − fixos')),
-    el('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}},
-      el('div',{style:{background:'#fff',borderRadius:14,border:'1px solid #f0f0f0',padding:18}},
-        el('div',{style:{fontSize:13,fontWeight:800,marginBottom:12}},'Canais'),
-        [['ifood','iFood','#dc2626'],['delivery','Delivery direto','#2563eb'],['retirada','Retirada/Balcão','#16a34a']].map(([k,l,c])=>{
-          const pct=fat>0?canais[k].v/fat*100:0;
-          return el('div',{key:k,style:{marginBottom:10}},
-            el('div',{style:{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:4}},
-              el('span',{style:{fontWeight:600}},l),el('span',{style:{color:'#666'}},F(canais[k].v)+' · '+canais[k].n+' ped · '+pct.toFixed(0)+'%')),
-            el('div',{style:{height:7,background:'#f5f5f5',borderRadius:20,overflow:'hidden'}},
-              el('div',{style:{height:'100%',width:pct+'%',background:c,borderRadius:20,transition:'width 0.4s'}}))); })),
-      el('div',{style:{background:'#fff',borderRadius:14,border:'1px solid #f0f0f0',padding:18}},
-        el('div',{style:{fontSize:13,fontWeight:800,marginBottom:12}},'Faturamento médio por dia da semana'),
-        el('div',{style:{height:180}},el('canvas',{ref:canvasRef})))),
-    el('div',{style:{background:'#fff',borderRadius:14,border:'1px solid #f0f0f0',padding:18}},
-      el('div',{style:{fontSize:13,fontWeight:800,marginBottom:12}},'Margem por produto (top 10 em vendas)'),
-      el('div',{style:{display:'grid',gridTemplateColumns:'2fr 0.6fr 1fr 1fr 0.8fr',gap:8,fontSize:11,color:'#999',fontWeight:700,paddingBottom:8,borderBottom:'1px solid #f5f5f5'}},
-        el('span',null,'PRODUTO'),el('span',{style:{textAlign:'right'}},'QTD'),el('span',{style:{textAlign:'right'}},'VENDAS'),el('span',{style:{textAlign:'right'}},'CUSTO'),el('span',{style:{textAlign:'right'}},'MARGEM')),
-      agg.porProduto.slice(0,10).map((p,i)=>el('div',{key:i,style:{display:'grid',gridTemplateColumns:'2fr 0.6fr 1fr 1fr 0.8fr',gap:8,fontSize:12.5,padding:'9px 0',borderBottom:'1px solid #fafafa',alignItems:'center'}},
-        el('span',{style:{fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},p.nome,p.semFicha?el('span',{style:{fontSize:10,color:'#f59e0b',marginLeft:6}},'sem ficha'):null),
-        el('span',{style:{textAlign:'right',color:'#666'}},p.qtd),
-        el('span',{style:{textAlign:'right',fontWeight:600}},F(p.valor)),
-        el('span',{style:{textAlign:'right',color:'#666'}},p.semFicha?'—':F(p.custo)),
-        el('span',{style:{textAlign:'right',fontWeight:800,color:p.semFicha?'#bbb':p.margem>=60?'#16a34a':p.margem>=40?'#f59e0b':'#dc2626'}},p.semFicha?'—':p.margem.toFixed(0)+'%'))),
-      agg.porProduto.length===0&&el('div',{style:{padding:20,textAlign:'center',color:'#bbb',fontSize:13}},'Nenhum pedido no período.')));
-}
-
 function FinVisao({uid,db,reload,setM}){ const{lancamentos,contas}=db;
   const hoje=TODAY();
   const mes=hoje.slice(0,7);
@@ -5541,7 +5401,7 @@ function App(){ const[user,setUser]=useState(null);const[page,setPage]=useState(
   const uid=user.id;
   const PAGES={ pedidos:()=>React.createElement(PedidosCW,{uid,db,setDb,reload,setM:setModal,cfg,setCfg}), ped_historico:()=>React.createElement(PedHistorico,{uid,db,reload,setM:setModal}), ped_mesas:()=>React.createElement(PedMesas,{uid,db,reload,setM:setModal}), ped_kds:()=>React.createElement(PedKDS,{uid,db,reload,setM:setModal}), ped_caixa:()=>React.createElement(PedCaixa,{uid,db,setDb,reload:async()=>{await refreshCaixas(uid);await refreshLanc(uid);},setM:setModal}), ped_entregas:()=>React.createElement(PedEntregas,{uid,db,reload,setM:setModal}), estoque:()=>React.createElement(Estoque,{uid,db,reload:async()=>{const{data}=await sb.from('estoque').select('*').eq('user_id',uid).order('nome');if(data)setDb(p=>({...p,estoque:data}));},setM:setModal}), fichas:()=>React.createElement(FichasTecnicas,{uid,db,reload:async()=>{ const{data}=await sb.from('fichas_tecnicas').select('*').eq('user_id',uid).order('nome');
       if(data)setDb(p=>({...p,fichas:data}));
-      await refreshEstoque(uid); },setM:setModal}), producao_hist:()=>React.createElement(ProducaoHistorico,{uid,db,reload,setM:setModal}), producao_plan:()=>React.createElement(PlanejamentoProducao,{uid,db,reload,setM:setModal}), fin_visao:()=>React.createElement(FinVisao,{uid,db,reload,setM:setModal}), indicadores:()=>React.createElement(Indicadores,{uid,db,reload,setM:setModal}), fin_dre:()=>React.createElement(FinDRE,{uid,db,reload,setM:setModal}), fin_balanco:()=>React.createElement(FinBalanco,{uid,db,reload,setM:setModal}), analise_vendas:()=>React.createElement(AnaliseVendas,{uid,db,reload,setM:setModal}), analise_produtos:()=>React.createElement(AnaliseProdutos,{uid,db,reload,setM:setModal}), fin_lancamentos:()=>React.createElement(FinLancamentos,{uid,db,reload,setM:setModal,refreshLanc:()=>refreshLanc(uid),refreshContas:()=>refreshContas(uid),refreshEstoque:()=>refreshEstoque(uid)}), fin_receber:()=>React.createElement(FinReceber,{uid,db,reload,setM:setModal}), fin_pagar:()=>React.createElement(FinPagar,{uid,db,reload,setM:setModal}), fin_movs:()=>React.createElement(FinMovs,{uid,db,reload,setM:setModal}), fin_contas:()=>React.createElement(FinContas,{uid,db,reload:()=>refreshContas(uid),setM:setModal}), fin_categorias:()=>React.createElement(FinCategorias,{uid,db,reload:()=>refreshCategorias(uid),setM:setModal}), ativos:()=>React.createElement(Ativos,{uid,db,reload,setM:setModal}), fin_centros:()=>React.createElement(FinCentros,{uid,db,reload:()=>refreshCentros(uid),setM:setModal}), fin_formas:()=>React.createElement(FinFormas,{uid,db,reload:()=>refreshFormasPag(uid),setM:setModal}), imp_config:()=>React.createElement(ImpressaoConfig,{uid}), };
+      await refreshEstoque(uid); },setM:setModal}), producao_hist:()=>React.createElement(ProducaoHistorico,{uid,db,reload,setM:setModal}), producao_plan:()=>React.createElement(PlanejamentoProducao,{uid,db,reload,setM:setModal}), fin_visao:()=>React.createElement(FinVisao,{uid,db,reload,setM:setModal}), fin_dre:()=>React.createElement(FinDRE,{uid,db,reload,setM:setModal}), fin_balanco:()=>React.createElement(FinBalanco,{uid,db,reload,setM:setModal}), analise_vendas:()=>React.createElement(AnaliseVendas,{uid,db,reload,setM:setModal}), analise_produtos:()=>React.createElement(AnaliseProdutos,{uid,db,reload,setM:setModal}), fin_lancamentos:()=>React.createElement(FinLancamentos,{uid,db,reload,setM:setModal,refreshLanc:()=>refreshLanc(uid),refreshContas:()=>refreshContas(uid),refreshEstoque:()=>refreshEstoque(uid)}), fin_receber:()=>React.createElement(FinReceber,{uid,db,reload,setM:setModal}), fin_pagar:()=>React.createElement(FinPagar,{uid,db,reload,setM:setModal}), fin_movs:()=>React.createElement(FinMovs,{uid,db,reload,setM:setModal}), fin_contas:()=>React.createElement(FinContas,{uid,db,reload:()=>refreshContas(uid),setM:setModal}), fin_categorias:()=>React.createElement(FinCategorias,{uid,db,reload:()=>refreshCategorias(uid),setM:setModal}), ativos:()=>React.createElement(Ativos,{uid,db,reload,setM:setModal}), fin_centros:()=>React.createElement(FinCentros,{uid,db,reload:()=>refreshCentros(uid),setM:setModal}), fin_formas:()=>React.createElement(FinFormas,{uid,db,reload:()=>refreshFormasPag(uid),setM:setModal}), imp_config:()=>React.createElement(ImpressaoConfig,{uid}), };
   const PC=PAGES[page]||PAGES.pedidos;
 
   return React.createElement(React.Fragment,null, React.createElement('div',{style:{display:'flex',height:'100vh',background:'#f4f4f5',overflow:'hidden'}}, React.createElement(Sidebar,{page,setPage,user,logout,col,setCol}), React.createElement('main',{style:{flex:1,overflow:'auto',background:'#f4f4f5'}},PC())
