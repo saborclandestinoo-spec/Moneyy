@@ -1578,7 +1578,9 @@ function Pedidos({uid,db,reload,setM}){ const{pedidos,contas,receber}=db;
         )), React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginTop:10,paddingTop:10,borderTop:'1px solid #222'}}, React.createElement('span',{style:{fontWeight:700}},'Total'), React.createElement('span',{style:{fontWeight:800,fontSize:16,color:'#dc2626'}},F(tot(p)))
         )
       ), p.obs&&React.createElement('div',{style:{background:'#181818',borderRadius:10,padding:'9px 13px',marginBottom:12,fontSize:13,color:'#888'}},'📝 '+p.obs), React.createElement('div',{style:{display:'flex',gap:7,justifyContent:'flex-end',flexWrap:'wrap'}}, p.status==='Aguardando'&&React.createElement('button',{style:{...C.bsm,background:'#1e3a5f'},onClick:async()=>{await sb.from('pedidos').update({status:'Em preparo'}).eq('id',p.id);toast('Em preparo!');reload();setM(null);}},'+preparo'), p.status==='Em preparo'&&React.createElement('button',{style:{...C.bsm,background:'#14532d'},onClick:async()=>{ for(const it of(p.itens||[])){ const est=db.estoque.find(e=>e.categoria==='Cookie'&&e.nome.toLowerCase().includes((it.produto||'').toLowerCase().split(' ').slice(1).join(' ')));
-            if(est)await sb.from('estoque').update({qtd:Math.max(0,Number(est.qtd)-Number(it.qty))}).eq('id',est.id); }
+            if(est){ const saldoAntes=Number(est.qtd||0); const novaQtd=Math.max(0,saldoAntes-Number(it.qty));
+              await sb.from('estoque').update({qtd:novaQtd}).eq('id',est.id);
+              await registrarMovEstoque(p.user_id||est.user_id,{estoqueId:String(est.id),nomeItem:est.nome,tipo:'saida',quantidade:Number(it.qty),saldoAntes,saldoDepois:novaQtd,motivo:'saida_venda',descricao:'Venda — pedido #'+(p.numero||p.id),custoUnit:est.custo}); } }
           await sb.from('pedidos').update({status:'Entregue'}).eq('id',p.id);
           const jaExiste=receber.find(r=>r.pedido_id===p.numero);
           if(!jaExiste){ const dias={PIX:0,Dinheiro:0,Cartão:1,Transferência:1};
@@ -1645,6 +1647,10 @@ function EstoqueHistoricoModal({uid, estoqueId, nomeItem, close}){
     producao:{l:'Produção',cor:'#7c3aed',bg:'#f5f3ff',icone:'🍪'},
     consumo:{l:'Consumo', cor:'#f59e0b',bg:'#fffbeb',icone:'⬡'},
     compra: {l:'Compra',  cor:'#16a34a',bg:'#f0fdf4',icone:'🛒'},
+    saida_venda:{l:'Venda',cor:'#dc2626',bg:'#fef2f2',icone:'↓'},
+    saida_cancelamento:{l:'Devolução (cancelado)',cor:'#16a34a',bg:'#f0fdf4',icone:'↑'},
+    entrada_estoque_inicial:{l:'Estoque Inicial',cor:'#2563eb',bg:'#eff6ff',icone:'↑'},
+    ajuste_manual:{l:'Ajuste Manual',cor:'#2563eb',bg:'#eff6ff',icone:'⟳'},
   };
 
   return React.createElement('div',{style:{minWidth:600,maxHeight:'80vh',display:'flex',flexDirection:'column'}},
@@ -1671,11 +1677,11 @@ function EstoqueHistoricoModal({uid, estoqueId, nomeItem, close}){
                 React.createElement('span',{style:{background:cfg.bg,color:cfg.cor,padding:'3px 8px',borderRadius:20,fontSize:11,fontWeight:700,whiteSpace:'nowrap'}},
                   cfg.icone+' '+cfg.l)
               ),
-              React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',fontWeight:800,fontSize:13,color:m.tipo==='saida'||m.tipo==='consumo'?'#dc2626':'#16a34a'}},
-                (m.tipo==='saida'||m.tipo==='consumo'?'−':'+')+(Number(m.quantidade||0).toFixed(2).replace(/\.?0+$/,''))
+              React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',fontWeight:800,fontSize:13,color:m.tipo==='saida'||m.tipo==='consumo'||m.tipo==='saida_venda'?'#dc2626':'#16a34a'}},
+                (m.tipo==='saida'||m.tipo==='consumo'||m.tipo==='saida_venda'?'−':'+')+(Number(m.quantidade||0).toFixed(2).replace(/\.?0+$/,''))
               ),
               React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',fontSize:12,color:'#aaa'}},m.saldo_antes!=null?Number(m.saldo_antes).toFixed(2):'—'),
-              React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',fontSize:12,fontWeight:700,color:'#111'}},m.saldo_depois!=null?Number(m.saldo_depois).toFixed(2):'—'),
+              React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',fontSize:12,fontWeight:700,color:'#111'}},(m.saldo_depois!=null?m.saldo_depois:m.saldo_apos)!=null?Number(m.saldo_depois!=null?m.saldo_depois:m.saldo_apos).toFixed(2):'—'),
               React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',fontSize:11,color:'#888'}},m.motivo||'—'),
               React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',fontSize:11,color:'#aaa',maxWidth:180,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},m.descricao||'—'),
               React.createElement('td',{style:{padding:'10px 12px',textAlign:'right'}},
