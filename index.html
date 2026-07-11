@@ -2394,9 +2394,20 @@ function FichaForm({uid,db,reload,close,ficha,setM}){ const[verHistorico,setVerH
     if(minimoEst!==''){const minN=parseFloat(minimoEst)||0;const{data:estItem}=await sb.from('estoque').select('id').eq('user_id',uid).eq('categoria','Cookie').ilike('nome',nome).maybeSingle();if(estItem){await sb.from('estoque').update({minimo:minN}).eq('id',estItem.id);}else{await sb.from('estoque').insert({user_id:uid,nome,categoria:'Cookie',unidade:'un',qtd:0,minimo:minN,custo:0,fornecedor:''}); } }
     toast(isEdit?'Ficha atualizada!':'Ficha criada!',false,true);reload();close();setLd(false); };
 
-  const excluir=async()=>{ if(!confirm('Excluir ficha "'+nome+'"?'))return;
-    await sb.from('fichas_tecnicas').delete().eq('id',ficha.id);
-    toast('Excluída!',false,true);reload();close(); };
+  const excluir=async()=>{
+    if(!setM){ // fallback caso setM não esteja disponível
+      await sb.from('fichas_tecnicas').delete().eq('id',ficha.id);
+      toast('Excluída!',false,true);reload();close();return;
+    }
+    setM({title:'Excluir Ficha',body:React.createElement('div',null,
+      React.createElement('div',{style:{fontSize:13,color:'#666',marginBottom:18,lineHeight:1.6}},'Excluir a ficha "'+nome+'"? Essa ação não pode ser desfeita.'),
+      React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
+        React.createElement('button',{onClick:()=>setM({title:'✏ '+nome,wide:true,body:React.createElement(FichaForm,{uid,db,reload,ficha,setM,close})}),style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'}},'Cancelar'),
+        React.createElement('button',{onClick:async()=>{ setM(null);
+          await sb.from('fichas_tecnicas').delete().eq('id',ficha.id);
+          toast('Excluída!',false,true);reload();close(); },style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},'Excluir')
+      )
+    )}); };
 
   const CAT_CORES={Cookie:'#dc2626',Bolo:'#7c3aed',Brownie:'#92400e',Trufa:'#db2777',Brigadeiro:'#ea580c',Torta:'#0891b2',Outro:'#6b7280'};
   const cor=CAT_CORES[cat]||'#dc2626';
@@ -2405,7 +2416,7 @@ function FichaForm({uid,db,reload,close,ficha,setM}){ const[verHistorico,setVerH
       ), React.createElement(AlterarEstoqueModal,{uid,produto:prodAcabadoAtual,close:()=>setAlterarEstoque(false),reload})
     ); }
   if(verHistorico){ return React.createElement('div',null, React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}, React.createElement('div',{style:{fontWeight:700,fontSize:14}},'Histórico de Movimentação — '+nome), React.createElement('button',{onClick:()=>setVerHistorico(false),style:{background:'#f5f5f5',color:'#555',padding:'7px 14px',borderRadius:9,fontSize:12,fontWeight:600,border:'none',cursor:'pointer'}},'← Voltar')
-      ), React.createElement(HistoricoMovimentos,{uid,produtoNome:nome,close:()=>setVerHistorico(false)})
+      ), React.createElement(EstoqueHistoricoModal,{uid,estoqueId:prodAcabadoAtual?.id,nomeItem:nome,close:()=>setVerHistorico(false)})
     ); }
 
   return React.createElement('div',null, // Header
