@@ -1708,7 +1708,7 @@ function EstoqueHistoricoModal({uid, estoqueId, nomeItem, close}){
   );
 }
 
-function FichaRecheioForm({uid,db,reload,close,ficha}){
+function FichaRecheioForm({uid,db,reload,close,ficha,setM}){
   const{estoque,ficha_ingredientes}=db;
   const[nome,setNome]=React.useState(ficha?.nome||'');
   const[rendimento,setRendimento]=React.useState(String(ficha?.rendimento||''));
@@ -1750,10 +1750,17 @@ function FichaRecheioForm({uid,db,reload,close,ficha}){
   };
 
   const excluir=async()=>{
-    if(!confirm('Excluir ficha "'+nome+'"?'))return;
-    await sb.from('fichas_tecnicas').delete().eq('id',ficha.id);
-    toast('Excluído!',false,true);reload();close();
-  };
+    if(!setM){ await sb.from('fichas_tecnicas').delete().eq('id',ficha.id); toast('Excluído!',false,true);reload();close();return; }
+    setM({title:'Excluir Recheio',body:React.createElement('div',null,
+      React.createElement('div',{style:{fontSize:13,color:'#666',marginBottom:18,lineHeight:1.6}},'Excluir a ficha "'+nome+'"? Essa ação não pode ser desfeita.'),
+      React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
+        React.createElement('button',{onClick:()=>setM({title:nome,wide:true,body:React.createElement(FichaRecheioForm,{uid,db,reload,ficha,setM,close})}),style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'}},'Cancelar'),
+        React.createElement('button',{onClick:async()=>{ setM(null);
+          await sb.from('fichas_tecnicas').delete().eq('id',ficha.id);
+          toast('Excluído!',false,true);reload();close(); },style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},'Excluir')
+      )
+    )}); };
+
 
   return React.createElement('div',null,
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'2fr 1fr 1fr',gap:10,marginBottom:14}},
@@ -1906,11 +1913,11 @@ function Estoque({uid,db,reload,setM}){ const{estoque,fichas,ficha_ingredientes}
   const criticos=items.filter(e=>Number(e.qtd)<=Number(e.minimo)&&Number(e.minimo)>0);
 
   const novo=()=>{
-    if(sec==='Recheio')setM({title:'+ Ficha de Recheio',wide:true,body:React.createElement(FichaRecheioForm,{uid,db,reload,close:()=>setM(null)})});
+    if(sec==='Recheio')setM({title:'+ Ficha de Recheio',wide:true,body:React.createElement(FichaRecheioForm,{uid,db,reload,setM,close:()=>setM(null)})});
     else setM({title:'+ '+secAtual.label,body:React.createElement(NovoEst,{uid,reload,catInicial:sec,close:()=>setM(null)})});
   };
   const editar=(e)=>{
-    if(e._fichaId&&sec==='Recheio')setM({title:'✏ '+e.nome+' (Recheio)',wide:true,body:React.createElement(FichaRecheioForm,{uid,db,reload,close:()=>setM(null),ficha:(fichas||[]).find(f=>f.id===e._fichaId)})});
+    if(e._fichaId&&sec==='Recheio')setM({title:'✏ '+e.nome+' (Recheio)',wide:true,body:React.createElement(FichaRecheioForm,{uid,db,reload,setM,close:()=>setM(null),ficha:(fichas||[]).find(f=>f.id===e._fichaId)})});
     else if(e._fichaId)setM({title:'✏ '+e.nome+' (Ficha)',wide:true,body:React.createElement(FichaForm,{uid,db,reload,setM,ficha:(fichas||[]).find(f=>f.id===e._fichaId),close:()=>setM(null)})});
     else setM({title:'✏ '+e.nome,body:React.createElement(NovoEst,{uid,reload,item:e,close:()=>setM(null)})});
   };
@@ -1956,7 +1963,13 @@ function Estoque({uid,db,reload,setM}){ const{estoque,fichas,ficha_ingredientes}
               return React.createElement(TR,{key:e.id,onClick:()=>editar(e),cells:[
                 React.createElement('span',{style:{fontWeight:700,fontSize:13,color:'#111'}},e.nome), React.createElement('span',{style:{fontSize:12,color:'#888'}},e.unidade||'un'), React.createElement('span',{style:{fontWeight:700,color:Number(e.qtd)<=Number(e.minimo)&&Number(e.minimo)>0?'#dc2626':'#111'}},e.qtd), React.createElement('span',{style:{fontSize:12,color:'#aaa'}},e.minimo||'—'), React.createElement(Badge,{t:st,c:stC}), React.createElement('span',{style:{fontSize:12}},F(e.custo)), React.createElement('span',{style:{fontWeight:600}},F(Number(e.qtd||0)*Number(e.custo||0))), ...(sec!=='Cookie'?[React.createElement('span',{style:{fontSize:11,color:diff<30&&diff>=0?'#f59e0b':diff<0?'#dc2626':'#aaa'}},e.validade?FD(e.validade):'—')]:[]), React.createElement('div',{style:{display:'flex',gap:4}},
                 React.createElement('button',{onClick:ev=>{ev.stopPropagation();if(e.id&&!String(e.id).startsWith('f_'))setM({title:'Histórico — '+e.nome,wide:true,body:React.createElement(EstoqueHistoricoModal,{uid,estoqueId:e.id,nomeItem:e.nome,close:()=>setM(null)})});else toast('Registre uma movimentação primeiro',false,true);},style:{background:'#f0f9ff',color:'#2563eb',border:'none',borderRadius:7,padding:'4px 10px',fontSize:11,cursor:'pointer',fontWeight:600}},'Hist.'),
-                React.createElement('button',{onClick:ev=>{ev.stopPropagation();mov(e);},style:{background:secAtual.almox?secAtual.cor:'#f5f5f5',color:secAtual.almox?'#fff':'#555',border:'none',borderRadius:7,padding:'4px 10px',fontSize:11,cursor:'pointer',fontWeight:600}},secAtual.almox?'Mov.':'Mover'), React.createElement('button',{onClick:async ev=>{ev.stopPropagation();if(!confirm('Excluir '+e.nome+'?'))return;await sb.from('estoque').delete().eq('id',e.id);reload();},style:{background:'#fee2e2',color:'#dc2626',border:'none',borderRadius:7,padding:'4px 8px',fontSize:11,cursor:'pointer',fontWeight:600}},'✕')
+                React.createElement('button',{onClick:ev=>{ev.stopPropagation();mov(e);},style:{background:secAtual.almox?secAtual.cor:'#f5f5f5',color:secAtual.almox?'#fff':'#555',border:'none',borderRadius:7,padding:'4px 10px',fontSize:11,cursor:'pointer',fontWeight:600}},secAtual.almox?'Mov.':'Mover'), React.createElement('button',{onClick:ev=>{ev.stopPropagation();setM({title:'Excluir Item',body:React.createElement('div',null,
+                  React.createElement('div',{style:{fontSize:13,color:'#666',marginBottom:18,lineHeight:1.6}},'Excluir "'+e.nome+'" do estoque? Essa ação não pode ser desfeita.'),
+                  React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
+                    React.createElement('button',{onClick:()=>setM(null),style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'}},'Cancelar'),
+                    React.createElement('button',{onClick:async()=>{ setM(null); await sb.from('estoque').delete().eq('id',e.id);reload(); },style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},'Excluir')
+                  )
+                )});},style:{background:'#fee2e2',color:'#dc2626',border:'none',borderRadius:7,padding:'4px 8px',fontSize:11,cursor:'pointer',fontWeight:600}},'✕')
               )
               ]}); }), empty:'Nenhum item.' })
     )
@@ -2086,10 +2099,10 @@ function FichasTecnicas({uid,db,reload,setM}){ const{fichas,estoque}=db;
     return catOk&&(!busca||(f.nome||'').toLowerCase().includes(busca.toLowerCase()));
   });
   const nova=()=>isRecheio
-    ?setM({title:'Nova Ficha de Recheio',wide:true,body:React.createElement(FichaRecheioForm,{uid,db,reload,close:()=>setM(null)})})
+    ?setM({title:'Nova Ficha de Recheio',wide:true,body:React.createElement(FichaRecheioForm,{uid,db,reload,setM,close:()=>setM(null)})})
     :setM({title:'Nova Ficha Técnica',wide:true,body:React.createElement(FichaForm,{uid,db,reload,setM,close:()=>setM(null)})});
   const editar=(f)=>isRecheio
-    ?setM({title:f.nome,wide:true,body:React.createElement(FichaRecheioForm,{uid,db,reload,ficha:f,close:()=>setM(null)})})
+    ?setM({title:f.nome,wide:true,body:React.createElement(FichaRecheioForm,{uid,db,reload,ficha:f,setM,close:()=>setM(null)})})
     :setM({title:f.nome,wide:true,body:React.createElement(FichaForm,{uid,db,reload,ficha:f,setM,close:()=>setM(null)})});
 
   const[ingredientesPorFicha,setIngredientesPorFicha]=React.useState({});
