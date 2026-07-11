@@ -5397,6 +5397,7 @@ function App(){ const[user,setUser]=useState(null);const[page,setPage]=useState(
         else if(novoProd){ await sb.from('estoque_movimentos').insert({ user_id:user.id,estoque_id:novoProd.id,produto_nome:ficha.nome,nome_item:ficha.nome, tipo:'saida_venda',quantidade:qtdVendida,saldo_antes:0,saldo_apos:novaQtd,saldo_depois:novaQtd, motivo:'saida_venda', referencia:'#'+(pedido.pedido_id||sourceId), descricao:'Venda — pedido #'+(pedido.pedido_id||sourceId)+(pedido.cliente?' · '+pedido.cliente:'')+' (sem produção prévia)' });
           toast('⚠ '+ficha.nome+' vendido sem produção prévia — estoque ficou negativo ('+novaQtd+')',true); } }
       // Produto acabado agora sempre grava histórico, mesmo na primeira venda sem produção prévia
+    }
 
 
     if(semVinculo.length>0){ toast('⚠ Pedido #'+(pedido.pedido_id||'')+': sem vínculo de estoque para '+semVinculo.join(', '),true); }
