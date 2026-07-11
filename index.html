@@ -5349,7 +5349,7 @@ function App(){ const[user,setUser]=useState(null);const[page,setPage]=useState(
         const qtdVendida=Number(it.quantity||it.qty||1);
         if(prod){ const novaQtd=Number(prod.qtd||0)+qtdVendida;
           await sb.from('estoque').update({qtd:novaQtd,qtd_estoque:novaQtd}).eq('id',prod.id);
-          await sb.from('estoque_movimentos').insert({ user_id:user.id,estoque_id:prod.id,produto_nome:ficha.nome, tipo:'saida_cancelamento',quantidade:qtdVendida,saldo_apos:novaQtd, referencia:'#'+(pedido.pedido_id||sourceId), descricao:'Devolução — pedido #'+(pedido.pedido_id||sourceId)+' cancelado' }); } }
+          await sb.from('estoque_movimentos').insert({ user_id:user.id,estoque_id:prod.id,produto_nome:ficha.nome,nome_item:ficha.nome, tipo:'saida_cancelamento',quantidade:qtdVendida,saldo_antes:Number(prod.qtd||0),saldo_apos:novaQtd,saldo_depois:novaQtd,motivo:'saida_cancelamento', referencia:'#'+(pedido.pedido_id||sourceId), descricao:'Devolução — pedido #'+(pedido.pedido_id||sourceId)+' cancelado' }); } }
       await sb.from('estoque_baixas').delete().eq('user_id',user.id).eq('pedido_source_id',sourceId);
       toast('↩ Pedido #'+(pedido.pedido_id||'')+' cancelado — estoque devolvido',false,true);
       const{data:novoEstoque}=await sb.from('estoque').select('*').eq('user_id',user.id).order('nome');
@@ -5389,9 +5389,15 @@ function App(){ const[user,setUser]=useState(null);const[page,setPage]=useState(
       if(prod){ const novaQtd=Number(prod.qtd||0)-qtdVendida;
         const{error:errUpd}=await sb.from('estoque').update({qtd:novaQtd,qtd_estoque:novaQtd}).eq('id',prod.id);
         if(errUpd){toast('Erro ao baixar '+ficha.nome+': '+errUpd.message,true);}
-        else{ await sb.from('estoque_movimentos').insert({ user_id:user.id,estoque_id:prod.id,produto_nome:ficha.nome, tipo:'saida_venda',quantidade:qtdVendida,saldo_apos:novaQtd, referencia:'#'+(pedido.pedido_id||sourceId), descricao:'Venda — pedido #'+(pedido.pedido_id||sourceId)+(pedido.cliente?' · '+pedido.cliente:'') }); } }
-      // Se não existe produto acabado cadastrado ainda, não cria — só alerta quando vender sem produção prévia
-}
+        else{ await sb.from('estoque_movimentos').insert({ user_id:user.id,estoque_id:prod.id,produto_nome:ficha.nome,nome_item:ficha.nome, tipo:'saida_venda',quantidade:qtdVendida,saldo_antes:Number(prod.qtd||0),saldo_apos:novaQtd,saldo_depois:novaQtd, motivo:'saida_venda', referencia:'#'+(pedido.pedido_id||sourceId), descricao:'Venda — pedido #'+(pedido.pedido_id||sourceId)+(pedido.cliente?' · '+pedido.cliente:'') }); } }
+      else{ // Produto acabado ainda não tem registro em estoque — cria na hora (qtd pode ficar negativa, sinal de venda sem produção prévia)
+        const novaQtd=-qtdVendida;
+        const{data:novoProd,error:errIns}=await sb.from('estoque').insert({user_id:user.id,nome:ficha.nome,categoria:'Cookie',qtd:novaQtd,qtd_estoque:novaQtd,unidade:'un',minimo:0,custo:0}).select().single();
+        if(errIns){toast('Erro ao criar estoque de '+ficha.nome+': '+errIns.message,true);}
+        else if(novoProd){ await sb.from('estoque_movimentos').insert({ user_id:user.id,estoque_id:novoProd.id,produto_nome:ficha.nome,nome_item:ficha.nome, tipo:'saida_venda',quantidade:qtdVendida,saldo_antes:0,saldo_apos:novaQtd,saldo_depois:novaQtd, motivo:'saida_venda', referencia:'#'+(pedido.pedido_id||sourceId), descricao:'Venda — pedido #'+(pedido.pedido_id||sourceId)+(pedido.cliente?' · '+pedido.cliente:'')+' (sem produção prévia)' });
+          toast('⚠ '+ficha.nome+' vendido sem produção prévia — estoque ficou negativo ('+novaQtd+')',true); } }
+      // Produto acabado agora sempre grava histórico, mesmo na primeira venda sem produção prévia
+
 
     if(semVinculo.length>0){ toast('⚠ Pedido #'+(pedido.pedido_id||'')+': sem vínculo de estoque para '+semVinculo.join(', '),true); }
 
