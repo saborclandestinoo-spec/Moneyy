@@ -1967,7 +1967,11 @@ function Estoque({uid,db,reload,setM}){ const{estoque,fichas,ficha_ingredientes}
                   React.createElement('div',{style:{fontSize:13,color:'#666',marginBottom:18,lineHeight:1.6}},'Excluir "'+e.nome+'" do estoque? Essa ação não pode ser desfeita.'),
                   React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
                     React.createElement('button',{onClick:()=>setM(null),style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'}},'Cancelar'),
-                    React.createElement('button',{onClick:async()=>{ setM(null); await sb.from('estoque').delete().eq('id',e.id);reload(); },style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},'Excluir')
+                    React.createElement('button',{onClick:async()=>{ setM(null);
+                      await sb.from('estoque_movimentos').delete().eq('estoque_id',String(e.id));
+                      const{error:errDel}=await sb.from('estoque').delete().eq('id',e.id);
+                      if(errDel){toast('Erro ao excluir: '+errDel.message,true);return;}
+                      toast('Excluído!',false,true);reload(); },style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},'Excluir')
                   )
                 )});},style:{background:'#fee2e2',color:'#dc2626',border:'none',borderRadius:7,padding:'4px 8px',fontSize:11,cursor:'pointer',fontWeight:600}},'✕')
               )
