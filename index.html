@@ -1625,7 +1625,7 @@ async function registrarMovEstoque(uid, {estoqueId, nomeItem, tipo, quantidade, 
   }catch(e){ console.warn('Erro ao registrar movimento:',e); }
 }
 
-function EstoqueHistoricoModal({uid, estoqueId, nomeItem, close}){
+function EstoqueHistoricoModal({uid, estoqueId, nomeItem, close, setM}){
   const[movs,setMovs]=React.useState([]);
   const[loading,setLoading]=React.useState(true);
   const[pg,setPg]=React.useState(0);
@@ -1684,21 +1684,41 @@ function EstoqueHistoricoModal({uid, estoqueId, nomeItem, close}){
               React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',fontSize:12,fontWeight:700,color:'#111'}},(m.saldo_depois!=null?m.saldo_depois:m.saldo_apos)!=null?Number(m.saldo_depois!=null?m.saldo_depois:m.saldo_apos).toFixed(2):'—'),
               React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',fontSize:11,color:'#888'}},m.motivo||'—'),
               React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',fontSize:11,color:'#aaa',maxWidth:180,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},m.descricao||'—'),
-              React.createElement('td',{style:{padding:'10px 12px',textAlign:'right'}},
-                React.createElement('button',{onClick:async()=>{
-                  if(!confirm('Estornar esta movimentação? O estoque será revertido.'))return;
-                  const estoqueOp=m.tipo==='entrada'||m.tipo==='producao'?'saida':'entrada';
-                  const{data:est}=await sb.from('estoque').select('qtd').eq('id',m.estoque_id).maybeSingle();
-                  if(est){
-                    const qtdAnt=Number(est.qtd||0);
-                    const qtdNova=estoqueOp==='entrada'?qtdAnt+Number(m.quantidade||0):Math.max(0,qtdAnt-Number(m.quantidade||0));
-                    await sb.from('estoque').update({qtd:qtdNova}).eq('id',m.estoque_id);
-                    await registrarMovEstoque(uid,{estoqueId:String(m.estoque_id),nomeItem:m.nome_item,tipo:'ajuste',quantidade:Number(m.quantidade||0),saldoAntes:qtdAnt,saldoDepois:qtdNova,motivo:'estorno',descricao:'Estorno de: '+m.motivo,custoUnit:m.custo_unit});
-                    await sb.from('estoque_movimentos').delete().eq('id',m.id);
-                    toast('Estornado!',false,true);
-                    setMovs(p=>p.filter(x=>x.id!==m.id));
-                  }
-                },style:{background:'#fff3cd',color:'#856404',border:'none',borderRadius:6,padding:'3px 8px',fontSize:10,cursor:'pointer',fontWeight:700,whiteSpace:'nowrap'}},'↩ Estornar')
+              React.createElement('td',{style:{padding:'10px 12px',textAlign:'right',whiteSpace:'nowrap'}},
+                React.createElement('button',{onClick:()=>{
+                  if(!setM){toast('Não é possível estornar aqui.',true);return;}
+                  setM({title:'Estornar Movimentação',body:React.createElement('div',null,
+                    React.createElement('div',{style:{fontSize:13,color:'#666',marginBottom:18,lineHeight:1.6}},'Estornar esta movimentação de "'+(m.nome_item||nomeItem)+'"? O estoque será revertido (efeito contrário) e um registro de estorno será criado.'),
+                    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
+                      React.createElement('button',{onClick:()=>setM(null),style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'}},'Cancelar'),
+                      React.createElement('button',{onClick:async()=>{ setM(null);
+                        const isEntradaTipo=['entrada','producao','saida_cancelamento','entrada_estoque_inicial','compra'].includes(m.tipo);
+                        const estoqueOp=isEntradaTipo?'saida':'entrada';
+                        const{data:est}=await sb.from('estoque').select('qtd').eq('id',m.estoque_id).maybeSingle();
+                        if(!est){toast('Item de estoque não encontrado (pode ter sido excluído).',true);return;}
+                        const qtdAnt=Number(est.qtd||0);
+                        const qtdNova=estoqueOp==='entrada'?qtdAnt+Number(m.quantidade||0):Math.max(0,qtdAnt-Number(m.quantidade||0));
+                        await sb.from('estoque').update({qtd:qtdNova,qtd_estoque:qtdNova}).eq('id',m.estoque_id);
+                        await registrarMovEstoque(uid,{estoqueId:String(m.estoque_id),nomeItem:m.nome_item||m.produto_nome||nomeItem,tipo:'ajuste',quantidade:Number(m.quantidade||0),saldoAntes:qtdAnt,saldoDepois:qtdNova,motivo:'estorno',descricao:'Estorno de: '+(m.motivo||m.tipo),custoUnit:m.custo_unit});
+                        await sb.from('estoque_movimentos').delete().eq('id',m.id);
+                        toast('Estornado!',false,true);
+                        setMovs(p=>p.filter(x=>x.id!==m.id));
+                      },style:{background:'#f59e0b',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},'Estornar')
+                    )
+                  )}); },style:{background:'#fff3cd',color:'#856404',border:'none',borderRadius:6,padding:'3px 8px',fontSize:10,cursor:'pointer',fontWeight:700,whiteSpace:'nowrap',marginRight:6}},'↩ Estornar'),
+                React.createElement('button',{onClick:()=>{
+                  if(!setM){toast('Não é possível excluir aqui.',true);return;}
+                  setM({title:'Excluir Movimentação',body:React.createElement('div',null,
+                    React.createElement('div',{style:{fontSize:13,color:'#666',marginBottom:18,lineHeight:1.6}},'Excluir esta movimentação do histórico? Isso NÃO altera o saldo do estoque, só remove o registro. Use "Estornar" se quiser reverter o efeito no estoque.'),
+                    React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
+                      React.createElement('button',{onClick:()=>setM(null),style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'}},'Cancelar'),
+                      React.createElement('button',{onClick:async()=>{ setM(null);
+                        await sb.from('estoque_movimentos').delete().eq('id',m.id);
+                        toast('Movimentação excluída!',false,true);
+                        setMovs(p=>p.filter(x=>x.id!==m.id));
+                      },style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},'Excluir')
+                    )
+                  )}); },style:{background:'#fee2e2',color:'#dc2626',border:'none',borderRadius:6,padding:'3px 8px',fontSize:10,cursor:'pointer',fontWeight:700,whiteSpace:'nowrap'}},'✕ Excluir')
               )
             );
           }))
@@ -1969,7 +1989,7 @@ function Estoque({uid,db,reload,setM}){ const{estoque,fichas,ficha_ingredientes}
               const stC=st==='Crítico'||st==='Vencido'?'red':st==='Vencendo'?'amber':'green';
               return React.createElement(TR,{key:e.id,onClick:()=>editar(e),cells:[
                 React.createElement('span',{style:{fontWeight:700,fontSize:13,color:'#111'}},e.nome), React.createElement('span',{style:{fontSize:12,color:'#888'}},e.unidade||'un'), React.createElement('span',{style:{fontWeight:700,color:Number(e.qtd)<=Number(e.minimo)&&Number(e.minimo)>0?'#dc2626':'#111'}},e.qtd), React.createElement('span',{style:{fontSize:12,color:'#aaa'}},e.minimo||'—'), React.createElement(Badge,{t:st,c:stC}), React.createElement('span',{style:{fontSize:12}},F(e.custo)), React.createElement('span',{style:{fontWeight:600}},F(Number(e.qtd||0)*Number(e.custo||0))), ...(sec!=='Cookie'?[React.createElement('span',{style:{fontSize:11,color:diff<30&&diff>=0?'#f59e0b':diff<0?'#dc2626':'#aaa'}},e.validade?FD(e.validade):'—')]:[]), React.createElement('div',{style:{display:'flex',gap:4}},
-                React.createElement('button',{onClick:ev=>{ev.stopPropagation();if(e.id&&!String(e.id).startsWith('f_'))setM({title:'Histórico — '+e.nome,wide:true,body:React.createElement(EstoqueHistoricoModal,{uid,estoqueId:e.id,nomeItem:e.nome,close:()=>setM(null)})});else toast('Registre uma movimentação primeiro',false,true);},style:{background:'#f0f9ff',color:'#2563eb',border:'none',borderRadius:7,padding:'4px 10px',fontSize:11,cursor:'pointer',fontWeight:600}},'Hist.'),
+                React.createElement('button',{onClick:ev=>{ev.stopPropagation();if(e.id&&!String(e.id).startsWith('f_'))setM({title:'Histórico — '+e.nome,wide:true,body:React.createElement(EstoqueHistoricoModal,{uid,estoqueId:e.id,nomeItem:e.nome,setM,close:()=>setM(null)})});else toast('Registre uma movimentação primeiro',false,true);},style:{background:'#f0f9ff',color:'#2563eb',border:'none',borderRadius:7,padding:'4px 10px',fontSize:11,cursor:'pointer',fontWeight:600}},'Hist.'),
                 React.createElement('button',{onClick:ev=>{ev.stopPropagation();mov(e);},style:{background:secAtual.almox?secAtual.cor:'#f5f5f5',color:secAtual.almox?'#fff':'#555',border:'none',borderRadius:7,padding:'4px 10px',fontSize:11,cursor:'pointer',fontWeight:600}},secAtual.almox?'Mov.':'Mover'), React.createElement('button',{onClick:ev=>{ev.stopPropagation();
                 if(String(e.id).startsWith('f_')||String(e.id).startsWith('fr_')){toast('Este item ainda não tem registro de estoque — nada a excluir. Exclua a Ficha Técnica em vez disso.',false,true);return;}
                 setM({title:'Excluir Item',body:React.createElement('div',null,
@@ -2442,7 +2462,7 @@ function FichaForm({uid,db,reload,close,ficha,setM}){ const[verHistorico,setVerH
       ), React.createElement(AlterarEstoqueModal,{uid,produto:prodAcabadoAtual,close:()=>setAlterarEstoque(false),reload})
     ); }
   if(verHistorico){ return React.createElement('div',null, React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}, React.createElement('div',{style:{fontWeight:700,fontSize:14}},'Histórico de Movimentação — '+nome), React.createElement('button',{onClick:()=>setVerHistorico(false),style:{background:'#f5f5f5',color:'#555',padding:'7px 14px',borderRadius:9,fontSize:12,fontWeight:600,border:'none',cursor:'pointer'}},'← Voltar')
-      ), React.createElement(EstoqueHistoricoModal,{uid,estoqueId:prodAcabadoAtual?.id,nomeItem:nome,close:()=>setVerHistorico(false)})
+      ), React.createElement(EstoqueHistoricoModal,{uid,estoqueId:prodAcabadoAtual?.id,nomeItem:nome,setM,close:()=>setVerHistorico(false)})
     ); }
 
   return React.createElement('div',null, // Header
