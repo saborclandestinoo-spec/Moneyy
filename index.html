@@ -4087,6 +4087,8 @@ function ProducaoForm({uid,db,reload,close,fichaIdInicial}){ const{fichas,estoqu
   const[bulkSel,setBulkSel]=React.useState({});
   const[bulkBusca,setBulkBusca]=React.useState('');
   const[ld,setLd]=React.useState(false);
+  const[ignorarFalta,setIgnorarFalta]=React.useState(false);
+  const[naoDescontarInsumo,setNaoDescontarInsumo]=React.useState(false);
 
   const ficha=(fichas||[]).find(f=>f.id===fichaId);
   const qtdN=parseFloat(qtd)||0;
@@ -4107,16 +4109,19 @@ function ProducaoForm({uid,db,reload,close,fichaIdInicial}){ const{fichas,estoqu
 
   const produzir=async()=>{ if(!fichaId){toast('Selecione a ficha técnica',true);return;}
     if(qtdN<=0){toast('Informe a quantidade produzida',true);return;}
-    if(faltando.length>0){toast('⚠ Estoque insuficiente para: '+faltando.map(f=>f.nome).join(', ')+'. Verifique os ingredientes.',true);return;}
+    if(faltando.length>0&&!ignorarFalta&&!naoDescontarInsumo){toast('⚠ Estoque insuficiente para: '+faltando.map(f=>f.item.nome).join(', ')+'. Marque "Produzir mesmo assim" ou "Não descontar insumos" para continuar.',true);return;}
 
     setLd(true);
 
-    // 1. Baixa os ingredientes do estoque
-    for(const c of checagem){ if(c.item){ const novaQtd=Number(c.item.qtd||0)-c.necessario;
+    // 1. Baixa os ingredientes do estoque (pula se "não descontar insumos" estiver marcado)
+    if(!naoDescontarInsumo){
+      for(const c of checagem){ if(c.item){ const novaQtd=Number(c.item.qtd||0)-c.necessario;
         // Mantém qtd_embalagem e recalcula qtd_estoque proporcionalmente
         const emb=Number(c.item.qtd_embalagem||1);
         const novaQtdEstoque=emb>0?novaQtd/emb:0;
-        await sb.from('estoque').update({qtd:novaQtd,qtd_estoque:novaQtdEstoque}).eq('id',c.item.id); } }
+        await sb.from('estoque').update({qtd:novaQtd,qtd_estoque:novaQtdEstoque}).eq('id',c.item.id);
+        await registrarMovEstoque(uid,{estoqueId:String(c.item.id),nomeItem:c.item.nome,tipo:'saida',quantidade:c.necessario,saldoAntes:Number(c.item.qtd||0),saldoDepois:novaQtd,motivo:'consumo_producao',descricao:'Consumo em produção de '+ficha.nome+' em '+FD(data)}); } }
+    }
 
     // 2. Dá entrada no produto acabado — cookie ou recheio
     const isRecheioFicha=ficha.categoria==='Recheio';
@@ -4157,7 +4162,16 @@ function ProducaoForm({uid,db,reload,close,fichaIdInicial}){ const{fichas,estoqu
                   )
                 :React.createElement('span',{style:{fontSize:11,color:'#aaa'}},'Não vinculado ao estoque')
             ))
-      ), faltando.length>0&&React.createElement('div',{style:{background:'#fff5f5',borderRadius:10,padding:'10px 14px',marginBottom:14,fontSize:12,color:'#dc2626'}}, '⚠ Estoque insuficiente para '+faltando.length+' ingrediente(s). Você pode produzir mesmo assim, mas o estoque ficará negativo.'
+      ), faltando.length>0&&React.createElement('div',{style:{background:'#fff5f5',borderRadius:10,padding:'10px 14px',marginBottom:10,fontSize:12,color:'#dc2626'}}, '⚠ Estoque insuficiente para '+faltando.length+' ingrediente(s): '+faltando.map(f=>f.item.nome).join(', ')+'.'
+      ), faltando.length>0&&React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:6,marginBottom:14}},
+          React.createElement('label',{style:{display:'flex',alignItems:'center',gap:8,fontSize:12,color:'#555',cursor:'pointer'}},
+            React.createElement('input',{type:'checkbox',checked:ignorarFalta,onChange:e=>setIgnorarFalta(e.target.checked),disabled:naoDescontarInsumo}),
+            'Produzir mesmo assim (desconta insumo e deixa estoque negativo)'
+          ),
+          React.createElement('label',{style:{display:'flex',alignItems:'center',gap:8,fontSize:12,color:'#555',cursor:'pointer'}},
+            React.createElement('input',{type:'checkbox',checked:naoDescontarInsumo,onChange:e=>setNaoDescontarInsumo(e.target.checked)}),
+            'Não descontar insumos do estoque (só dá entrada no produto acabado)'
+          )
       )
     ), React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:8}}, React.createElement('button',{style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'},onClick:close},'Cancelar'), React.createElement('button',{style:{background:'#dc2626',color:'#fff',padding:'9px 24px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:produzir,disabled:!fichaId||ld}, ld?'Processando...':'Registrar Produção'
       )
