@@ -3950,15 +3950,16 @@ function PlanejamentoProducao({uid,db,reload,setM}){
           React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
             React.createElement('table',{style:{width:'100%',borderCollapse:'collapse'}},
               React.createElement('thead',null,React.createElement('tr',{style:{background:'#f9f9fb'}},
-                ['Produto','Em estoque','Mínimo','Produzir','Custo unit.','Custo total'].map((h,i)=>
+                ['Produto','Em estoque','Mínimo','Produzir','Custo unit.','Custo total',''].map((h,i)=>
                   React.createElement('th',{key:i,style:{padding:'10px 12px',fontSize:11,fontWeight:700,color:'#888',textAlign:i===0?'left':'right',borderBottom:'1px solid #f0f0f0',whiteSpace:'nowrap'}},h)))),
-              React.createElement('tbody',null, plano.map(p=>React.createElement('tr',{key:p.id,style:{borderBottom:'1px solid #f7f7f7'}},
+              React.createElement('tbody',null, plano.map(p=>React.createElement('tr',{key:p.id,onClick:()=>setM({title:'Registrar Produção — '+p.nome,wide:true,body:React.createElement(ProducaoForm,{uid,db,reload,close:()=>setM(null),fichaIdInicial:p.id,qtdInicial:p.sugerido})}),style:{borderBottom:'1px solid #f7f7f7',cursor:'pointer'},onMouseEnter:e=>e.currentTarget.style.background='#fafafa',onMouseLeave:e=>e.currentTarget.style.background='transparent'},
                 React.createElement('td',{style:{padding:'12px',fontWeight:700,fontSize:13}},p.nome),
                 React.createElement('td',{style:{padding:'12px',textAlign:'right',fontWeight:700,color:'#dc2626'}},p.qtdEst+' un'),
                 React.createElement('td',{style:{padding:'12px',textAlign:'right',color:'#888'}},p.minimo+' un'),
                 React.createElement('td',{style:{padding:'12px',textAlign:'right',fontWeight:800,fontSize:15,color:'#dc2626'}},'+'+p.sugerido+' un'),
                 React.createElement('td',{style:{padding:'12px',textAlign:'right',fontSize:12,color:'#888'}},p.custo>0?F(p.custo):'—'),
-                React.createElement('td',{style:{padding:'12px',textAlign:'right',fontWeight:700,color:'#2563eb'}},p.sugerido>0?F(p.custoTotal):'—')
+                React.createElement('td',{style:{padding:'12px',textAlign:'right',fontWeight:700,color:'#2563eb'}},p.sugerido>0?F(p.custoTotal):'—'),
+                React.createElement('td',{style:{padding:'12px',textAlign:'right'}},React.createElement('span',{style:{fontSize:11,color:'#7c3aed',fontWeight:700}},'✏ Produzir'))
               )))
             )
           )
@@ -4040,9 +4041,9 @@ function ProducaoHistorico({uid,db,reload,setM}){ const{fichas}=db;
   );
 }
 
-function ProducaoForm({uid,db,reload,close,fichaIdInicial}){ const{fichas,estoque}=db;
+function ProducaoForm({uid,db,reload,close,fichaIdInicial,qtdInicial}){ const{fichas,estoque}=db;
   const[fichaId,setFichaId]=React.useState(fichaIdInicial||'');
-  const[qtd,setQtd]=React.useState('1');
+  const[qtd,setQtd]=React.useState(qtdInicial?String(qtdInicial):'1');
   const[data,setData]=React.useState(TODAY());
   const[hora,setHora]=React.useState(()=>new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'}));
   const[obs,setObs]=React.useState('');
@@ -5367,12 +5368,14 @@ function App(){ const[user,setUser]=useState(null);const[page,setPage]=useState(
       if(prod){ const novaQtd=Number(prod.qtd||0)-qtdVendida;
         const{error:errUpd}=await sb.from('estoque').update({qtd:novaQtd,qtd_estoque:novaQtd}).eq('id',prod.id);
         if(errUpd){toast('Erro ao baixar '+ficha.nome+': '+errUpd.message,true);}
-        else{ await sb.from('estoque_movimentos').insert({ user_id:user.id,estoque_id:prod.id,produto_nome:ficha.nome,nome_item:ficha.nome, tipo:'saida_venda',quantidade:qtdVendida,saldo_antes:Number(prod.qtd||0),saldo_apos:novaQtd,saldo_depois:novaQtd, motivo:'saida_venda', referencia:'#'+(pedido.pedido_id||sourceId), descricao:'Venda — pedido #'+(pedido.pedido_id||sourceId)+(pedido.cliente?' · '+pedido.cliente:'') }); } }
+        else{ const{error:errMov}=await sb.from('estoque_movimentos').insert({ user_id:user.id,estoque_id:prod.id,produto_nome:ficha.nome,nome_item:ficha.nome, tipo:'saida_venda',quantidade:qtdVendida,saldo_antes:Number(prod.qtd||0),saldo_apos:novaQtd,saldo_depois:novaQtd, motivo:'saida_venda', referencia:'#'+(pedido.pedido_id||sourceId), descricao:'Venda — pedido #'+(pedido.pedido_id||sourceId)+(pedido.cliente?' · '+pedido.cliente:'') });
+          if(errMov)toast('⚠ Estoque baixado mas histórico falhou p/ '+ficha.nome+': '+errMov.message,true); } }
       else{ // Produto acabado ainda não tem registro em estoque — cria na hora (qtd pode ficar negativa, sinal de venda sem produção prévia)
         const novaQtd=-qtdVendida;
         const{data:novoProd,error:errIns}=await sb.from('estoque').insert({user_id:user.id,nome:ficha.nome,categoria:'Cookie',qtd:novaQtd,qtd_estoque:novaQtd,unidade:'un',minimo:0,custo:0}).select().single();
         if(errIns){toast('Erro ao criar estoque de '+ficha.nome+': '+errIns.message,true);}
-        else if(novoProd){ await sb.from('estoque_movimentos').insert({ user_id:user.id,estoque_id:novoProd.id,produto_nome:ficha.nome,nome_item:ficha.nome, tipo:'saida_venda',quantidade:qtdVendida,saldo_antes:0,saldo_apos:novaQtd,saldo_depois:novaQtd, motivo:'saida_venda', referencia:'#'+(pedido.pedido_id||sourceId), descricao:'Venda — pedido #'+(pedido.pedido_id||sourceId)+(pedido.cliente?' · '+pedido.cliente:'')+' (sem produção prévia)' });
+        else if(novoProd){ const{error:errMov2}=await sb.from('estoque_movimentos').insert({ user_id:user.id,estoque_id:novoProd.id,produto_nome:ficha.nome,nome_item:ficha.nome, tipo:'saida_venda',quantidade:qtdVendida,saldo_antes:0,saldo_apos:novaQtd,saldo_depois:novaQtd, motivo:'saida_venda', referencia:'#'+(pedido.pedido_id||sourceId), descricao:'Venda — pedido #'+(pedido.pedido_id||sourceId)+(pedido.cliente?' · '+pedido.cliente:'')+' (sem produção prévia)' });
+          if(errMov2)toast('⚠ Histórico falhou p/ '+ficha.nome+': '+errMov2.message,true);
           toast('⚠ '+ficha.nome+' vendido sem produção prévia — estoque ficou negativo ('+novaQtd+')',true); } }
       // Produto acabado agora sempre grava histórico, mesmo na primeira venda sem produção prévia
     }
