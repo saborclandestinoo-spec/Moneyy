@@ -3726,7 +3726,8 @@ function CustomSelect({label,value,onChange,options,placeholder,acent,minimal}){
               const active=v===value;
               const indent=o.indent||0;
               const bold=o.bold||false;
-              return React.createElement('div',{ key:v||i, onClick:()=>{onChange(v);setOpen(false);}, style:{padding:'8px 14px 8px '+(14+indent)+'px',fontSize:bold?13:12,cursor:'pointer', color:active?cor:bold?'#111':'#555',fontWeight:active?700:bold?700:400, background:active?cor+'10':bold&&indent===0?'#f9f9f9':'#fff', borderBottom:'1px solid #fafafa', borderTop:bold&&indent===0&&i>0?'1px solid #eee':'none', transition:'background 0.1s'} },l); })
+              const disabled=o.disabled||false;
+              return React.createElement('div',{ key:v||i, onClick:disabled?undefined:()=>{onChange(v);setOpen(false);}, style:{padding:'8px 14px 8px '+(14+indent)+'px',fontSize:bold?13:12,cursor:disabled?'default':'pointer', color:disabled?'#999':active?cor:bold?'#111':'#555',fontWeight:active?700:bold?700:400, background:active?cor+'10':bold&&indent===0?'#f5f5f5':'#fff', borderBottom:'1px solid #fafafa', borderTop:bold&&indent===0&&i>0?'1px solid #eee':'none', transition:'background 0.1s',textTransform:disabled?'uppercase':'none',letterSpacing:disabled?'0.5px':'normal'} },l); })
       )
     )
   );
@@ -4393,21 +4394,34 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){ const{conta
         ), React.createElement('span',{style:{fontSize:13,fontWeight:600,color:'#111'}},'Vincular Produtos')
       ), vincularEstoque&&React.createElement('div',{style:{background:'#fff5f5',borderRadius:10,padding:'12px 14px',border:'1px solid #fee2e2'}}, React.createElement('div',{style:{display:'grid',gridTemplateColumns:'2fr 1fr',gap:10}}, React.createElement(CustomSelect,{label:'Item do estoque',value:estoqueId,onChange:setEstoqueId,
             options:[{v:'',l:'— Selecione —'},...(()=>{
-              // Todos os itens reais do estoque, qualquer categoria (Cookie, Recheio, Matéria-Prima, Embalagem etc), sem IDs falsos
+              // Todos os itens reais do estoque, qualquer categoria, mesmo com qtd zero — agrupados por categoria
               const seen=new Set();
-              return (estoque||[])
-                .filter(e=>e.id&&!String(e.id).startsWith('f_')&&!String(e.id).startsWith('fr_')&&Number(e.qtd||0)>0)
-                .filter(e=>{ const k=e.nome+'|'+e.categoria; if(seen.has(k))return false; seen.add(k); return true; })
-                .sort((a,b)=>a.categoria.localeCompare(b.categoria))
-                .map(e=>({v:e.id,l:e.nome+' — '+Number(e.qtd||0).toFixed(0)+' '+e.unidade+' ('+e.categoria+')'}));
+              const itens=(estoque||[])
+                .filter(e=>e.id&&!String(e.id).startsWith('f_')&&!String(e.id).startsWith('fr_'))
+                .filter(e=>{ const k=e.nome+'|'+e.categoria; if(seen.has(k))return false; seen.add(k); return true; });
+              const porCategoria={};
+              itens.forEach(e=>{ (porCategoria[e.categoria||'Outros']=porCategoria[e.categoria||'Outros']||[]).push(e); });
+              const out=[];
+              Object.keys(porCategoria).sort().forEach(cat=>{
+                out.push({v:'__cat_'+cat,l:cat,bold:true,indent:0,disabled:true});
+                porCategoria[cat].sort((a,b)=>a.nome.localeCompare(b.nome)).forEach(e=>{
+                  out.push({v:e.id,l:e.nome+' — '+Number(e.qtd||0).toFixed(0)+' '+e.unidade,indent:1});
+                });
+              });
+              return out;
             })()],
             placeholder:'— Selecione —',acent}), React.createElement(FloatInput,{label:'Qtd (un)',acent,type:'number',value:estoqueQtdEmb,onChange:e=>setEstoqueQtdEmb(e.target.value)})
         ), estoqueId&&React.createElement('div',{style:{fontSize:11,color:acent,marginTop:8,lineHeight:1.6}}, (()=>{ const it=(estoque||[]).find(e=>e.id===estoqueId);if(!it)return'';
             const totalUn=parseFloat(estoqueQtdEmb)||0;
             const saldoApos=isRec?Number(it.qtd||0)+totalUn:Math.max(0,Number(it.qtd||0)-totalUn);
+            const emb=Number(it.qtd_embalagem||0);
+            const qtdEmbalagens=emb>0?(totalUn/emb):null;
             return React.createElement('div',null,
               React.createElement('div',{style:{fontWeight:700}},(isRec?'↑ Entrada':'↓ Saída')+' de '+totalUn.toFixed(0)+' '+it.unidade),
-              React.createElement('div',{style:{color:'#888'}},'Estoque atual: '+Number(it.qtd||0).toFixed(0)+' → '+saldoApos.toFixed(0)+' '+it.unidade)
+              React.createElement('div',{style:{color:'#888'}},'Estoque atual: '+Number(it.qtd||0).toFixed(0)+' → '+saldoApos.toFixed(0)+' '+it.unidade),
+              qtdEmbalagens!=null&&React.createElement('div',{style:{color:'#888'}},'≈ '+qtdEmbalagens.toFixed(2)+' pacote(s) de '+emb+' '+it.unidade+' cada'),
+              React.createElement('div',{style:{color:'#888'}},'Custo unitário: R$ '+Number(it.custo||0).toFixed(4).replace('.',',')+' / '+it.unidade+' · Valor total: R$ '+(Number(it.custo||0)*totalUn).toFixed(2).replace('.',',')
+              )
             ); })()
         )
       )
