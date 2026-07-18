@@ -3877,21 +3877,33 @@ function ProducaoDetalhe({producao,db,close}){ const{fichas}=db;
 
 function PlanejamentoProducao({uid,db,reload,setM}){
   const{fichas,estoque,ficha_ingredientes}=db;
+  const[ocultos,setOcultos]=React.useState(()=>new Set());
+  const[extras,setExtras]=React.useState(()=>new Set());
+  const[qtdOverride,setQtdOverride]=React.useState({});
+  const[addOpen,setAddOpen]=React.useState(false);
+  const[addBusca,setAddBusca]=React.useState('');
+
+  const calcCusto=(f)=>((ficha_ingredientes||[]).filter(i=>i.ficha_id===f.id).reduce((s,i)=>{
+      const es=(estoque||[]).find(e=>e.id===i.estoque_id||e.nome===i.nome);
+      return s+(parseFloat(i.quantidade||0)*parseFloat(es?.custo||i.custo_unit||0));
+    },0))/(Number(f.rendimento||1));
 
   const plano=React.useMemo(()=>{
-    return (fichas||[]).filter(f=>f.categoria!=='Recheio').map(f=>{
+    const base=(fichas||[]).filter(f=>f.categoria!=='Recheio').map(f=>{
       const est=(estoque||[]).find(e=>e.categoria==='Cookie'&&(e.nome||'').toLowerCase()===(f.nome||'').toLowerCase());
       const qtdEst=Number(est?.qtd||0);
       const minimo=Number(est?.minimo||0);
-      if(minimo===0||qtdEst>=minimo)return null;
-      const sugerido=minimo; // always produce the full minimum
-      const custo=((ficha_ingredientes||[]).filter(i=>i.ficha_id===f.id).reduce((s,i)=>{
-        const es=(estoque||[]).find(e=>e.id===i.estoque_id||e.nome===i.nome);
-        return s+(parseFloat(i.quantidade||0)*parseFloat(es?.custo||i.custo_unit||0));
-      },0))/(Number(f.rendimento||1));
-      return{id:f.id,nome:f.nome,qtdEst,minimo,sugerido,custo,custoTotal:custo*sugerido,urgencia:(minimo-qtdEst)/minimo};
+      const abaixoDoMinimo=minimo>0&&qtdEst<minimo;
+      if(!abaixoDoMinimo&&!extras.has(f.id))return null;
+      if(ocultos.has(f.id))return null;
+      const sugeridoReal=qtdOverride[f.id]!=null?qtdOverride[f.id]:(abaixoDoMinimo?minimo-qtdEst:1);
+      const custo=calcCusto(f);
+      return{id:f.id,nome:f.nome,qtdEst,minimo,sugerido:sugeridoReal,custo,custoTotal:custo*sugeridoReal,urgencia:minimo>0?(minimo-qtdEst)/minimo:0,manual:extras.has(f.id)};
     }).filter(Boolean).sort((a,b)=>b.urgencia-a.urgencia);
-  },[fichas,estoque,ficha_ingredientes]);
+    return base;
+  },[fichas,estoque,ficha_ingredientes,ocultos,extras,qtdOverride]);
+
+  const disponiveisParaAdd=(fichas||[]).filter(f=>f.categoria!=='Recheio'&&!plano.some(p=>p.id===f.id)&&(!addBusca||f.nome.toLowerCase().includes(addBusca.toLowerCase())));
 
   const totalCusto=plano.reduce((s,p)=>s+p.custoTotal,0);
   const totalProduzir=plano.reduce((s,p)=>s+p.sugerido,0);
@@ -3931,13 +3943,27 @@ function PlanejamentoProducao({uid,db,reload,setM}){
   };
 
   return React.createElement(PW,{title:'Planejamento de Produção',sub:'Cookies abaixo do estoque mínimo',
-    actions:plano.length>0?[React.createElement('button',{key:'exp',onClick:exportarPDF,style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'}},'⬇ Exportar PDF')]:[]},
+    actions:[React.createElement('button',{key:'add',onClick:()=>setAddOpen(true),style:{background:'#f5f5f5',color:'#7c3aed',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'}},'+ Adicionar Cookie'), plano.length>0&&React.createElement('button',{key:'exp',onClick:exportarPDF,style:{background:'#dc2626',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'}},'⬇ Exportar PDF')].filter(Boolean)},
+    addOpen&&React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:16,marginBottom:16,boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+      React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}},
+        React.createElement('div',{style:{fontWeight:700,fontSize:14}},'Adicionar cookie ao planejamento'),
+        React.createElement('button',{onClick:()=>setAddOpen(false),style:{background:'#f5f5f5',color:'#555',border:'none',borderRadius:8,padding:'5px 10px',fontSize:12,cursor:'pointer'}},'Fechar')
+      ),
+      React.createElement(FloatInput,{label:'Buscar cookie',acent:'#7c3aed',value:addBusca,onChange:e=>setAddBusca(e.target.value)}),
+      React.createElement('div',{style:{maxHeight:220,overflowY:'auto',marginTop:10}},
+        disponiveisParaAdd.length===0
+          ?React.createElement('div',{style:{color:'#aaa',fontSize:12,padding:10,textAlign:'center'}},'Nenhum cookie disponível para adicionar.')
+          :disponiveisParaAdd.map(f=>React.createElement('div',{key:f.id,onClick:()=>{setExtras(p=>new Set([...p,f.id]));setOcultos(p=>{const n=new Set(p);n.delete(f.id);return n;});setAddOpen(false);setAddBusca('');},style:{padding:'9px 12px',borderRadius:8,cursor:'pointer',fontSize:13,fontWeight:600,display:'flex',justifyContent:'space-between'},onMouseEnter:e=>e.currentTarget.style.background='#faf5ff',onMouseLeave:e=>e.currentTarget.style.background='transparent'},
+              f.nome,React.createElement('span',{style:{color:'#7c3aed',fontSize:11,fontWeight:700}},'+ adicionar')
+            ))
+      )
+    ),
     plano.length===0
       ?React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:60,textAlign:'center',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
           React.createElement('div',{style:{fontSize:32,marginBottom:12}},'✅'),
           React.createElement('div',{style:{fontSize:15,fontWeight:700,color:'#16a34a',marginBottom:6}},'Tudo em dia!'),
           React.createElement('div',{style:{fontSize:13,color:'#aaa'}},'Nenhum cookie abaixo do estoque mínimo.'),
-          React.createElement('div',{style:{fontSize:12,color:'#ccc',marginTop:8}},'Defina o estoque mínimo na Ficha Técnica de cada cookie.')
+          React.createElement('div',{style:{fontSize:12,color:'#ccc',marginTop:8}},'Defina o estoque mínimo na Ficha Técnica de cada cookie, ou clique em "+ Adicionar Cookie" para incluir manualmente.')
         )
       :React.createElement(React.Fragment,null,
           React.createElement('div',{style:{display:'flex',gap:16,marginBottom:16}},
@@ -3950,22 +3976,28 @@ function PlanejamentoProducao({uid,db,reload,setM}){
           React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
             React.createElement('table',{style:{width:'100%',borderCollapse:'collapse'}},
               React.createElement('thead',null,React.createElement('tr',{style:{background:'#f9f9fb'}},
-                ['Produto','Em estoque','Mínimo','Produzir','Custo unit.','Custo total',''].map((h,i)=>
+                ['Produto','Em estoque','Mínimo','Produzir','Custo unit.','Custo total','',''].map((h,i)=>
                   React.createElement('th',{key:i,style:{padding:'10px 12px',fontSize:11,fontWeight:700,color:'#888',textAlign:i===0?'left':'right',borderBottom:'1px solid #f0f0f0',whiteSpace:'nowrap'}},h)))),
-              React.createElement('tbody',null, plano.map(p=>React.createElement('tr',{key:p.id,onClick:()=>setM({title:'Registrar Produção — '+p.nome,wide:true,body:React.createElement(ProducaoForm,{uid,db,reload,close:()=>setM(null),fichaIdInicial:p.id,qtdInicial:p.sugerido})}),style:{borderBottom:'1px solid #f7f7f7',cursor:'pointer'},onMouseEnter:e=>e.currentTarget.style.background='#fafafa',onMouseLeave:e=>e.currentTarget.style.background='transparent'},
-                React.createElement('td',{style:{padding:'12px',fontWeight:700,fontSize:13}},p.nome),
+              React.createElement('tbody',null, plano.map(p=>React.createElement('tr',{key:p.id,style:{borderBottom:'1px solid #f7f7f7'}},
+                React.createElement('td',{style:{padding:'12px',fontWeight:700,fontSize:13,cursor:'pointer'},onClick:()=>setM({title:'Registrar Produção — '+p.nome,wide:true,body:React.createElement(ProducaoForm,{uid,db,reload,close:()=>setM(null),fichaIdInicial:p.id,qtdInicial:p.sugerido})})},p.nome+(p.manual?' 🔖':'')),
                 React.createElement('td',{style:{padding:'12px',textAlign:'right',fontWeight:700,color:'#dc2626'}},p.qtdEst+' un'),
                 React.createElement('td',{style:{padding:'12px',textAlign:'right',color:'#888'}},p.minimo+' un'),
-                React.createElement('td',{style:{padding:'12px',textAlign:'right',fontWeight:800,fontSize:15,color:'#dc2626'}},'+'+p.sugerido+' un'),
+                React.createElement('td',{style:{padding:'12px',textAlign:'right'}},
+                  React.createElement('input',{type:'number',min:0,value:p.sugerido,onClick:e=>e.stopPropagation(),onChange:e=>{ const v=parseFloat(e.target.value); setQtdOverride(prev=>({...prev,[p.id]:isNaN(v)?0:v})); },
+                    style:{width:70,textAlign:'right',fontWeight:800,fontSize:14,color:'#dc2626',border:'1.5px solid #fee2e2',borderRadius:8,padding:'5px 8px',outline:'none'}})
+                ),
                 React.createElement('td',{style:{padding:'12px',textAlign:'right',fontSize:12,color:'#888'}},p.custo>0?F(p.custo):'—'),
                 React.createElement('td',{style:{padding:'12px',textAlign:'right',fontWeight:700,color:'#2563eb'}},p.sugerido>0?F(p.custoTotal):'—'),
-                React.createElement('td',{style:{padding:'12px',textAlign:'right'}},React.createElement('span',{style:{fontSize:11,color:'#7c3aed',fontWeight:700}},'✏ Produzir'))
+                React.createElement('td',{style:{padding:'12px',textAlign:'right'}},React.createElement('button',{onClick:()=>setM({title:'Registrar Produção — '+p.nome,wide:true,body:React.createElement(ProducaoForm,{uid,db,reload,close:()=>setM(null),fichaIdInicial:p.id,qtdInicial:p.sugerido})}),style:{background:'#faf5ff',color:'#7c3aed',border:'none',borderRadius:7,padding:'5px 10px',fontSize:11,fontWeight:700,cursor:'pointer'}},'✏ Produzir')),
+                React.createElement('td',{style:{padding:'12px',textAlign:'right'}},React.createElement('button',{onClick:()=>setOcultos(prev=>new Set([...prev,p.id])),style:{background:'#fee2e2',color:'#dc2626',border:'none',borderRadius:7,padding:'5px 10px',fontSize:11,fontWeight:700,cursor:'pointer'}},'✕ Remover'))
               )))
             )
-          )
+          ),
+          React.createElement('div',{style:{fontSize:11,color:'#ccc',marginTop:10}},'🔖 = adicionado manualmente. Remover/adicionar aqui é só para esta sessão — não muda o estoque mínimo cadastrado na Ficha Técnica.')
         )
   );
 }
+
 
 
 function ProducaoHistorico({uid,db,reload,setM}){ const{fichas}=db;
@@ -4361,13 +4393,13 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){ const{conta
         ), React.createElement('span',{style:{fontSize:13,fontWeight:600,color:'#111'}},'Vincular Produtos')
       ), vincularEstoque&&React.createElement('div',{style:{background:'#fff5f5',borderRadius:10,padding:'12px 14px',border:'1px solid #fee2e2'}}, React.createElement('div',{style:{display:'grid',gridTemplateColumns:'2fr 1fr',gap:10}}, React.createElement(CustomSelect,{label:'Item do estoque',value:estoqueId,onChange:setEstoqueId,
             options:[{v:'',l:'— Selecione —'},...(()=>{
-              // Only real estoque items, no fake IDs, no Recheios, deduplicate by nome+categoria
+              // Todos os itens reais do estoque, qualquer categoria (Cookie, Recheio, Matéria-Prima, Embalagem etc), sem IDs falsos
               const seen=new Set();
               return (estoque||[])
-                .filter(e=>e.id&&!String(e.id).startsWith('f_')&&e.categoria!=='Recheio'&&Number(e.qtd||0)>0)
+                .filter(e=>e.id&&!String(e.id).startsWith('f_')&&!String(e.id).startsWith('fr_')&&Number(e.qtd||0)>0)
                 .filter(e=>{ const k=e.nome+'|'+e.categoria; if(seen.has(k))return false; seen.add(k); return true; })
                 .sort((a,b)=>a.categoria.localeCompare(b.categoria))
-                .map(e=>({v:e.id,l:e.nome+' — '+Number(e.qtd||0).toFixed(0)+' '+e.unidade}));
+                .map(e=>({v:e.id,l:e.nome+' — '+Number(e.qtd||0).toFixed(0)+' '+e.unidade+' ('+e.categoria+')'}));
             })()],
             placeholder:'— Selecione —',acent}), React.createElement(FloatInput,{label:'Qtd (un)',acent,type:'number',value:estoqueQtdEmb,onChange:e=>setEstoqueQtdEmb(e.target.value)})
         ), estoqueId&&React.createElement('div',{style:{fontSize:11,color:acent,marginTop:8,lineHeight:1.6}}, (()=>{ const it=(estoque||[]).find(e=>e.id===estoqueId);if(!it)return'';
