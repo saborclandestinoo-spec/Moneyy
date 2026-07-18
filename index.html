@@ -4315,7 +4315,10 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){ const{conta
       else{await reload();close();} };
     if(!desc||!valor){toast('Preencha descricao e valor',true);return;}
     setLd(true);
-    const estQtdTotal=vincularEstoque&&estoqueId?(parseFloat(estoqueQtdEmb)||0):null;
+    const estItemSel=vincularEstoque&&estoqueId?(estoque||[]).find(e=>e.id===estoqueId):null;
+    const estEmb=estItemSel?Number(estItemSel.qtd_embalagem||1):1;
+    const estQtdPacotes=vincularEstoque&&estoqueId?(parseFloat(estoqueQtdEmb)||0):null;
+    const estQtdTotal=estQtdPacotes!=null?estQtdPacotes*estEmb:null; // gramas/unidades totais = pacotes x qtd por pacote
     // Compra de insumo vinculada ao estoque é Ativo (entra no estoque), não é despesa do DRE ainda.
     // O custo só se torna despesa (CMV) quando a Produção consome o ingrediente.
     const catFinal=cat; // Always use user's selected category
@@ -4367,9 +4370,10 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){ const{conta
     if(vincularEstoque&&estoqueId&&estQtdTotal>0){ const it=(estoque||[]).find(e=>e.id===estoqueId);
       if(it){ const isNovo=!(inicial&&inicial.id);
         const ehSaida=tipoFinal==='despesa'; // despesa = saída do estoque
-        const novaQtdEstoque=isNovo?(ehSaida?Math.max(0,Number(it.qtd_estoque||0)-(parseFloat(estoqueQtdEmb)||0)):Number(it.qtd_estoque||0)+(parseFloat(estoqueQtdEmb)||0)):Number(it.qtd_estoque||0);
+        const novaQtdEstoque=isNovo?(ehSaida?Math.max(0,Number(it.qtd_estoque||0)-estQtdTotal):Number(it.qtd_estoque||0)+estQtdTotal):Number(it.qtd_estoque||0);
         const novaQtdTotal=isNovo?(ehSaida?Math.max(0,Number(it.qtd||0)-estQtdTotal):Number(it.qtd||0)+estQtdTotal):Number(it.qtd||0);
-        const novoCusto=ehSaida?it.custo:(totalFinal/estQtdTotal); // só atualiza custo em compra
+        // Custo unitário = valor pago ÷ qtd de pacotes ÷ qtd por pacote (só recalcula em compra/entrada)
+        const novoCusto=ehSaida?it.custo:(estQtdPacotes>0?(totalFinal/estQtdPacotes)/estEmb:it.custo);
         const{error:errEst}=await sb.from('estoque').update({qtd_estoque:novaQtdEstoque,qtd:novaQtdTotal,...(!ehSaida&&{custo:novoCusto})}).eq('id',estoqueId);
         if(errEst)toast('Erro ao atualizar estoque: '+errEst.message,true); } }
     const msg=inicial&&inicial.id?'Lançamento atualizado!':tipoLanc==='Unico'?'Lancamento criado!':tipoLanc==='Parcelado'?numParc+' parcelas!':numRep+' recorrencias!';
@@ -4410,18 +4414,21 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){ const{conta
               });
               return out;
             })()],
-            placeholder:'— Selecione —',acent}), React.createElement(FloatInput,{label:'Qtd (un)',acent,type:'number',value:estoqueQtdEmb,onChange:e=>setEstoqueQtdEmb(e.target.value)})
+            placeholder:'— Selecione —',acent}), React.createElement(FloatInput,{label:'Qtd Pacotes',acent,type:'number',value:estoqueQtdEmb,onChange:e=>setEstoqueQtdEmb(e.target.value)})
         ), estoqueId&&React.createElement('div',{style:{fontSize:11,color:acent,marginTop:8,lineHeight:1.6}}, (()=>{ const it=(estoque||[]).find(e=>e.id===estoqueId);if(!it)return'';
-            const totalUn=parseFloat(estoqueQtdEmb)||0;
+            const emb=Number(it.qtd_embalagem||1); // gramas/unidades por pacote, vem da ficha do produto
+            const qtdPacotes=parseFloat(estoqueQtdEmb)||0;
+            const totalUn=qtdPacotes*emb; // gramas totais = pacotes x qtd por pacote
             const saldoApos=isRec?Number(it.qtd||0)+totalUn:Math.max(0,Number(it.qtd||0)-totalUn);
-            const emb=Number(it.qtd_embalagem||0);
-            const qtdEmbalagens=emb>0?(totalUn/emb):null;
+            const valorPagoNum=parseFloat(valor)||0;
+            const custoUnitCalc=qtdPacotes>0&&valorPagoNum>0?(valorPagoNum/qtdPacotes)/emb:null; // valor pago ÷ pacotes = custo por pacote; ÷ emb = custo por unidade
             return React.createElement('div',null,
-              React.createElement('div',{style:{fontWeight:700}},(isRec?'↑ Entrada':'↓ Saída')+' de '+totalUn.toFixed(0)+' '+it.unidade),
+              React.createElement('div',{style:{fontWeight:700}},(isRec?'↑ Entrada':'↓ Saída')+' de '+qtdPacotes.toFixed(2)+' pacote(s) = '+totalUn.toFixed(0)+' '+it.unidade),
               React.createElement('div',{style:{color:'#888'}},'Estoque atual: '+Number(it.qtd||0).toFixed(0)+' → '+saldoApos.toFixed(0)+' '+it.unidade),
-              qtdEmbalagens!=null&&React.createElement('div',{style:{color:'#888'}},'≈ '+qtdEmbalagens.toFixed(2)+' pacote(s) de '+emb+' '+it.unidade+' cada'),
-              React.createElement('div',{style:{color:'#888'}},'Custo unitário: R$ '+Number(it.custo||0).toFixed(4).replace('.',',')+' / '+it.unidade+' · Valor total: R$ '+(Number(it.custo||0)*totalUn).toFixed(2).replace('.',',')
-              )
+              React.createElement('div',{style:{color:'#888'}},'Cada pacote = '+emb+' '+it.unidade+' (definido na ficha do produto)'),
+              custoUnitCalc!=null
+                ?React.createElement('div',{style:{color:'#888'}},'Valor pago ÷ '+qtdPacotes.toFixed(2)+' pacote(s) = R$ '+(valorPagoNum/qtdPacotes).toFixed(2).replace('.',',')+'/pacote → custo unitário: R$ '+custoUnitCalc.toFixed(4).replace('.',',')+'/'+it.unidade)
+                :React.createElement('div',{style:{color:'#888'}},'Custo unitário atual: R$ '+Number(it.custo||0).toFixed(4).replace('.',',')+'/'+it.unidade+' (informe "Valor Pago" acima para recalcular pelo pacote)')
             ); })()
         )
       )
