@@ -1617,12 +1617,14 @@ function PedForm({uid,db,reload,close}){ const[cli,setCli]=useState('');const[pa
 // Helper: registra movimentacao no historico
 async function registrarMovEstoque(uid, {estoqueId, nomeItem, tipo, quantidade, saldoAntes, saldoDepois, motivo, descricao, custoUnit}){
   try{
-    await sb.from('estoque_movimentos').insert({
+    const{error}=await sb.from('estoque_movimentos').insert({
       user_id:uid, estoque_id:estoqueId?String(estoqueId):null, nome_item:nomeItem,
       tipo, quantidade, saldo_antes:saldoAntes, saldo_depois:saldoDepois,
       motivo, descricao:descricao||null, custo_unit:custoUnit||null
     });
-  }catch(e){ console.warn('Erro ao registrar movimento:',e); }
+    if(error){ console.warn('Erro ao registrar movimento:',error); return{error}; }
+    return{error:null};
+  }catch(e){ console.warn('Erro ao registrar movimento:',e); return{error:e}; }
 }
 
 function EstoqueHistoricoModal({uid, estoqueId, nomeItem, close, setM}){
@@ -5426,16 +5428,20 @@ function App(){ const[user,setUser]=useState(null);const[page,setPage]=useState(
       if(!ficha){semVinculo.push(nomeItem);continue;}
       const prod=(estoqueAtual||[]).find(e=>e.nome===ficha.nome);
       const qtdVendida=Number(it.quantity||it.qty||1);
-      if(prod){ const novaQtd=Number(prod.qtd||0)-qtdVendida;
+      if(prod){ const saldoCalc=Number(prod.qtd||0)-qtdVendida;
+        const novaQtd=Math.max(0,saldoCalc);
         const{error:errUpd}=await sb.from('estoque').update({qtd:novaQtd,qtd_estoque:novaQtd}).eq('id',prod.id);
         if(errUpd){toast('Erro ao baixar '+ficha.nome+': '+errUpd.message,true);}
-        else await registrarMovEstoque(user.id,{estoqueId:String(prod.id),nomeItem:ficha.nome,tipo:'saida',quantidade:qtdVendida,saldoAntes:Number(prod.qtd||0),saldoDepois:novaQtd,motivo:'saida_venda',descricao:'Venda — pedido #'+(pedido.pedido_id||sourceId)+(pedido.cliente?' · '+pedido.cliente:'')}); }
-      else{ // Produto acabado ainda não tem registro em estoque — cria na hora (qtd pode ficar negativa, sinal de venda sem produção prévia)
-        const novaQtd=-qtdVendida;
+        else{ const{error:errHist}=await registrarMovEstoque(user.id,{estoqueId:String(prod.id),nomeItem:ficha.nome,tipo:'saida',quantidade:qtdVendida,saldoAntes:Number(prod.qtd||0),saldoDepois:novaQtd,motivo:'saida_venda',descricao:'Venda — pedido #'+(pedido.pedido_id||sourceId)+(pedido.cliente?' · '+pedido.cliente:'')});
+          if(errHist)toast('⚠ Estoque baixado mas histórico falhou p/ '+ficha.nome+': '+errHist.message,true);
+          if(saldoCalc<0)toast('⚠ '+ficha.nome+': venda de '+qtdVendida+' un maior que o estoque disponível ('+Number(prod.qtd||0)+'). Estoque zerado, não ficou negativo.',true); } }
+      else{ // Produto acabado ainda não tem registro em estoque — cria zerado (sem produção prévia, não deixa negativo)
+        const novaQtd=0;
         const{data:novoProd,error:errIns}=await sb.from('estoque').insert({user_id:user.id,nome:ficha.nome,categoria:'Cookie',qtd:novaQtd,qtd_estoque:novaQtd,unidade:'un',minimo:0,custo:0}).select().single();
         if(errIns){toast('Erro ao criar estoque de '+ficha.nome+': '+errIns.message,true);}
-        else if(novoProd){ await registrarMovEstoque(user.id,{estoqueId:String(novoProd.id),nomeItem:ficha.nome,tipo:'saida',quantidade:qtdVendida,saldoAntes:0,saldoDepois:novaQtd,motivo:'saida_venda',descricao:'Venda — pedido #'+(pedido.pedido_id||sourceId)+(pedido.cliente?' · '+pedido.cliente:'')+' (sem produção prévia)'});
-          toast('⚠ '+ficha.nome+' vendido sem produção prévia — estoque ficou negativo ('+novaQtd+')',true); } }
+        else if(novoProd){ const{error:errHist2}=await registrarMovEstoque(user.id,{estoqueId:String(novoProd.id),nomeItem:ficha.nome,tipo:'saida',quantidade:qtdVendida,saldoAntes:0,saldoDepois:novaQtd,motivo:'saida_venda',descricao:'Venda — pedido #'+(pedido.pedido_id||sourceId)+(pedido.cliente?' · '+pedido.cliente:'')+' (sem produção prévia, estoque zerado)'});
+          if(errHist2)toast('⚠ Histórico falhou p/ '+ficha.nome+': '+errHist2.message,true);
+          toast('⚠ '+ficha.nome+' vendido sem produção prévia — estoque zerado (não ficou negativo).',true); } }
       // Produto acabado agora sempre grava histórico, mesmo na primeira venda sem produção prévia
     }
 
