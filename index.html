@@ -2034,14 +2034,14 @@ function NovoEst({uid,reload,close,item,catInicial}){ const[nome,setNome]=React.
   // Recalcula custo/unidade automaticamente quando o valor pago ou a qtd por embalagem mudam
   React.useEffect(()=>{ const ve=parseFloat(valorEmb);
     const qe=parseFloat(qtdEmb);
-    if(ve>0&&qe>0)setCusto((ve/qe).toFixed(4)); },[valorEmb,qtdEmb]);
+    if(ve>0&&qe>0)setCusto((ve/qe).toFixed(8)); },[valorEmb,qtdEmb]);
 
   const salvar=async()=>{ if(!nome){toast('Informe o nome',true);return;}
     setLd(true);
     const embN=parseFloat(qtdEmb)||1;
     const estN=parseFloat(qtdEst)||0;
     const qtdTotal=embN*estN;
-    const payload={user_id:uid,nome,categoria:cat,unidade,qtd:qtdTotal,qtd_embalagem:embN,qtd_estoque:estN,minimo:parseFloat(minimo)||0,custo:parseFloat(custo)||0,fornecedor,validade:validade||null,data_estoque_inicial:dataInicial||null};
+    const payload={user_id:uid,nome,categoria:cat,unidade,qtd:qtdTotal,qtd_embalagem:embN,qtd_estoque:estN,minimo:parseFloat(minimo)||0,custo:parseFloat(custo)||0,valor_embalagem:parseFloat(valorEmb)||null,fornecedor,validade:validade||null,data_estoque_inicial:dataInicial||null};
     if(isEdit){await sb.from('estoque').update(payload).eq('id',item.id);}
     else{
       const{data:newEst}=await sb.from('estoque').insert(payload).select().single();
