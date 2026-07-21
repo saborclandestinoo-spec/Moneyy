@@ -45,7 +45,7 @@ const CATS=['Aluguel','Salários','Energia','Água','Internet','Marketing','Comb
 // TOAST
 let _st=null;
 function Toasts(){const[ts,set]=useState([]);_st=set;return React.createElement('div',{style:{position:'fixed',bottom:20,right:20,zIndex:9999,display:'flex',flexDirection:'column',gap:8}},ts.map(t=>React.createElement('div',{key:t.id,style:{background:t.e?'#dc2626':t.s?'#16a34a':'#2563eb',color:'#fff',padding:'11px 16px',borderRadius:12,fontSize:13,fontWeight:500,boxShadow:'0 8px 24px rgba(0,0,0,0.5)',minWidth:240}},t.msg)));}
-const toast=(msg,e,s)=>{if(!_st)return;const id=Date.now();_st(p=>[...p,{id,msg,e,s}]);setTimeout(()=>_st(p=>p.filter(x=>x.id!==id)),3000);};
+const toast=(msg,e,s)=>{if(!_st)return;const id=Date.now();_st(p=>[...p,{id,msg,e,s}]);setTimeout(()=>_st(p=>p.filter(x=>x.id!==id)),e?5000:3000);};
 const Spin=()=>React.createElement('div',{style:{width:14,height:14,border:'2px solid rgba(255,255,255,0.2)',borderTopColor:'#fff',borderRadius:'50%',animation:'spin 0.7s linear infinite',display:'inline-block'}});
 
 // STYLES
