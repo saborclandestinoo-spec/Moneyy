@@ -4251,10 +4251,8 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){ const{conta
   const[vincularEstoque,setVincularEstoque]=React.useState(!!(inicial&&inicial.estoque_id));
   const[estoqueOp,setEstoqueOp]=React.useState(inicial&&inicial.estoque_op?inicial.estoque_op:'entrada');
   const[estoqueId,setEstoqueId]=React.useState(inicial&&inicial.estoque_id||'');
-  const[estoqueQtdEmb,setEstoqueQtdEmb]=React.useState(()=>{ if(!inicial||!inicial.estoque_qtd)return'1';
-    const it=(db.estoque||[]).find(e=>e.id===inicial.estoque_id);
-    const emb=it&&it.qtd_embalagem||1;
-    return emb>0?String(Number(inicial.estoque_qtd)/emb):'1'; });
+  const[estoqueQtdEmb,setEstoqueQtdEmb]=React.useState(()=>{ if(!inicial||!inicial.estoque_qtd)return'';
+    return String(Number(inicial.estoque_qtd)); });
 
   const[valorEditadoManual,setValorEditadoManual]=React.useState(false);
   // Auto-calc valor when product + qty change (só sugere, não sobrescreve depois que o usuário editar manualmente)
@@ -4262,9 +4260,7 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){ const{conta
     if(!vincularEstoque||!estoqueId||valorEditadoManual)return;
     const it=(db.estoque||[]).find(e=>e.id===estoqueId);
     if(!it)return;
-    const qtdEmb=parseFloat(estoqueQtdEmb||1)||1;
-    const emb=Number(it.qtd_embalagem||1);
-    const qtdTotal=qtdEmb*emb;
+    const qtdTotal=parseFloat(estoqueQtdEmb||0)||0;
     const custo=Number(it.custo||0);
     if(custo>0)setValor((qtdTotal*custo).toFixed(2));
   },[estoqueId,estoqueQtdEmb,vincularEstoque]);
@@ -4321,10 +4317,7 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){ const{conta
       else{await reload();close();} };
     if(!desc||!valor){toast('Preencha descricao e valor',true);return;}
     setLd(true);
-    const estItemSel=vincularEstoque&&estoqueId?(estoque||[]).find(e=>e.id===estoqueId):null;
-    const estEmb=estItemSel?Number(estItemSel.qtd_embalagem||1):1;
-    const estQtdPacotes=vincularEstoque&&estoqueId?(parseFloat(estoqueQtdEmb)||0):null;
-    const estQtdTotal=estQtdPacotes!=null?estQtdPacotes*estEmb:null; // gramas/unidades totais = pacotes x qtd por pacote
+    const estQtdTotal=vincularEstoque&&estoqueId?(parseFloat(estoqueQtdEmb)||0):null; // quantidade real total digitada, sem depender de qtd_embalagem
     // Compra de insumo vinculada ao estoque é Ativo (entra no estoque), não é despesa do DRE ainda.
     // O custo só se torna despesa (CMV) quando a Produção consome o ingrediente.
     const catFinal=cat; // Always use user's selected category
@@ -4386,11 +4379,9 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){ const{conta
         else{
           const novaQtdEstoque=ehSaida?Math.max(0,Number(it.qtd_estoque||0)-qtdParaAplicar):Number(it.qtd_estoque||0)+qtdParaAplicar;
           const novaQtdTotal=ehSaida?Math.max(0,Number(it.qtd||0)-qtdParaAplicar):Number(it.qtd||0)+qtdParaAplicar;
-          // Custo unitário = valor pago ÷ qtd de pacotes ÷ qtd por pacote, com mais casas decimais para não perder precisão em itens baratos por grama
-          const novoCusto=ehSaida?it.custo:(estQtdPacotes>0?parseFloat(((totalFinal/estQtdPacotes)/estEmb).toFixed(6)):it.custo);
-          // Valor pago por embalagem/pacote — sempre atualizado pelo último lançamento vinculado
-          const novoValorEmb=ehSaida?it.valor_embalagem:(estQtdPacotes>0?parseFloat((totalFinal/estQtdPacotes).toFixed(2)):it.valor_embalagem);
-          const{data:dataEst,error:errEst}=await sb.from('estoque').update({qtd_estoque:novaQtdEstoque,qtd:novaQtdTotal,...(!ehSaida&&{custo:novoCusto,valor_embalagem:novoValorEmb})}).eq('id',estoqueId).select();
+          // Custo unitário = valor pago ÷ quantidade total real, direto — sem depender de qtd_embalagem cadastrado (evita erro de arredondamento por pacote errado)
+          const novoCusto=ehSaida?it.custo:(estQtdTotal>0?parseFloat((totalFinal/estQtdTotal).toFixed(6)):it.custo);
+          const{data:dataEst,error:errEst}=await sb.from('estoque').update({qtd_estoque:novaQtdEstoque,qtd:novaQtdTotal,...(!ehSaida&&{custo:novoCusto})}).eq('id',estoqueId).select();
           if(errEst)toast('Erro ao atualizar estoque: '+errEst.message,true);
           else if(!dataEst||dataEst.length===0)toast('⚠ Estoque não foi atualizado (0 linhas afetadas — possível bloqueio de permissão/RLS no Supabase).',true);
           else await registrarMovEstoque(uid,{estoqueId:String(estoqueId),nomeItem:it.nome,tipo:qtdParaAplicar<0?(ehSaida?'entrada':'saida'):(ehSaida?'saida':'entrada'),quantidade:Math.abs(qtdParaAplicar),saldoAntes:Number(it.qtd||0),saldoDepois:novaQtdTotal,motivo:isEdicao?'ajuste_edicao_lancamento':(ehSaida?'saida_manual':'compra'),descricao:(isEdicao?'Ajuste por edição do lançamento: ':'Vinculado ao lançamento: ')+desc,custoUnit:ehSaida?it.custo:novoCusto});
@@ -4435,22 +4426,19 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){ const{conta
               });
               return out;
             })()],
-            placeholder:'— Selecione —',acent}), React.createElement(FloatInput,{label:'Qtd Pacotes',acent,type:'number',value:estoqueQtdEmb,onChange:e=>setEstoqueQtdEmb(e.target.value)})
+            placeholder:'— Selecione —',acent}), React.createElement(FloatInput,{label:'Qtd Total ('+((estoque||[]).find(e=>e.id===estoqueId)?.unidade||'un')+')',acent,type:'number',value:estoqueQtdEmb,onChange:e=>setEstoqueQtdEmb(e.target.value)})
         ), estoqueId&&React.createElement('div',{style:{fontSize:11,color:acent,marginTop:8,lineHeight:1.6}}, (()=>{ const it=(estoque||[]).find(e=>e.id===estoqueId);if(!it)return'';
-            const emb=Number(it.qtd_embalagem||1); // gramas/unidades por pacote, vem da ficha do produto
-            const qtdPacotes=parseFloat(estoqueQtdEmb)||0;
-            const totalUn=qtdPacotes*emb; // gramas totais = pacotes x qtd por pacote
+            const totalUn=parseFloat(estoqueQtdEmb)||0; // agora é a quantidade real total, sem depender de qtd_embalagem cadastrado
             const saldoApos=estoqueOp==='entrada'?Number(it.qtd||0)+totalUn:Math.max(0,Number(it.qtd||0)-totalUn);
             const valorPagoNum=parseFloat(valor)||0;
-            const custoUnitCalc=qtdPacotes>0&&valorPagoNum>0?(valorPagoNum/qtdPacotes)/emb:null; // valor pago ÷ pacotes = custo por pacote; ÷ emb = custo por unidade
+            const custoUnitCalc=totalUn>0&&valorPagoNum>0?(valorPagoNum/totalUn):null; // valor pago ÷ quantidade total = custo por unidade, direto, sem intermediário
             return React.createElement('div',null,
-              React.createElement('div',{style:{fontWeight:700}},(estoqueOp==='entrada'?'↑ Entrada':'↓ Saída')+' de '+qtdPacotes.toFixed(2)+' pacote(s) = '+totalUn.toFixed(0)+' '+it.unidade),
+              React.createElement('div',{style:{fontWeight:700}},(estoqueOp==='entrada'?'↑ Entrada':'↓ Saída')+' de '+totalUn.toFixed(2)+' '+it.unidade),
               React.createElement('div',{style:{color:'#888'}},'Estoque atual: '+Number(it.qtd||0).toFixed(0)+' → '+saldoApos.toFixed(0)+' '+it.unidade),
-              React.createElement('div',{style:{color:'#888'}},'Cada pacote = '+emb+' '+it.unidade+' (definido na ficha do produto)'),
               estoqueOp==='entrada'
                 ?(custoUnitCalc!=null
-                  ?React.createElement('div',{style:{color:'#888'}},'Valor pago ÷ '+qtdPacotes.toFixed(2)+' pacote(s) = R$ '+(valorPagoNum/qtdPacotes).toFixed(2).replace('.',',')+'/pacote → custo unitário: R$ '+custoUnitCalc.toFixed(6).replace('.',',')+'/'+it.unidade)
-                  :React.createElement('div',{style:{color:'#888'}},'Custo unitário atual: R$ '+Number(it.custo||0).toFixed(4).replace('.',',')+'/'+it.unidade+' (informe "Valor Pago" acima para recalcular pelo pacote)'))
+                  ?React.createElement('div',{style:{color:'#888'}},'Valor pago ÷ '+totalUn.toFixed(2)+' '+it.unidade+' = custo unitário: R$ '+custoUnitCalc.toFixed(6).replace('.',',')+'/'+it.unidade)
+                  :React.createElement('div',{style:{color:'#888'}},'Custo unitário atual: R$ '+Number(it.custo||0).toFixed(4).replace('.',',')+'/'+it.unidade+' (informe "Valor Pago" acima para recalcular)'))
                 :React.createElement('div',{style:{color:'#888'}},'Custo unitário mantido: R$ '+Number(it.custo||0).toFixed(4).replace('.',',')+'/'+it.unidade+' (saída não altera custo)')
             ); })()
         )
