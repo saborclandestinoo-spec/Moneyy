@@ -4362,9 +4362,11 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){ const{conta
         else{
           const novaQtdEstoque=ehSaida?Math.max(0,Math.round((Number(it.qtd_estoque||0)-qtdParaAplicar)*1e6)/1e6):Math.round((Number(it.qtd_estoque||0)+qtdParaAplicar)*1e6)/1e6;
           const novaQtdTotal=ehSaida?Math.max(0,Math.round((Number(it.qtd||0)-qtdParaAplicar)*1e6)/1e6):Math.round((Number(it.qtd||0)+qtdParaAplicar)*1e6)/1e6;
-          // Custo unitário = valor pago ÷ quantidade total real, direto — sem depender de qtd_embalagem cadastrado (evita erro de arredondamento por pacote errado)
+          // Custo unitário = valor pago ÷ quantidade total real, direto — sem depender de qtd_embalagem cadastrado
           const novoCusto=ehSaida?it.custo:(estQtdTotal>0?parseFloat((totalFinal/estQtdTotal).toFixed(6)):it.custo);
-          const{data:dataEst,error:errEst}=await sb.from('estoque').update({qtd_estoque:novaQtdEstoque,qtd:novaQtdTotal,...(!ehSaida&&{custo:novoCusto})}).eq('id',estoqueId).select();
+          // Valor pago (total) por essa compra — sempre puxado do lançamento em entradas, atualiza a Ficha do item automaticamente
+          const novoValorEmb=ehSaida?it.valor_embalagem:parseFloat(totalFinal.toFixed(2));
+          const{data:dataEst,error:errEst}=await sb.from('estoque').update({qtd_estoque:novaQtdEstoque,qtd:novaQtdTotal,...(!ehSaida&&{custo:novoCusto,valor_embalagem:novoValorEmb})}).eq('id',estoqueId).select();
           if(errEst)toast('Erro ao atualizar estoque: '+errEst.message,true);
           else if(!dataEst||dataEst.length===0)toast('⚠ Estoque não foi atualizado (0 linhas afetadas — possível bloqueio de permissão/RLS no Supabase).',true);
           else await registrarMovEstoque(uid,{estoqueId:String(estoqueId),nomeItem:it.nome,tipo:qtdParaAplicar<0?(ehSaida?'entrada':'saida'):(ehSaida?'saida':'entrada'),quantidade:Math.abs(qtdParaAplicar),saldoAntes:Number(it.qtd||0),saldoDepois:novaQtdTotal,motivo:isEdicao?'ajuste_edicao_lancamento':(ehSaida?'saida_manual':'compra'),descricao:(isEdicao?'Ajuste por edição do lançamento: ':'Vinculado ao lançamento: ')+desc,custoUnit:ehSaida?it.custo:novoCusto});
