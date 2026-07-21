@@ -4311,7 +4311,7 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){ const{conta
       else{await reload();close();} };
     if(!desc||!valor){toast('Preencha descricao e valor',true);return;}
     setLd(true);
-    const estQtdTotal=vincularEstoque&&estoqueId?(parseFloat(estoqueQtdEmb)||0):null; // quantidade real total digitada, sem depender de qtd_embalagem
+    const estQtdTotal=vincularEstoque&&estoqueId?(Math.round((parseFloat(estoqueQtdEmb)||0)*1e6)/1e6):null; // quantidade real total digitada, arredondada para evitar resíduo de ponto flutuante
     // Compra de insumo vinculada ao estoque é Ativo (entra no estoque), não é despesa do DRE ainda.
     // O custo só se torna despesa (CMV) quando a Produção consome o ingrediente.
     const catFinal=cat; // Always use user's selected category
@@ -4371,8 +4371,8 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){ const{conta
         const qtdParaAplicar=estQtdTotal-qtdJaAplicada; // delta real a aplicar agora
         if(qtdParaAplicar===0){ /* nada mudou, não mexe no estoque */ }
         else{
-          const novaQtdEstoque=ehSaida?Math.max(0,Number(it.qtd_estoque||0)-qtdParaAplicar):Number(it.qtd_estoque||0)+qtdParaAplicar;
-          const novaQtdTotal=ehSaida?Math.max(0,Number(it.qtd||0)-qtdParaAplicar):Number(it.qtd||0)+qtdParaAplicar;
+          const novaQtdEstoque=ehSaida?Math.max(0,Math.round((Number(it.qtd_estoque||0)-qtdParaAplicar)*1e6)/1e6):Math.round((Number(it.qtd_estoque||0)+qtdParaAplicar)*1e6)/1e6;
+          const novaQtdTotal=ehSaida?Math.max(0,Math.round((Number(it.qtd||0)-qtdParaAplicar)*1e6)/1e6):Math.round((Number(it.qtd||0)+qtdParaAplicar)*1e6)/1e6;
           // Custo unitário = valor pago ÷ quantidade total real, direto — sem depender de qtd_embalagem cadastrado (evita erro de arredondamento por pacote errado)
           const novoCusto=ehSaida?it.custo:(estQtdTotal>0?parseFloat((totalFinal/estQtdTotal).toFixed(6)):it.custo);
           const{data:dataEst,error:errEst}=await sb.from('estoque').update({qtd_estoque:novaQtdEstoque,qtd:novaQtdTotal,...(!ehSaida&&{custo:novoCusto})}).eq('id',estoqueId).select();
