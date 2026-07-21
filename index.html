@@ -2089,7 +2089,7 @@ function MovEst({id,db,reload,close,isAlmox=false}){ const item=(db.estoque||[])
     return rend>0?total/rend:total; },[isCookie,db.fichas,db.ficha_ingredientes,db.estoque,item.nome]);
 
   // Auto-calc custo unitário (itens não-Cookie, por valor pago)
-  const novoCusto=!isCookie&&qtd&&valorPago&&parseFloat(qtd)>0?(parseFloat(valorPago)/parseFloat(qtd)).toFixed(4):null;
+  const novoCusto=!isCookie&&qtd&&valorPago&&parseFloat(qtd)>0?(parseFloat(valorPago)/parseFloat(qtd)).toFixed(8):null;
 
   const salvar=async()=>{ if(!qtd){toast('Informe a quantidade',true);return;}
     setLd(true);
@@ -2097,14 +2097,10 @@ function MovEst({id,db,reload,close,isAlmox=false}){ const item=(db.estoque||[])
     const novaQtd=Math.max(0,Number(item.qtd)+delta);
     const updatePayload={qtd:novaQtd};
     const custoUsadoEntrada=isCookie?(custoFichaCookie!=null?custoFichaCookie:Number(item.custo)):null;
-    // Atualiza custo médio ponderado na entrada
-    if(tipo==='entrada'&&isCookie&&custoFichaCookie!=null){ updatePayload.custo=parseFloat(custoFichaCookie.toFixed(4)); }
-    else if(tipo==='entrada'&&!isCookie&&valorPago&&parseFloat(qtd)>0){ const qtdAtual=Number(item.qtd)||0;
-      const custoAtual=Number(item.custo)||0;
-      const qtdNova=parseFloat(qtd);
-      const custoNovo=parseFloat(valorPago)/qtdNova;
-      const custoMedio=(qtdAtual*custoAtual+qtdNova*custoNovo)/(qtdAtual+qtdNova);
-      updatePayload.custo=parseFloat(custoMedio.toFixed(6)); }
+    // Custo = exatamente Valor Pago ÷ Quantidade desta entrada, sem média ponderada com custo anterior — nunca arredonda o valor pago em si
+    if(tipo==='entrada'&&isCookie&&custoFichaCookie!=null){ updatePayload.custo=custoFichaCookie; }
+    else if(tipo==='entrada'&&!isCookie&&valorPago&&parseFloat(qtd)>0){
+      updatePayload.custo=parseFloat(valorPago)/parseFloat(qtd); }
     await sb.from('estoque').update(updatePayload).eq('id',id);
     const valorMov=tipo==='entrada'?(isCookie?(custoUsadoEntrada||0)*parseFloat(qtd):(valorPago?parseFloat(valorPago):parseFloat(qtd)*Number(item.custo))):parseFloat(qtd)*Number(item.custo);
     await sb.from('movimentacoes').insert({ user_id:item.user_id,tipo,categoria:item.categoria, descricao:(tipo==='entrada'?'Entrada':'Saída')+': '+item.nome+(obs?' — '+obs:''), valor:valorMov, origem:'estoque',data_movimentacao:data });
@@ -2121,7 +2117,7 @@ function MovEst({id,db,reload,close,isAlmox=false}){ const item=(db.estoque||[])
     ), // Fields
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:tipo==='entrada'&&!isCookie?'1fr 1fr':'1fr',gap:10}}, React.createElement(FloatInput,{label:'Quantidade ('+item.unidade+')',acent:'#dc2626',type:'number',value:qtd,onChange:e=>setQtd(e.target.value)}), tipo==='entrada'&&!isCookie&&React.createElement(FloatInput,{label:'Valor total pago (R$)',acent:'#16a34a',type:'number',value:valorPago,onChange:e=>setValorPago(e.target.value)})
     ), tipo==='entrada'&&isCookie&&React.createElement('div',{style:{background:custoFichaCookie!=null?'#f0fdf4':'#fef2f2',borderRadius:9,padding:'8px 12px',marginBottom:10,fontSize:12,color:custoFichaCookie!=null?'#16a34a':'#dc2626'}}, custoFichaCookie!=null?'Custo puxado da Ficha Técnica: R$ '+custoFichaCookie.toFixed(4).replace('.',',')+' / un':'⚠ Nenhuma Ficha Técnica encontrada para este produto — cadastre a ficha para calcular o custo.'
-    ), tipo==='entrada'&&!isCookie&&novoCusto&&React.createElement('div',{style:{background:'#f0fdf4',borderRadius:9,padding:'8px 12px',marginBottom:10,fontSize:12,color:'#16a34a'}}, 'Novo custo médio: R$ '+parseFloat(novoCusto).toFixed(4).replace('.',',')+' / '+item.unidade
+    ), tipo==='entrada'&&!isCookie&&novoCusto&&React.createElement('div',{style:{background:'#f0fdf4',borderRadius:9,padding:'8px 12px',marginBottom:10,fontSize:12,color:'#16a34a'}}, 'Novo custo unitário: R$ '+parseFloat(novoCusto).toFixed(6).replace('.',',')+' / '+item.unidade
     ), React.createElement(MiniDatePicker,{label:'Data',value:data,onChange:setData,acent:'#dc2626'}), React.createElement(FloatInput,{label:'Observação',acent:'#dc2626',value:obs,onChange:e=>setObs(e.target.value)}), React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',marginTop:8}}, React.createElement('button',{style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'},onClick:close},'Cancelar'), React.createElement('button',{style:{background:tipo==='entrada'?'#16a34a':'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:salvar},ld?'...':'Confirmar')
     )
   );
@@ -4225,12 +4221,10 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){ const{conta
   const[contaId,setContaId]=React.useState(inicial&&inicial.conta_id||contas&&contas[0]&&contas[0].id||'');
   const[contaDestId,setContaDestId]=React.useState(contas&&contas[1]?contas[1].id:contas&&contas[0]?contas[0].id:'');
   const dateKey='lanc_ultima_data_'+uid;
-  const[venc,setVencRaw]=React.useState(()=>{
+  const[venc,setVenc]=React.useState(()=>{
     if(inicial?.venc||inicial?.data)return inicial.venc||inicial.data;
-    try{const s=localStorage.getItem(dateKey);if(s&&s.match(/^\d{4}-\d{2}-\d{2}$/))return s;}catch{}
     return TODAY();
   });
-  const setVenc=(v)=>{setVencRaw(v);if(!inicial?.id&&v){try{localStorage.setItem(dateKey,v);}catch{}}};
   const[competencia,setCompetencia]=React.useState(inicial&&inicial.competencia||'');
   const compEfetivo=competencia||venc;
   const[fornecedor,setFornecedor]=React.useState(inicial&&inicial.fornecedor||'');
