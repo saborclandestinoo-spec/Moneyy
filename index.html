@@ -2042,7 +2042,7 @@ function NovoEst({uid,reload,close,item,catInicial}){ const[nome,setNome]=React.
     const estN=parseFloat(qtdEst)||0;
     const qtdTotal=embN*estN;
     const payload={user_id:uid,nome,categoria:cat,unidade,qtd:qtdTotal,qtd_embalagem:embN,qtd_estoque:estN,minimo:parseFloat(minimo)||0,custo:parseFloat(custo)||0,valor_embalagem:parseFloat(valorEmb)||null,fornecedor,validade:validade||null,data_estoque_inicial:dataInicial||null};
-    if(isEdit){await sb.from('estoque').update(payload).eq('id',item.id);}
+    if(isEdit){const{error:errUpd}=await sb.from('estoque').update(payload).eq('id',item.id); if(errUpd){toast('Erro ao salvar: '+errUpd.message,true);setLd(false);return;} }
     else{
       const{data:newEst}=await sb.from('estoque').insert(payload).select().single();
       // Register initial stock movement if qtd > 0
@@ -4248,17 +4248,6 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){ const{conta
   const[estoqueQtdEmb,setEstoqueQtdEmb]=React.useState(()=>{ if(!inicial||!inicial.estoque_qtd)return'';
     return String(Number(inicial.estoque_qtd)); });
 
-  const[valorEditadoManual,setValorEditadoManual]=React.useState(false);
-  // Auto-calc valor when product + qty change (só sugere, não sobrescreve depois que o usuário editar manualmente)
-  React.useEffect(()=>{
-    if(!vincularEstoque||!estoqueId||valorEditadoManual)return;
-    const it=(db.estoque||[]).find(e=>e.id===estoqueId);
-    if(!it)return;
-    const qtdTotal=parseFloat(estoqueQtdEmb||0)||0;
-    const custo=Number(it.custo||0);
-    if(custo>0)setValor((qtdTotal*custo).toFixed(2));
-  },[estoqueId,estoqueQtdEmb,vincularEstoque]);
-
   const v=parseFloat(String(valor||'0').replace(',','.'));
   const jv=parseFloat(juros||0);const mv=parseFloat(multa||0);const dv=parseFloat(desconto||0);
   const totalFinal=v+jv+mv-dv;
@@ -4390,7 +4379,7 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){ const{conta
           if(l.forma_pag)setFormaPag(l.forma_pag);
           if(l.categoria)setCat(l.categoria);
           if(l.centro_custo)setCentroCusto(l.centro_custo);
-          if(l.fornecedor)setFornecedor(l.fornecedor); } },lancamentos,tipo}), React.createElement(FloatInput,{label:'Valor *',acent,type:'number',step:'0.01',value:valor,onChange:e=>{setValor(e.target.value);setValorEditadoManual(true);}})
+          if(l.fornecedor)setFornecedor(l.fornecedor); } },lancamentos,tipo}), React.createElement(FloatInput,{label:'Valor *',acent,type:'number',step:'0.01',value:valor,onChange:e=>setValor(e.target.value)})
     ), React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}}, isTransf
         ? React.createElement(CustomSelect,{label:'Conta Origem',value:contaId,onChange:setContaId,options:contas.map(c=>({v:c.id,l:c.nome})),acent})
         : React.createElement(CustomSelect,{label:'Conta *',value:contaId,onChange:setContaId,options:contas.map(c=>({v:c.id,l:c.nome})),placeholder:'—',acent}), isTransf
@@ -4402,7 +4391,7 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){ const{conta
         ), React.createElement('span',{style:{fontSize:13,fontWeight:600,color:'#111'}},'Vincular Produtos')
       ), vincularEstoque&&React.createElement('div',{style:{background:'#fff5f5',borderRadius:10,padding:'12px 14px',border:'1px solid #fee2e2'}},
         React.createElement('div',{style:{display:'flex',gap:8,marginBottom:10}}, ['entrada','saida'].map(op=>React.createElement('button',{key:op,onClick:()=>setEstoqueOp(op),style:{flex:1,padding:'9px',borderRadius:9,border:'none',cursor:'pointer',fontWeight:700,fontSize:12,background:estoqueOp===op?(op==='entrada'?'#16a34a':'#dc2626'):'#f5f5f5',color:estoqueOp===op?'#fff':'#666'}},op==='entrada'?'↑ Entrada no Estoque':'↓ Saída do Estoque'))
-        ), React.createElement('div',{style:{display:'grid',gridTemplateColumns:'2fr 1fr',gap:10}}, React.createElement(CustomSelect,{label:'Item do estoque',value:estoqueId,onChange:v=>{setEstoqueId(v);setValorEditadoManual(false);},
+        ), React.createElement('div',{style:{display:'grid',gridTemplateColumns:'2fr 1fr',gap:10}}, React.createElement(CustomSelect,{label:'Item do estoque',value:estoqueId,onChange:v=>setEstoqueId(v),
             options:[{v:'',l:'— Selecione —'},...(()=>{
               // Todos os itens reais do estoque, qualquer categoria, mesmo com qtd zero — agrupados por categoria
               const seen=new Set();
