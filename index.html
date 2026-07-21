@@ -2018,7 +2018,8 @@ function NovoEst({uid,reload,close,item,catInicial}){ const[nome,setNome]=React.
   const[qtdEst,setQtdEst]=React.useState(String((item&&item.qtd_estoque!=null?String(item.qtd_estoque):'0')));
   const[qtd,setQtd]=React.useState(String(item?.qtd||''));
   const[minimo,setMinimo]=React.useState(String(item?.minimo||''));
-  const[valorEmb,setValorEmb]=React.useState(()=>{ const c=parseFloat(item?.custo||0);const e=parseFloat(item?.qtd_embalagem||item?.qtd||1);
+  const[valorEmb,setValorEmb]=React.useState(()=>{ if(item?.valor_embalagem!=null)return String(item.valor_embalagem);
+    const c=parseFloat(item?.custo||0);const e=parseFloat(item?.qtd_embalagem||item?.qtd||1);
     return c>0&&e>0?(c*e).toFixed(2):''; });
   const[custo,setCusto]=React.useState(String(item?.custo||''));
   const[fornecedor,setFornecedor]=React.useState(item?.fornecedor||'');
@@ -2054,7 +2055,8 @@ function NovoEst({uid,reload,close,item,catInicial}){ const[nome,setNome]=React.
   return React.createElement('div',null, React.createElement(FloatInput,{label:'Nome *',acent:'#dc2626',value:nome,onChange:e=>setNome(e.target.value)}), React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}, React.createElement(CustomSelect,{label:'Categoria',value:cat,onChange:setCat,options:CATS,acent:'#dc2626'}), React.createElement(CustomSelect,{label:'Unidade',value:unidade,onChange:setUnidade,options:UNIDS,acent:'#dc2626'})
     ), React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}, React.createElement(FloatInput,{label:'Qtd por Embalagem',acent:'#dc2626',type:'number',value:qtdEmb,onChange:e=>setQtdEmb(e.target.value)}), React.createElement(FloatInput,{label:'Embalagens em Estoque',acent:'#dc2626',type:'number',value:qtdEst,onChange:e=>setQtdEst(e.target.value)})
     ), React.createElement('div',{style:{background:'#eff6ff',borderRadius:9,padding:'9px 12px',marginBottom:10,fontSize:12,color:'#2563eb'}},'Qtd total disponível: '+(parseFloat(qtdEmb||0)*parseFloat(qtdEst||0)).toFixed(0)+' '+unidade), React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}, React.createElement(FloatInput,{label:'Valor pago por embalagem (R$)',acent:'#dc2626',type:'number',value:valorEmb,onChange:e=>setValorEmb(e.target.value)}), React.createElement(FloatInput,{label:'Mínimo ('+unidade+')',acent:'#dc2626',type:'number',value:minimo,onChange:e=>setMinimo(e.target.value)})
-    ), React.createElement('div',{style:{background:'#f0fdf4',borderRadius:9,padding:'9px 12px',marginBottom:10,fontSize:12,color:'#16a34a'}}, 'Custo por '+unidade+': '+(custo?('R$ '+parseFloat(custo).toFixed(4).replace('.',',')):'—')
+    ), item?.valor_embalagem!=null&&React.createElement('div',{style:{fontSize:11,color:'#888',marginTop:-6,marginBottom:10}},'↻ Puxado automaticamente do último lançamento vinculado no Financeiro. Editar aqui só vale até a próxima compra vinculada.'),
+    React.createElement('div',{style:{background:'#f0fdf4',borderRadius:9,padding:'9px 12px',marginBottom:10,fontSize:12,color:'#16a34a'}}, 'Custo por '+unidade+': '+(custo?('R$ '+parseFloat(custo).toFixed(4).replace('.',',')):'—')
     ),
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}},
       React.createElement(FloatInput,{label:'Fornecedor',acent:'#dc2626',value:fornecedor,onChange:e=>setFornecedor(e.target.value)}),
@@ -4386,7 +4388,9 @@ function LancForm({uid,tipo,db,reload,close,inicial,onLancarOutro}){ const{conta
           const novaQtdTotal=ehSaida?Math.max(0,Number(it.qtd||0)-qtdParaAplicar):Number(it.qtd||0)+qtdParaAplicar;
           // Custo unitário = valor pago ÷ qtd de pacotes ÷ qtd por pacote, com mais casas decimais para não perder precisão em itens baratos por grama
           const novoCusto=ehSaida?it.custo:(estQtdPacotes>0?parseFloat(((totalFinal/estQtdPacotes)/estEmb).toFixed(6)):it.custo);
-          const{data:dataEst,error:errEst}=await sb.from('estoque').update({qtd_estoque:novaQtdEstoque,qtd:novaQtdTotal,...(!ehSaida&&{custo:novoCusto})}).eq('id',estoqueId).select();
+          // Valor pago por embalagem/pacote — sempre atualizado pelo último lançamento vinculado
+          const novoValorEmb=ehSaida?it.valor_embalagem:(estQtdPacotes>0?parseFloat((totalFinal/estQtdPacotes).toFixed(2)):it.valor_embalagem);
+          const{data:dataEst,error:errEst}=await sb.from('estoque').update({qtd_estoque:novaQtdEstoque,qtd:novaQtdTotal,...(!ehSaida&&{custo:novoCusto,valor_embalagem:novoValorEmb})}).eq('id',estoqueId).select();
           if(errEst)toast('Erro ao atualizar estoque: '+errEst.message,true);
           else if(!dataEst||dataEst.length===0)toast('⚠ Estoque não foi atualizado (0 linhas afetadas — possível bloqueio de permissão/RLS no Supabase).',true);
           else await registrarMovEstoque(uid,{estoqueId:String(estoqueId),nomeItem:it.nome,tipo:qtdParaAplicar<0?(ehSaida?'entrada':'saida'):(ehSaida?'saida':'entrada'),quantidade:Math.abs(qtdParaAplicar),saldoAntes:Number(it.qtd||0),saldoDepois:novaQtdTotal,motivo:isEdicao?'ajuste_edicao_lancamento':(ehSaida?'saida_manual':'compra'),descricao:(isEdicao?'Ajuste por edição do lançamento: ':'Vinculado ao lançamento: ')+desc,custoUnit:ehSaida?it.custo:novoCusto});
