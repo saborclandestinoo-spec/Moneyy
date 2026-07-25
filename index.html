@@ -3733,9 +3733,10 @@ function CustomSelect({label,value,onChange,options,placeholder,acent,minimal}){
   );
 }
 
-function MiniDatePicker({value,onChange,label,acent,dropup}){ const[open,setOpen]=React.useState(false);
+function MiniDatePicker({value,onChange,label,acent,dropup,forceOpenLeft}){ const[open,setOpen]=React.useState(false);
   const ref=React.useRef(null);
-  const[openLeft,setOpenLeft]=React.useState(false);
+  const[openLeftAuto,setOpenLeftAuto]=React.useState(false);
+  const openLeft=forceOpenLeft||openLeftAuto;
   const cor=acent||'#dc2626';
 
   React.useEffect(()=>{ if(!open)return;
@@ -3746,8 +3747,14 @@ function MiniDatePicker({value,onChange,label,acent,dropup}){ const[open,setOpen
   React.useEffect(()=>{ if(!open||!ref.current)return;
     const rect=ref.current.getBoundingClientRect();
     const larguraCalendario=290; // minWidth 270 + padding
-    const espacoDireita=window.innerWidth-rect.left;
-    setOpenLeft(espacoDireita<larguraCalendario); },[open]);
+    // Mede o espaço disponível até a borda do container do modal (não da janela inteira), para não cortar dentro de modais menores
+    let container=ref.current.parentElement;
+    while(container&&container!==document.body){ const cs=window.getComputedStyle(container);
+      if(cs.overflow==='auto'||cs.overflowY==='auto'||cs.overflow==='scroll'||cs.overflowY==='scroll')break;
+      container=container.parentElement; }
+    const limiteDireita=container&&container!==document.body?container.getBoundingClientRect().right:window.innerWidth;
+    const espacoDireita=limiteDireita-rect.left;
+    setOpenLeftAuto(espacoDireita<larguraCalendario); },[open]);
 
   const today=TODAY();
   const parsed=value?value.split('-').map(Number):null;
@@ -5182,7 +5189,7 @@ function AtivoForm({uid,reload,close,ativo,db,setM}){
       React.createElement('div',{style:{display:'grid',gridTemplateColumns:'2fr 1fr 1fr auto',gap:8,alignItems:'end'}},
         React.createElement(FloatInput,{label:'Descrição',acent:cor,value:novoGastoDesc,onChange:e=>setNovoGastoDesc(e.target.value)}),
         React.createElement(FloatInput,{label:'Valor (R$)',acent:cor,type:'number',value:novoGastoValor,onChange:e=>setNovoGastoValor(e.target.value)}),
-        React.createElement(MiniDatePicker,{label:'Data',value:novoGastoData,onChange:setNovoGastoData,acent:cor}),
+        React.createElement(MiniDatePicker,{label:'Data',value:novoGastoData,onChange:setNovoGastoData,acent:cor,forceOpenLeft:true}),
         React.createElement('button',{onClick:addGasto,style:{background:cor,color:'#fff',padding:'9px 14px',borderRadius:10,fontSize:12,fontWeight:700,border:'none',cursor:'pointer',height:38}},'+ Add')
       ),
       gastos.length>0&&React.createElement('div',{style:{marginTop:10,fontSize:12,color:'#888',fontWeight:700}},'Total gasto: '+F(totalGastos))
