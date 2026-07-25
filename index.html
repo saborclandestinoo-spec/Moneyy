@@ -3733,6 +3733,56 @@ function CustomSelect({label,value,onChange,options,placeholder,acent,minimal}){
   );
 }
 
+function MiniMonthPicker({value,onChange,acent}){ const[open,setOpen]=React.useState(false);
+  const ref=React.useRef(null);
+  const[openLeft,setOpenLeft]=React.useState(false);
+  const cor=acent||'#7c3aed';
+
+  React.useEffect(()=>{ if(!open)return;
+    const h=(e)=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
+    document.addEventListener('mousedown',h,true);
+    return()=>document.removeEventListener('mousedown',h,true); },[open]);
+
+  React.useEffect(()=>{ if(!open||!ref.current)return;
+    const rect=ref.current.getBoundingClientRect();
+    let container=ref.current.parentElement;
+    while(container&&container!==document.body){ const cs=window.getComputedStyle(container);
+      if(cs.overflow==='auto'||cs.overflowY==='auto'||cs.overflow==='scroll'||cs.overflowY==='scroll')break;
+      container=container.parentElement; }
+    const limiteDireita=container&&container!==document.body?container.getBoundingClientRect().right:window.innerWidth;
+    setOpenLeft((limiteDireita-rect.left)<260); },[open]);
+
+  const parsed=value?value.split('-').map(Number):null;
+  const[anoView,setAnoView]=React.useState(()=>parsed?parsed[0]:new Date().getFullYear());
+  const MESES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  const mesAtualIdx=parsed?parsed[1]-1:null;
+  const anoAtual=parsed?parsed[0]:null;
+
+  const displayVal=value?MESES[parsed[1]-1]+' de '+parsed[0]:'';
+  const hoje=new Date();
+
+  return React.createElement('div',{ref,style:{position:'relative'}},
+    React.createElement('div',{onClick:()=>{setAnoView(anoAtual||hoje.getFullYear());setOpen(p=>!p);},style:{border:'1.5px solid #e2e2e2',borderRadius:8,padding:'6px 12px',fontSize:13,cursor:'pointer',color:'#111',background:'#fff',display:'flex',alignItems:'center',gap:6,userSelect:'none',borderColor:open?cor:'#e2e2e2'}},
+      React.createElement('span',null,displayVal||'Selecione o mês')
+    ),
+    open&&React.createElement('div',{style:{position:'absolute',top:'calc(100% + 6px)',...(openLeft?{right:0}:{left:0}),zIndex:999,background:'#fff',borderRadius:14,boxShadow:'0 8px 32px rgba(0,0,0,0.15)',border:'1px solid #f0f0f0',minWidth:220,padding:14}},
+      React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}},
+        React.createElement('button',{onClick:()=>setAnoView(a=>a-1),style:{width:26,height:26,borderRadius:8,background:'#f5f5f5',border:'none',cursor:'pointer',fontSize:13,color:'#555'}},'‹'),
+        React.createElement('span',{style:{fontSize:13,fontWeight:700,color:'#111'}},anoView),
+        React.createElement('button',{onClick:()=>setAnoView(a=>a+1),style:{width:26,height:26,borderRadius:8,background:'#f5f5f5',border:'none',cursor:'pointer',fontSize:13,color:'#555'}},'›')
+      ),
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6,marginBottom:10}},
+        MESES.map((m,i)=>{ const sel=anoAtual===anoView&&mesAtualIdx===i;
+          return React.createElement('button',{key:m,onClick:()=>{onChange(anoView+'-'+String(i+1).padStart(2,'0'));setOpen(false);},style:{padding:'8px 0',borderRadius:8,border:'none',cursor:'pointer',fontSize:12,fontWeight:sel?700:500,background:sel?cor:'#f7f7f7',color:sel?'#fff':'#333'}},m); })
+      ),
+      React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:12}},
+        React.createElement('button',{onClick:()=>{onChange('');setOpen(false);},style:{background:'none',border:'none',color:'#2563eb',cursor:'pointer',fontWeight:600}},'Limpar'),
+        React.createElement('button',{onClick:()=>{const d=new Date();onChange(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'));setAnoView(d.getFullYear());setOpen(false);},style:{background:'none',border:'none',color:'#2563eb',cursor:'pointer',fontWeight:600}},'Este mês')
+      )
+    )
+  );
+}
+
 function MiniDatePicker({value,onChange,label,acent,dropup,forceOpenLeft}){ const[open,setOpen]=React.useState(false);
   const ref=React.useRef(null);
   const[openLeftAuto,setOpenLeftAuto]=React.useState(false);
@@ -5026,7 +5076,7 @@ function Ativos({uid,db,reload,setM}){
   return React.createElement(PW,{title:'Ativos e Depreciação',sub:'Controle patrimonial e depreciação mensal',
     actions:[
       React.createElement('div',{key:'depr',style:{display:'flex',alignItems:'center',gap:8}},
-        React.createElement('input',{type:'month',value:mesDepr,onChange:e=>setMesDepr(e.target.value),style:{border:'1.5px solid #e2e2e2',borderRadius:8,padding:'6px 10px',fontSize:13,outline:'none'}}),
+        React.createElement(MiniMonthPicker,{value:mesDepr,onChange:setMesDepr,acent:'#7c3aed'}),
         mesesLancados.has(mesDepr)
           ?React.createElement('span',{style:{fontSize:12,color:'#16a34a',fontWeight:700,padding:'6px 12px',background:'#f0fdf4',borderRadius:8}},'✓ Lançado')
           :React.createElement('button',{onClick:lancarDepreciacao,disabled:lancandoDepr,style:{background:'#7c3aed',color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',opacity:lancandoDepr?0.6:1}},lancandoDepr?'Lançando...':'📒 Lançar Depreciação '+F(totalDeprMes))
