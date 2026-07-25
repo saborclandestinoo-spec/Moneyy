@@ -4071,6 +4071,7 @@ function ProducaoHistorico({uid,db,reload,setM}){ const{fichas}=db;
   const[dtIni,setDtIni]=React.useState(()=>{const d=new Date();d.setDate(d.getDate()-30);return d.toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});});
   const[dtFim,setDtFim]=React.useState(TODAY());
   const[fichaFil,setFichaFil]=React.useState('');
+  const[abaCat,setAbaCat]=React.useState('Cookie'); // 'Cookie' | 'Recheio'
 
   const fetchProducoes=React.useCallback(()=>{ setLoading(true);
     let q=sb.from('producoes').select('*').eq('user_id',uid).gte('data',dtIni).lte('data',dtFim).order('data',{ascending:false}).order('hora',{ascending:false});
@@ -4078,7 +4079,12 @@ function ProducaoHistorico({uid,db,reload,setM}){ const{fichas}=db;
 
   React.useEffect(()=>{fetchProducoes();},[fetchProducoes]);
 
-  const list=fichaFil?producoes.filter(p=>p.ficha_id===fichaFil):producoes;
+  const list=React.useMemo(()=>{ let l=producoes.filter(p=>{ const f=(fichas||[]).find(x=>x.id===p.ficha_id);
+      const cat=f?.categoria==='Recheio'?'Recheio':'Cookie';
+      return cat===abaCat; });
+    if(fichaFil)l=l.filter(p=>p.ficha_id===fichaFil);
+    return l; },[producoes,fichas,abaCat,fichaFil]);
+  const fichasDoTipo=(fichas||[]).filter(f=>(f.categoria==='Recheio'?'Recheio':'Cookie')===abaCat);
   const totalUn=list.reduce((s,p)=>s+Number(p.quantidade||0),0);
   const totalCusto=list.reduce((s,p)=>s+Number(p.custo_total||0),0);
   const custoMedioUn=totalUn>0?totalCusto/totalUn:0;
@@ -4118,7 +4124,9 @@ function ProducaoHistorico({uid,db,reload,setM}){ const{fichas}=db;
       )
     )}); };
 
-  return React.createElement(PW,{title:'Produção',sub:'Histórico de produções e baixa de ingredientes', actions:[React.createElement('button',{key:'n',style:{background:'#dc2626',color:'#fff',padding:'8px 18px',borderRadius:9,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:novaProducao},'+ Registrar Produção')]}, React.createElement('div',{style:{display:'flex',gap:10,marginBottom:16,flexWrap:'wrap',alignItems:'center'}}, React.createElement(DateRangePicker,{dtIni,dtFim,onChangeDtIni:setDtIni,onChangeDtFim:setDtFim,openRight:true}), React.createElement('div',{style:{minWidth:220}},React.createElement(CustomSelect,{label:'Ficha',value:fichaFil,onChange:setFichaFil,options:[{v:'',l:'Todas'},...(fichas||[]).map(f=>({v:f.id,l:f.nome}))],acent:'#dc2626'}))
+  return React.createElement(PW,{title:'Produção',sub:'Histórico de produções e baixa de ingredientes', actions:[React.createElement('button',{key:'n',style:{background:'#dc2626',color:'#fff',padding:'8px 18px',borderRadius:9,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:novaProducao},'+ Registrar Produção')]},
+    React.createElement('div',{style:{display:'flex',gap:8,marginBottom:16}}, ['Cookie','Recheio'].map(c=>React.createElement('button',{key:c,onClick:()=>{setAbaCat(c);setFichaFil('');},style:{padding:'9px 20px',borderRadius:10,border:'none',cursor:'pointer',fontWeight:700,fontSize:13,background:abaCat===c?(c==='Cookie'?'#dc2626':'#7c3aed'):'#f5f5f5',color:abaCat===c?'#fff':'#666'}},c==='Cookie'?'🍪 Cookies':'🧁 Recheios'))
+    ), React.createElement('div',{style:{display:'flex',gap:10,marginBottom:16,flexWrap:'wrap',alignItems:'center'}}, React.createElement(DateRangePicker,{dtIni,dtFim,onChangeDtIni:setDtIni,onChangeDtFim:setDtFim,openRight:true}), React.createElement('div',{style:{minWidth:220}},React.createElement(CustomSelect,{label:'Ficha',value:fichaFil,onChange:setFichaFil,options:[{v:'',l:'Todas'},...fichasDoTipo.map(f=>({v:f.id,l:f.nome}))],acent:'#dc2626'}))
     ), React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}}, React.createElement(SC,{label:'Produções',val:list.length,color:'#dc2626'}), React.createElement(SC,{label:'Unidades produzidas',val:totalUn,color:'#111'}), React.createElement(SC,{label:'Custo total',val:F(totalCusto),color:'#dc2626'}), React.createElement(SC,{label:'Custo médio/un',val:F(custoMedioUn),color:'#2563eb'})
     ), ranking.length>0&&React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'18px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)',marginBottom:16}}, React.createElement('div',{style:{fontWeight:700,fontSize:14,marginBottom:14}},'Mais produzidos no período'), ranking.slice(0,6).map(([nome,qtd])=>{ const pct=ranking[0][1]>0?Math.round(qtd/ranking[0][1]*100):0;
         return React.createElement('div',{key:nome,style:{marginBottom:10}}, React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:4}}, React.createElement('span',{style:{fontSize:13,color:'#555'}},nome), React.createElement('span',{style:{fontSize:13,fontWeight:700}},qtd+' un')
