@@ -4094,7 +4094,7 @@ function ProducaoHistorico({uid,db,reload,setM}){ const{fichas}=db;
   list.forEach(p=>{porFicha[p.ficha_nome]=(porFicha[p.ficha_nome]||0)+Number(p.quantidade||0);});
   const ranking=Object.entries(porFicha).sort((a,b)=>b[1]-a[1]);
 
-  const novaProducao=()=>setM({wide:true,title:'Registrar Produção',body:React.createElement(ProducaoForm,{uid,db,reload:()=>{fetchProducoes();reload();},close:()=>setM(null)})});
+  const novaProducao=()=>setM({wide:true,title:'Registrar Produção',body:React.createElement(ProducaoForm,{uid,db,reload:()=>{fetchProducoes();reload();},close:()=>setM(null),categoriaFiltro:abaCat})});
   const verDetalhe=(p)=>setM({title:'Detalhes da Produção',body:React.createElement(ProducaoDetalhe,{producao:p,db,close:()=>setM(null)})});
 
   const excluirProducao=async(p)=>{ setM({title:'Excluir Produção',body:React.createElement('div',null, React.createElement('div',{style:{fontSize:13,color:'#666',marginBottom:18,lineHeight:1.6}}, 'Excluir a produção de '+p.quantidade+'x '+p.ficha_nome+'? Os ingredientes serão devolvidos ao estoque e o produto será retirado.'
@@ -4125,8 +4125,8 @@ function ProducaoHistorico({uid,db,reload,setM}){ const{fichas}=db;
     )}); };
 
   return React.createElement(PW,{title:'Produção',sub:'Histórico de produções e baixa de ingredientes', actions:[React.createElement('button',{key:'n',style:{background:'#dc2626',color:'#fff',padding:'8px 18px',borderRadius:9,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:novaProducao},'+ Registrar Produção')]},
-    React.createElement('div',{style:{display:'flex',gap:8,marginBottom:16}}, ['Cookie','Recheio'].map(c=>React.createElement('button',{key:c,onClick:()=>{setAbaCat(c);setFichaFil('');},style:{padding:'9px 20px',borderRadius:10,border:'none',cursor:'pointer',fontWeight:700,fontSize:13,background:abaCat===c?(c==='Cookie'?'#dc2626':'#7c3aed'):'#f5f5f5',color:abaCat===c?'#fff':'#666'}},c==='Cookie'?'🍪 Cookies':'🧁 Recheios'))
-    ), React.createElement('div',{style:{display:'flex',gap:10,marginBottom:16,flexWrap:'wrap',alignItems:'center'}}, React.createElement(DateRangePicker,{dtIni,dtFim,onChangeDtIni:setDtIni,onChangeDtFim:setDtFim,openRight:true}), React.createElement('div',{style:{minWidth:220}},React.createElement(CustomSelect,{label:'Ficha',value:fichaFil,onChange:setFichaFil,options:[{v:'',l:'Todas'},...fichasDoTipo.map(f=>({v:f.id,l:f.nome}))],acent:'#dc2626'}))
+    React.createElement('div',{style:{display:'flex',gap:8,marginBottom:16}}, ['Cookie','Recheio'].map(c=>React.createElement('button',{key:c,onClick:()=>{setAbaCat(c);setFichaFil('');},style:{padding:'9px 20px',borderRadius:10,border:'none',cursor:'pointer',fontWeight:700,fontSize:13,background:abaCat===c?(c==='Cookie'?'#dc2626':'#7c3aed'):'#f5f5f5',color:abaCat===c?'#fff':'#666'}},c==='Cookie'?'Cookies':'Recheios'))
+    ), React.createElement('div',{style:{display:'flex',gap:10,marginBottom:16,flexWrap:'wrap',alignItems:'center',justifyContent:'space-between'}}, React.createElement(DateRangePicker,{dtIni,dtFim,onChangeDtIni:setDtIni,onChangeDtFim:setDtFim,openRight:true}), React.createElement('div',{style:{minWidth:220}},React.createElement(CustomSelect,{label:'Ficha',value:fichaFil,onChange:setFichaFil,options:[{v:'',l:'Todas'},...fichasDoTipo.map(f=>({v:f.id,l:f.nome}))],acent:'#dc2626'}))
     ), React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}}, React.createElement(SC,{label:'Produções',val:list.length,color:'#dc2626'}), React.createElement(SC,{label:'Unidades produzidas',val:totalUn,color:'#111'}), React.createElement(SC,{label:'Custo total',val:F(totalCusto),color:'#dc2626'}), React.createElement(SC,{label:'Custo médio/un',val:F(custoMedioUn),color:'#2563eb'})
     ), ranking.length>0&&React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'18px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)',marginBottom:16}}, React.createElement('div',{style:{fontWeight:700,fontSize:14,marginBottom:14}},'Mais produzidos no período'), ranking.slice(0,6).map(([nome,qtd])=>{ const pct=ranking[0][1]>0?Math.round(qtd/ranking[0][1]*100):0;
         return React.createElement('div',{key:nome,style:{marginBottom:10}}, React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:4}}, React.createElement('span',{style:{fontSize:13,color:'#555'}},nome), React.createElement('span',{style:{fontSize:13,fontWeight:700}},qtd+' un')
@@ -4146,7 +4146,8 @@ function ProducaoHistorico({uid,db,reload,setM}){ const{fichas}=db;
   );
 }
 
-function ProducaoForm({uid,db,reload,close,fichaIdInicial,qtdInicial}){ const{fichas,estoque}=db;
+function ProducaoForm({uid,db,reload,close,fichaIdInicial,qtdInicial,categoriaFiltro}){ const{fichas,estoque}=db;
+  const fichasFiltradas=categoriaFiltro?(fichas||[]).filter(f=>(f.categoria==='Recheio'?'Recheio':'Cookie')===categoriaFiltro):(fichas||[]);
   const[fichaId,setFichaId]=React.useState(fichaIdInicial||'');
   const[qtd,setQtd]=React.useState(qtdInicial?String(qtdInicial):'1');
   const[data,setData]=React.useState(TODAY());
@@ -4217,7 +4218,9 @@ function ProducaoForm({uid,db,reload,close,fichaIdInicial,qtdInicial}){ const{fi
     reload();close();setLd(false); };
 
   return React.createElement('div',{style:{minWidth:480}}, React.createElement('div',{style:{background:'#faf5ff',borderRadius:10,padding:'12px 14px',marginBottom:16,fontSize:12,color:'#dc2626',lineHeight:1.7}}, 'Selecione a ficha técnica e quantos foram produzidos. O sistema dá baixa nos ingredientes do estoque e entrada no produto acabado automaticamente.'
-    ), React.createElement('div',{style:{marginBottom:14}}, React.createElement(CustomSelect,{label:'Ficha Técnica *',value:fichaId,onChange:setFichaId, options:[{v:'',l:'— Selecione —'},{v:'__sep_cookie',l:'── Cookies ──',disabled:true},...(fichas||[]).filter(f=>f.categoria!=='Recheio').map(f=>({v:f.id,l:f.nome})),{v:'__sep_recheio',l:'── Recheios ──',disabled:true},...(fichas||[]).filter(f=>f.categoria==='Recheio').map(f=>({v:f.id,l:f.nome+' (Recheio)'}))],placeholder:'— Selecione a ficha técnica —',acent:'#dc2626' })
+    ), React.createElement('div',{style:{marginBottom:14}}, React.createElement(CustomSelect,{label:'Ficha Técnica *',value:fichaId,onChange:setFichaId, options:categoriaFiltro
+        ?[{v:'',l:'— Selecione —'},...fichasFiltradas.map(f=>({v:f.id,l:f.nome}))]
+        :[{v:'',l:'— Selecione —'},{v:'__sep_cookie',l:'── Cookies ──',disabled:true},...(fichas||[]).filter(f=>f.categoria!=='Recheio').map(f=>({v:f.id,l:f.nome})),{v:'__sep_recheio',l:'── Recheios ──',disabled:true},...(fichas||[]).filter(f=>f.categoria==='Recheio').map(f=>({v:f.id,l:f.nome+' (Recheio)'}))],placeholder:'— Selecione a ficha técnica —',acent:'#dc2626' })
     ), React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:14}}, React.createElement(FloatInput,{label:'Quantidade produzida',acent:'#dc2626',type:'number',value:qtd,onChange:e=>setQtd(e.target.value)}), React.createElement(MiniDatePicker,{label:'Data',value:data,onChange:setData,acent:'#dc2626'}), React.createElement(FloatInput,{label:'Hora',acent:'#dc2626',type:'time',value:hora,onChange:e=>setHora(e.target.value)})
     ), React.createElement(FloatInput,{label:'Observação (opcional)',acent:'#dc2626',value:obs,onChange:e=>setObs(e.target.value)}), fichaId&&React.createElement('div',null, // Custo preview
       React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}, React.createElement('div',{style:{background:'#f8f9fc',borderRadius:9,padding:'10px 12px'}}, React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:3}},'Custo/Unidade'), React.createElement('div',{style:{fontWeight:700,fontSize:15}},F(custoUnitario))
