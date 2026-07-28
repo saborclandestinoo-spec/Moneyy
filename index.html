@@ -857,7 +857,10 @@ function FecharCaixaModal({uid,caixa,vendasPrincipais,abertura,suprimentos,sangr
     if(errFechar){ toast('Erro ao fechar caixa: '+errFechar.message,true); setLd2(false);setLd&&setLd(false); return; }
     if(!dataFechamento||dataFechamento.length===0){ toast('⚠ Caixa não foi fechado (0 linhas afetadas — possível bloqueio de permissão/RLS no Supabase).',true); setLd2(false);setLd&&setLd(false); return; }
     toast(n+' lançamentos gerados! Caixa fechado.',false,true);
-    reload();close();setLd2(false);setLd&&setLd(false);
+    await reload();
+    const{data:checkFinal}=await sb.from('caixas').select('status').eq('id',caixa.id).single();
+    alert('DEBUG: reload() concluído. Status no banco AGORA = '+(checkFinal&&checkFinal.status));
+    close();setLd2(false);setLd&&setLd(false);
     if(imprimir)window.print();
    }catch(e){ console.error('Erro ao fechar caixa:',e); toast('Erro ao fechar caixa: '+(e?.message||String(e)),true); setLd2(false);setLd&&setLd(false); }
   };
