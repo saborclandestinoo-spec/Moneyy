@@ -834,6 +834,7 @@ function FecharCaixaModal({uid,caixa,vendasPrincipais,abertura,suprimentos,sangr
   );
 
   const confirmar=async(imprimir)=>{ setLd2(true);setLd&&setLd(true);
+   try{
     const n=await gerarLancamentos();
     // FIX: lançamentos usam valor CONTADO no fechamento (não o esperado dos pedidos)
     try{ const dataCx=caixa.data;
@@ -855,7 +856,9 @@ function FecharCaixaModal({uid,caixa,vendasPrincipais,abertura,suprimentos,sangr
     if(!dataFechamento||dataFechamento.length===0){ toast('⚠ Caixa não foi fechado (0 linhas afetadas — possível bloqueio de permissão/RLS no Supabase).',true); setLd2(false);setLd&&setLd(false); return; }
     toast(n+' lançamentos gerados! Caixa fechado.',false,true);
     reload();close();setLd2(false);setLd&&setLd(false);
-    if(imprimir)window.print(); };
+    if(imprimir)window.print();
+   }catch(e){ console.error('Erro ao fechar caixa:',e); toast('Erro ao fechar caixa: '+(e?.message||String(e)),true); setLd2(false);setLd&&setLd(false); }
+  };
 
   const cols='130px 1fr 1fr 1fr';
   const hd={textAlign:'right',fontSize:11,color:'#aaa',fontWeight:700,letterSpacing:'0.5px',textTransform:'uppercase'};
