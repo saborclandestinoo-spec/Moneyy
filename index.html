@@ -850,7 +850,9 @@ function FecharCaixaModal({uid,caixa,vendasPrincipais,abertura,suprimentos,sangr
         await sb.from('lancamentos').update({valor:parseFloat(novo.toFixed(2))}).eq('id',l.id);
       }
     }catch(e){console.error('Ajuste contado falhou:',e);}
-    await sb.from('caixas').update({ status:'fechado', saldo_fechamento:totalContado, fechado_em:new Date().toISOString(), obs:obs||null }).eq('id',caixa.id);
+    const{data:dataFechamento,error:errFechar}=await sb.from('caixas').update({ status:'fechado', saldo_fechamento:totalContado, fechado_em:new Date().toISOString(), obs:obs||null }).eq('id',caixa.id).select();
+    if(errFechar){ toast('Erro ao fechar caixa: '+errFechar.message,true); setLd2(false);setLd&&setLd(false); return; }
+    if(!dataFechamento||dataFechamento.length===0){ toast('⚠ Caixa não foi fechado (0 linhas afetadas — possível bloqueio de permissão/RLS no Supabase).',true); setLd2(false);setLd&&setLd(false); return; }
     toast(n+' lançamentos gerados! Caixa fechado.',false,true);
     reload();close();setLd2(false);setLd&&setLd(false);
     if(imprimir)window.print(); };
