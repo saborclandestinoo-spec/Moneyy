@@ -833,7 +833,8 @@ function FecharCaixaModal({uid,caixa,vendasPrincipais,abertura,suprimentos,sangr
   const Lbl=({label,sub})=>React.createElement('div',null, React.createElement('div',{style:{fontWeight:600,fontSize:13,color:'#111'}},label), sub&&React.createElement('div',{style:{fontSize:11,color:'#aaa'}},sub)
   );
 
-  const confirmar=async(imprimir)=>{ setLd2(true);setLd&&setLd(true);
+  const confirmar=async(imprimir)=>{ alert('DEBUG: confirmar() chamado. caixa.id = '+(caixa&&caixa.id));
+   setLd2(true);setLd&&setLd(true);
    try{
     const n=await gerarLancamentos();
     // FIX: lançamentos usam valor CONTADO no fechamento (não o esperado dos pedidos)
