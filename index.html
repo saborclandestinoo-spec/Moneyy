@@ -776,7 +776,8 @@ function AbrirCaixaModal({uid,reload,close}){ const[valor,setValor]=React.useSta
     // Guard: check if there's already an open caixa
     const{data:abertos}=await sb.from('caixas').select('id').eq('user_id',uid).eq('status','aberto').limit(1);
     if(abertos&&abertos.length>0){ toast('Já existe um caixa aberto! Feche-o antes de abrir outro.',true);setLd(false);close();return; }
-    await sb.from('caixas').insert({user_id:uid,data:hoje,status:'aberto',saldo_abertura:parseFloat(valor)||0,suprimentos:0,sangrias:0,obs});
+    const{error:errIns}=await sb.from('caixas').insert({user_id:uid,data:hoje,status:'aberto',saldo_abertura:parseFloat(valor)||0,suprimentos:0,sangrias:0,obs});
+    if(errIns){ toast(errIns.code==='23505'?'Já existe um caixa aberto (detectado no banco)! Feche-o antes de abrir outro.':'Erro ao abrir caixa: '+errIns.message,true);setLd(false);return; }
     toast('Caixa aberto!',false,true);reload();close();setLd(false); };
   return React.createElement('div',null, React.createElement('div',{style:{background:'#eff6ff',borderRadius:10,padding:'12px 14px',fontSize:12,color:'#2563eb',marginBottom:16,lineHeight:1.7}}, '💰 Informe quanto dinheiro físico tem no caixa agora (fundo de troco). O caixa abre zerado por padrão.'
     ), React.createElement(FloatInput,{label:'Saldo de abertura (R$)',acent:'#16a34a',type:'number',value:valor,onChange:e=>setValor(e.target.value)}), React.createElement(FloatInput,{label:'Observação (opcional)',acent:'#16a34a',value:obs,onChange:e=>setObs(e.target.value)}), React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',marginTop:8}}, React.createElement('button',{style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'},onClick:close},'Cancelar'), React.createElement('button',{style:{background:'#16a34a',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'},onClick:confirmar},ld?'Abrindo...':'🔓 Abrir Caixa')
@@ -5633,13 +5634,14 @@ function App(){ const[user,setUser]=useState(null);const[page,setPage]=useState(
           toast('🛎 Novo pedido!',false,true);
           // Auto-impressão de etiqueta de produção
           try{const pc=getPrintCfg();if(pc.autoprint&&payload.new){setTimeout(()=>imprimirEtiqueta(payload.new),600);}}catch(e){}
-          // Auto-abertura do caixa no primeiro pedido do dia
+          // Auto-abertura do caixa no primeiro pedido do dia — protegido por índice único no banco (user_id+data onde status=aberto), evita duplicata mesmo com pedidos simultâneos
           try{ const{data:cxExiste}=await sb.from('caixas').select('id').eq('user_id',user.id).eq('status','aberto').maybeSingle();
-            if(!cxExiste){ const{data:cxHoje}=await sb.from('caixas').select('id').eq('user_id',user.id).eq('data',hoje).maybeSingle();
-              if(!cxHoje){ await sb.from('caixas').insert({user_id:user.id,data:hoje,status:'aberto',saldo_abertura:0,suprimentos:0,sangrias:0});
-                const{data:cxs}=await sb.from('caixas').select('*').eq('user_id',user.id).order('criado_em',{ascending:false}).limit(30);
+            if(!cxExiste){ const{error:errIns}=await sb.from('caixas').insert({user_id:user.id,data:hoje,status:'aberto',saldo_abertura:0,suprimentos:0,sangrias:0});
+              if(!errIns){ const{data:cxs}=await sb.from('caixas').select('*').eq('user_id',user.id).order('criado_em',{ascending:false}).limit(30);
                 if(cxs)setDb(prev=>({...prev,caixas:cxs}));
-                toast('🔓 Caixa aberto automaticamente!',false,true); } } }catch(e){} },800); })
+                toast('🔓 Caixa aberto automaticamente!',false,true); }
+              // Se errIns existir (23505 = índice único bloqueou por corrida), outro pedido já criou o caixa — ignora silenciosamente, sem duplicar
+            } }catch(e){} },800); })
       .on('postgres_changes',{event:'UPDATE',schema:'public',table:'pedidos_cw'},async(payload)=>{ if(payload.new&&payload.new.user_id!==user.id)return;
         if(payload.new){setDb(prev=>({...prev,pedidos_cw:(prev.pedidos_cw||[]).map(p=>p.id===payload.new.id?{...p,...payload.new}:p)}));}
         if(payload.new&&['confirmed','ready','released','waiting_to_catch','delivered','closed','canceled'].includes(payload.new.status)){ processarBaixaEstoque(payload.new); }
