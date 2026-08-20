@@ -334,15 +334,28 @@ React.createElement('div',{style:{fontSize:11,color:'#bbb',marginTop:2}},produca
 ),
 
 React.createElement('div',{style:{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'18px 20px',marginBottom:16}},
-React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}},
+React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}},
 React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8}},
 React.createElement('span',{style:{fontSize:16}},'🧂'),
 React.createElement('span',{style:{fontWeight:700,fontSize:14,color:'#111'}},'Ingredientes')
 ),
 React.createElement('button',{onClick:()=>setBulkOpen(true),style:{background:cor+'12',color:cor,padding:'6px 14px',borderRadius:8,fontSize:12,fontWeight:700,border:'none',cursor:'pointer'}},'+ Adicionar em lote')
 ),
-ings.length===0?React.createElement('div',{style:{textAlign:'center',padding:'24px 0',color:'#bbb',fontSize:13}},'Nenhum ingrediente adicionado ainda.'):null,
-ings.map((ing,idx)=>React.createElement('div',{key:ing.id,style:{display:'flex',alignItems:'center',gap:8,padding:'10px 0',borderBottom:idx<ings.length-1?'1px solid #f5f5f5':'none'}},
+ings.length===0&&React.createElement('div',{style:{textAlign:'center',padding:'24px 0',color:'#bbb',fontSize:13}},'Nenhum ingrediente adicionado ainda.'),
+
+TIPOS_ING.map(tipo=>{
+const ingsGrupo=ings.filter(i=>(i.tipo||'Insumo')===tipo);
+if(ingsGrupo.length===0)return null;
+const ICONES={'Insumo':'🌾','Recheio':'🍫','Cobertura':'🧁','Embalagem':'📦','Material de Produção':'🧼'};
+const LABELS={'Insumo':'Matéria-Prima','Recheio':'Recheio','Cobertura':'Cobertura','Embalagem':'Embalagem','Material de Produção':'Materiais de Higiene'};
+const custoGrupo=ingsGrupo.reduce((s,i)=>s+Number(i.quantidade||0)*Number(i.custo_unit||0),0);
+return React.createElement('div',{key:tipo,style:{marginBottom:18}},
+React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8,paddingBottom:6,borderBottom:'2px solid #f0f0f0'}},
+React.createElement('span',{style:{fontSize:11,fontWeight:800,color:'#888',letterSpacing:'0.5px',textTransform:'uppercase'}},ICONES[tipo]+' '+LABELS[tipo]),
+React.createElement('span',{style:{fontSize:12,fontWeight:700,color:cor}},F(custoGrupo))
+),
+ingsGrupo.map(ing=>{const idx=ings.findIndex(i=>i.id===ing.id);
+return React.createElement('div',{key:ing.id,style:{display:'flex',alignItems:'center',gap:8,padding:'10px 0',borderBottom:'1px solid #f5f5f5'}},
 React.createElement('div',{style:{cursor:'grab',color:'#ddd',fontSize:14}},'⠿'),
 React.createElement('div',{style:{flex:1}},React.createElement(CustomSelect,{label:'Do estoque',value:ing.estoque_id||'',onChange:v=>{if(v)selecionarEstoque(ing.id,v);else updIng(ing.id,'estoque_id','');},options:(()=>{const t=ing.tipo||'Insumo';let items=(estoque||[]).filter(e=>{if(t==='Recheio')return e.categoria==='Recheio';if(t==='Embalagem')return e.categoria==='Embalagem';if(t==='Material de Produção')return e.categoria==='Material de Produção';if(t==='Cobertura')return e.categoria==='Matéria-Prima'||e.categoria==='Recheio';return e.categoria==='Matéria-Prima';}).map(e=>({v:e.id,l:e.nome,custo:e.custo,unidade:e.unidade}));if(t==='Recheio'){const estNomes=new Set(items.map(e=>e.l.toLowerCase()));const fichOpts=(db.fichas||[]).filter(f=>f.categoria==='Recheio'&&!estNomes.has((f.nome||'').toLowerCase())).map(f=>{
 const ingsR=(db.ficha_ingredientes||[]).filter(i=>i.ficha_id===f.id);
@@ -356,7 +369,10 @@ React.createElement('div',{style:{width:90}},React.createElement(FloatInput,{lab
 React.createElement('div',{style:{width:100}},React.createElement(CustomSelect,{label:'Tipo',value:ing.tipo||'Insumo',onChange:v=>updIng(ing.id,'tipo',v),options:TIPOS_ING,acent:cor})),
 React.createElement('div',{style:{width:70,textAlign:'right',fontSize:12,fontWeight:700,color:'#555'}},F(Number(ing.quantidade||0)*Number(ing.custo_unit||0))),
 React.createElement('button',{onClick:()=>setIngs(p=>p.filter(i=>i.id!==ing.id)),style:{background:'#fee2e2',color:'#dc2626',border:'none',borderRadius:7,padding:'6px 9px',fontSize:11,cursor:'pointer',fontWeight:700}},'✕')
-)),
+);})
+);
+}),
+
 React.createElement('button',{onClick:()=>setIngs(p=>[...p,{id:'new_'+Date.now()+Math.random(),nome:'',quantidade:'',unidade:'g',custo_unit:'',estoque_id:'',tipo:'Insumo'}]),style:{background:'none',border:'1px dashed '+cor+'50',color:cor,borderRadius:9,padding:'9px',fontSize:12,fontWeight:700,cursor:'pointer',width:'100%',marginTop:8}},'+ Adicionar ingrediente')
 ),
 
@@ -373,39 +389,15 @@ React.createElement('div',{style:{display:'flex',justifyContent:'space-between',
 ),
 producaoRealMes===0&&React.createElement('div',{style:{fontSize:11,color:'#f59e0b',marginTop:10}},'⚠ Nenhuma produção registrada em '+anoMesAtual+' ainda — registre em Produção para calcular a mão de obra real.')
 )),abaAtiva==='custofixo'&&React.createElement('div',null,React.createElement('div',{style:{marginBottom:14}},React.createElement('button',{onClick:()=>setShowCfgCusto(p=>!p),style:{background:'none',border:'none',color:cor,fontSize:11,fontWeight:700,cursor:'pointer',padding:0}},showCfgCusto?'✕ Fechar configuração':'⚙ '+(precifCfgAtual.id?'Editar':'Configurar')+' impostos e margem'),showCfgCusto&&React.createElement('div',{style:{background:'#fafafa',border:'1px solid #eee',borderRadius:10,padding:12,marginTop:8}},React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}},React.createElement(FloatInput,{label:'% Simples Nacional',acent:cor,type:'number',value:cfgImpostos,onChange:e=>setCfgImpostos(e.target.value)}),React.createElement(FloatInput,{label:'% Taxa maquininha',acent:cor,type:'number',value:cfgTaxa,onChange:e=>setCfgTaxa(e.target.value)})),React.createElement(FloatInput,{label:'% Margem de lucro desejada',acent:cor,type:'number',value:cfgMargem,onChange:e=>setCfgMargem(e.target.value)}),React.createElement('div',{style:{display:'flex',justifyContent:'flex-end',marginTop:8}},React.createElement('button',{onClick:salvarCfgCusto,disabled:ldCfg,style:{background:cor,color:'#fff',padding:'8px 18px',borderRadius:9,fontSize:12,fontWeight:700,border:'none',cursor:'pointer'}},ldCfg?'Salvando...':'Salvar')))),
-(()=>{const precifCfg=(db.precificacao_config||[]).find(c=>c.user_id===uid)||{};const totalCustosFixos=(db.custos_fixos||[]).filter(c=>c.ativo!==false).reduce((s,c)=>s+Number(c.valor||0),0);const totalFuncionariosNaoProducao=(db.funcionarios||[]).filter(f=>f.ativo!==false&&((f.departamento||'Produção')!=='Produção'||f.tipo!=='Freelancer')).reduce((s,f)=>s+custoMensalFuncionario(f),0);const depreciacaoMensalFicha=(db.ativos||[]).filter(a=>a.ativo!==false).reduce((s,a)=>{const vida=Number(a.vida_util_anos||0);const val=Number(a.valor_aquisicao||0)-Number(a.valor_residual||0);return s+(vida>0?val/(vida*12):0);},0);const custoFixoMensal=totalCustosFixos+totalFuncionariosNaoProducao+depreciacaoMensalFicha;const custoFixoUnit=producaoRealMes>0?custoFixoMensal/producaoRealMes:0;const pctImpostos=Number(precifCfg.pct_impostos||0);const pctTaxa=Number(precifCfg.pct_taxa_maquininha||0);const pctMargem=Number(precifCfg.pct_margem_desejada||0);const custoTotalComFixo=custoTotalComMOD+custoFixoUnit;const pctTotal=pctImpostos+pctTaxa+pctMargem;const precoSugerido=pctTotal<100&&pctTotal>0&&custoTotalComFixo>0?custoTotalComFixo/(1-pctTotal/100):null;const pv=parseFloat(precoVenda)||0;const lucroUnit=pv-custoTotalComFixo;const margem=pv>0?lucroUnit/pv*100:0;const estAtual=prodAcabadoAtual?Number(prodAcabadoAtual.qtd||0):0;const receitaPot=pv*estAtual;const semConfig=!precifCfg.id;
-return React.createElement('div',null,
-
-React.createElement('div',{style:{background:'linear-gradient(135deg,'+cor+'15,'+cor+'05)',border:'1px solid '+cor+'30',borderRadius:14,padding:'18px 20px',marginBottom:20,display:'flex',justifyContent:'space-between',alignItems:'center'}},
-React.createElement('div',null,
-React.createElement('div',{style:{fontSize:11,color:cor,fontWeight:700,letterSpacing:'0.5px',marginBottom:4}},'CUSTO TOTAL POR UNIDADE'),
-React.createElement('div',{style:{fontSize:11,color:'#999'}},'CMV + rateio de custos fixos e depreciação')
+(()=>{const totalCustosFixos=(db.custos_fixos||[]).filter(c=>c.ativo!==false).reduce((s,c)=>s+Number(c.valor||0),0);const totalFuncionariosNaoProducao=(db.funcionarios||[]).filter(f=>f.ativo!==false&&((f.departamento||'Produção')!=='Produção'||f.tipo!=='Freelancer')).reduce((s,f)=>s+custoMensalFuncionario(f),0);const depreciacaoMensalFicha=(db.ativos||[]).filter(a=>a.ativo!==false).reduce((s,a)=>{const vida=Number(a.vida_util_anos||0);const val=Number(a.valor_aquisicao||0)-Number(a.valor_residual||0);return s+(vida>0?val/(vida*12):0);},0);const custoFixoMensal=totalCustosFixos+totalFuncionariosNaoProducao+depreciacaoMensalFicha;const custoFixoUnit=producaoRealMes>0?custoFixoMensal/producaoRealMes:0;
+return React.createElement('div',{style:{background:'#f5f3ff',border:'1px solid #ddd6fe',borderRadius:10,padding:'12px 14px'}},
+React.createElement('div',{style:{fontWeight:700,fontSize:13,color:'#111',marginBottom:8}},'Custo Fixo Rateado'),
+React.createElement('div',{style:{background:'#fff',borderRadius:10,padding:'12px 14px'}},
+React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:12,color:'#555',marginBottom:4}},React.createElement('span',null,'Custos fixos totais do mês (Aluguel, Vendas/Adm, Depreciação etc)'),React.createElement('span',{style:{fontWeight:700}},F(custoFixoMensal))),
+React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:12,color:'#555',marginBottom:4}},React.createElement('span',null,'÷ Produção real do mês ('+anoMesAtual+')'),React.createElement('span',{style:{fontWeight:700}},producaoRealMes+' un')),
+React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:14,fontWeight:800,paddingTop:8,marginTop:8,borderTop:'1px solid #ddd6fe'}},React.createElement('span',null,'= Custo fixo por unidade'),React.createElement('span',{style:{color:'#7c3aed'}},F(custoFixoUnit)))
 ),
-React.createElement('div',{style:{textAlign:'right'}},
-React.createElement('div',{style:{fontSize:28,fontWeight:800,color:cor}},F(custoTotalComFixo)),
-React.createElement('div',{style:{fontSize:11,color:'#999'}},'por unidade')
-)
-),
-
-React.createElement('div',{style:{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'18px 20px',marginBottom:16}},
-React.createElement('div',{style:{fontWeight:700,fontSize:14,color:'#111',marginBottom:14}},'Composição do custo'),
-React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid #f5f5f5'}},React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8}},React.createElement('span',{style:{fontSize:14}},'🧂'),React.createElement('span',{style:{fontSize:13,color:'#555'}},'Ingredientes')),React.createElement('span',{style:{fontWeight:700,fontSize:13}},F(custoTotal))),
-React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid #f5f5f5'}},React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8}},React.createElement('span',{style:{fontSize:14}},'👷'),React.createElement('span',{style:{fontSize:13,color:'#555'}},'Mão de obra direta')),React.createElement('span',{style:{fontWeight:700,fontSize:13}},F(maoDeObraUnit))),
-React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid #f5f5f5'}},React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8}},React.createElement('span',{style:{fontSize:14}},'🏢'),React.createElement('span',{style:{fontSize:13,color:'#555'}},'Custos fixos rateados (aluguel, Vendas/Adm, depreciação)')),React.createElement('span',{style:{fontWeight:700,fontSize:13}},F(custoFixoUnit))),
-React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',paddingTop:12,marginTop:4}},React.createElement('span',{style:{fontSize:14,fontWeight:800,color:'#111'}},'Total'),React.createElement('span',{style:{fontSize:18,fontWeight:800,color:cor}},F(custoTotalComFixo))),
-semConfig&&React.createElement('div',{style:{fontSize:11,color:'#aaa',marginTop:10,padding:'8px 10px',background:'#fafafa',borderRadius:8}},'💡 Configure impostos, taxa de maquininha e margem acima para ver o preço sugerido.')
-),
-
-!semConfig&&precoSugerido!=null&&React.createElement('div',{style:{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:14,padding:'16px 20px',marginBottom:16,display:'flex',justifyContent:'space-between',alignItems:'center'}},
-React.createElement('div',null,React.createElement('div',{style:{fontSize:13,color:'#16a34a',fontWeight:700,marginBottom:2}},'💰 Preço sugerido'),React.createElement('div',{style:{fontSize:11,color:'#4ade80'}},'impostos '+pctImpostos+'% + taxa '+pctTaxa+'% + margem '+pctMargem+'%')),
-React.createElement('div',{style:{fontSize:24,fontWeight:800,color:'#16a34a'}},F(precoSugerido))
-),
-
-pv>0&&React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10}},
-React.createElement('div',{style:{background:'#fff',border:'1px solid #f0f0f0',borderRadius:12,padding:'14px 16px'}},React.createElement('div',{style:{fontSize:10,color:'#16a34a',fontWeight:700,letterSpacing:'0.5px',marginBottom:6}},'LUCRO UNIT.'),React.createElement('div',{style:{fontSize:18,fontWeight:800,color:lucroUnit>=0?'#16a34a':'#dc2626'}},F(lucroUnit))),
-React.createElement('div',{style:{background:'#fff',border:'1px solid #f0f0f0',borderRadius:12,padding:'14px 16px'}},React.createElement('div',{style:{fontSize:10,color:'#2563eb',fontWeight:700,letterSpacing:'0.5px',marginBottom:6}},'MARGEM'),React.createElement('div',{style:{fontSize:18,fontWeight:800,color:margem>=0?'#2563eb':'#dc2626'}},margem.toFixed(1)+'%')),
-React.createElement('div',{style:{background:'#fff',border:'1px solid #f0f0f0',borderRadius:12,padding:'14px 16px'}},React.createElement('div',{style:{fontSize:10,color:'#7c3aed',fontWeight:700,letterSpacing:'0.5px',marginBottom:6}},'RECEITA POT.'),React.createElement('div',{style:{fontSize:18,fontWeight:800,color:'#7c3aed'}},F(receitaPot)))
-)
+producaoRealMes===0&&React.createElement('div',{style:{fontSize:11,color:'#7c3aed',marginTop:10}},'⚠ Nenhuma produção registrada em '+anoMesAtual+' ainda — registre em Produção para calcular o rateio real.')
 );})()),bulkOpen&&React.createElement('div',{style:{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',zIndex:2000,display:'flex',alignItems:'center',justifyContent:'center'}},React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:20,width:420,maxHeight:'80vh',display:'flex',flexDirection:'column'},onClick:e=>e.stopPropagation()},React.createElement('div',{style:{fontWeight:800,fontSize:15,marginBottom:10}},'Adicionar insumos em lote'),React.createElement('input',{placeholder:'Buscar...',value:bulkBusca,onChange:e=>setBulkBusca(e.target.value),style:{background:'#f5f5f5',border:'none',borderRadius:9,padding:'9px 12px',fontSize:13,outline:'none',marginBottom:10}}),React.createElement('div',{style:{overflowY:'auto',flex:1,marginBottom:14}},(estoque||[]).filter(e=>e.categoria!=='Cookie'&&(!bulkBusca||e.nome.toLowerCase().includes(bulkBusca.toLowerCase()))).map(e=>React.createElement('label',{key:e.id,style:{display:'flex',alignItems:'center',gap:10,padding:'8px 4px',borderBottom:'1px solid #f5f5f5',cursor:'pointer'}},React.createElement('input',{type:'checkbox',checked:!!bulkSel[e.id],onChange:ev=>setBulkSel(p=>({...p,[e.id]:ev.target.checked}))}),React.createElement('span',{style:{flex:1,fontSize:13}},e.nome),React.createElement('span',{style:{fontSize:10,color:'#aaa'}},e.categoria)))),React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},React.createElement('button',{style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'},onClick:()=>{setBulkOpen(false);setBulkSel({});}},'Cancelar'),React.createElement('button',{style:{background:cor,color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:bulkAdicionar},'Adicionar ('+Object.values(bulkSel).filter(Boolean).length+')')))),React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'space-between',alignItems:'center',paddingTop:4}},isEdit&&React.createElement('button',{style:{background:'#fee2e2',color:'#dc2626',padding:'9px 14px',borderRadius:10,fontSize:12,fontWeight:600,border:'none',cursor:'pointer'},onClick:excluir},'Excluir'),React.createElement('div',{style:{display:'flex',gap:8,marginLeft:'auto'}},React.createElement('button',{style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'},onClick:close},'Cancelar'),React.createElement('button',{style:{background:cor,color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'},onClick:salvar},ld?'Salvando...':isEdit?'Salvar':'Criar Ficha'))));}function buildDREHierarchy(periodo,tipo,prefixo,receitaBruta,Linha,noBold=false,indentOffset=0,showEmpty=false,catsFin=[]){// Get all lançamentos matching this prefix
 // Include custom categories whose grupo starts with this prefix
 const prefCod=prefixo.split(' ')[0];const customNames=new Set((catsFin||[]).filter(c=>{const g=(c.grupo||'').split(' ')[0];return g===prefCod||g.startsWith(prefCod+'.');}).map(c=>c.nome));const lancItems=periodo.filter(l=>(tipo===null||l.tipo===tipo)&&((l.categoria||'').startsWith(prefixo)||customNames.has(l.categoria)));if(!lancItems.length)return[];// Forma pag → plano de contas mapping for receitas
