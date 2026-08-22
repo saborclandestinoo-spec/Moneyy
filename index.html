@@ -779,11 +779,17 @@ const dtComp=competencia?advanceDate(competencia,freqRec,i):(()=>{const[yr,mo,dy
 return prev.getFullYear()+'-'+String(prev.getMonth()+1).padStart(2,'0')+'-'+String(prev.getDate()).padStart(2,'0');})();rows.push({...base,data:dt,venc:dt,competencia:dtComp,data_pag:i===0&&pago?dataPag:null,pago:i===0?pago:false,grupo_id:gid,recorrente:freqRec,parcela:i+1+'/'+numRep});}}else{rows=[{...base,data_pag:pago?dataPag:null}];}if(isTransf){// transferencia: saida + entrada
 const vl=v;const dtxt=desc||'Transferencia '+venc;await sb.from('lancamentos').insert([{user_id:uid,tipo:'despesa',descricao:dtxt,valor:vl,categoria:'Transferencia',conta_id:contaId,forma_pag:'Transferencia',data:venc,venc,pago:true,data_pag:venc,obs:''},{user_id:uid,tipo:'receita',descricao:dtxt,valor:vl,categoria:'Transferencia',conta_id:contaDestId,forma_pag:'Transferencia',data:venc,venc,pago:true,data_pag:venc,obs:''}]);const cO=contas.find(c=>c.id===contaId);const cD=contas.find(c=>c.id===contaDestId);if(cO)await sb.from('contas_bancarias').update({saldo:Number(cO.saldo)-vl}).eq('id',contaId);if(cD)await sb.from('contas_bancarias').update({saldo:Number(cD.saldo)+vl}).eq('id',contaDestId);toast('Transferencia realizada!',false,true);await afterSave();setLd(false);return;}let error;
 if(modoMassa){
-// Edição em massa: aplica os mesmos campos em todos os lançamentos selecionados
-const payloadMassa={...rows[0]};
-delete payloadMassa.data;delete payloadMassa.venc;delete payloadMassa.competencia;// datas tratadas abaixo se preenchidas
-if(venc)payloadMassa.venc=venc;if(venc)payloadMassa.data=venc;
-if(competencia)payloadMassa.competencia=competencia;
+// Edição em massa: aplica SOMENTE os campos que o usuário de fato mudou em relação ao lançamento original (inicial)
+const camposComparaveis=['descricao','valor','categoria','conta_id','forma_pag','centro_custo','fornecedor','venc','competencia','pago','obs'];
+const payloadMassa={};
+camposComparaveis.forEach(campo=>{
+  const valorNovo=rows[0][campo];
+  const valorOriginal=inicial?inicial[campo]:undefined;
+  const mudou=campo==='pago'?valorNovo!==!!valorOriginal:String(valorNovo??'')!==String(valorOriginal??'');
+  if(mudou)payloadMassa[campo]=valorNovo;
+});
+if(payloadMassa.venc)payloadMassa.data=payloadMassa.venc;
+if(Object.keys(payloadMassa).length===0){toast('Nenhum campo foi alterado — nada para aplicar.',true);setLd(false);return;}
 const ids=lancamentosSelecionados.map(l=>l.id);
 const{error:eMassa}=await sb.from('lancamentos').update(payloadMassa).in('id',ids);
 error=eMassa;
