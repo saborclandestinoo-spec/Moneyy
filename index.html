@@ -923,16 +923,16 @@ isFreela&&React.createElement('div',null,
 React.createElement('div',{style:{fontWeight:700,fontSize:13,color:'#111',marginBottom:10}},'Folha de Pagamento — lance cada dia trabalhado'),
 
 React.createElement('div',{style:{background:'#f9f9fb',borderRadius:10,padding:12,marginBottom:14}},
-React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr auto',gap:8,marginBottom:6,fontSize:9,fontWeight:700,color:'#888',letterSpacing:'0.5px'}},
-React.createElement('span',null,'DATA'),React.createElement('span',{style:{textAlign:'right'}},'MÃO DE OBRA'),React.createElement('span',{style:{textAlign:'right'}},'ALIMENTAÇÃO'),React.createElement('span',{style:{textAlign:'right'}},'BONIFICAÇÕES'),React.createElement('span',null)
+React.createElement('div',{style:{marginBottom:8}},React.createElement(MiniDatePicker,{label:'Data',value:novaData,onChange:setNovaData,acent:cor})),
+React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:6,fontSize:9,fontWeight:700,color:'#888',letterSpacing:'0.5px'}},
+React.createElement('span',null,'MÃO DE OBRA'),React.createElement('span',null,'ALIMENTAÇÃO'),React.createElement('span',null,'BONIFICAÇÕES')
 ),
-React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr auto',gap:8,alignItems:'center'}},
-React.createElement(MiniDatePicker,{value:novaData,onChange:setNovaData,acent:cor}),
-React.createElement('input',{type:'number',value:novaMaoObra,onChange:e=>setNovaMaoObra(e.target.value),placeholder:'0,00',style:{border:'1px solid #e5e5e5',borderRadius:7,padding:'8px 10px',fontSize:12,outline:'none',textAlign:'right'}}),
-React.createElement('input',{type:'number',value:novaAlimentacao,onChange:e=>setNovaAlimentacao(e.target.value),placeholder:'0,00',style:{border:'1px solid #e5e5e5',borderRadius:7,padding:'8px 10px',fontSize:12,outline:'none',textAlign:'right'}}),
-React.createElement('input',{type:'number',value:novaBonificacao,onChange:e=>setNovaBonificacao(e.target.value),placeholder:'0,00',style:{border:'1px solid #e5e5e5',borderRadius:7,padding:'8px 10px',fontSize:12,outline:'none',textAlign:'right'}}),
-React.createElement('button',{onClick:addDiaFolha,style:{background:cor,color:'#fff',border:'none',borderRadius:7,padding:'8px 12px',fontSize:11,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}},'+ Add')
-)
+React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,alignItems:'center',marginBottom:10}},
+React.createElement('input',{type:'number',value:novaMaoObra,onChange:e=>setNovaMaoObra(e.target.value),placeholder:'0,00',style:{border:'1px solid #e5e5e5',borderRadius:7,padding:'8px 10px',fontSize:12,outline:'none',width:'100%',boxSizing:'border-box'}}),
+React.createElement('input',{type:'number',value:novaAlimentacao,onChange:e=>setNovaAlimentacao(e.target.value),placeholder:'0,00',style:{border:'1px solid #e5e5e5',borderRadius:7,padding:'8px 10px',fontSize:12,outline:'none',width:'100%',boxSizing:'border-box'}}),
+React.createElement('input',{type:'number',value:novaBonificacao,onChange:e=>setNovaBonificacao(e.target.value),placeholder:'0,00',style:{border:'1px solid #e5e5e5',borderRadius:7,padding:'8px 10px',fontSize:12,outline:'none',width:'100%',boxSizing:'border-box'}})
+),
+React.createElement('button',{onClick:addDiaFolha,style:{background:cor,color:'#fff',border:'none',borderRadius:8,padding:'9px 14px',fontSize:12,fontWeight:700,cursor:'pointer',width:'100%'}},'+ Adicionar dia')
 ),
 
 folhaDias.length>0&&React.createElement('div',{style:{maxHeight:220,overflowY:'auto',marginBottom:10}},
