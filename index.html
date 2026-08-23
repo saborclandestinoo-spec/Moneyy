@@ -29,13 +29,20 @@ select option{background:#fff;color:#1a1a1a}
 <body><div id="root"></div>
 <script type="text/javascript">
 const{useState,useEffect,useRef,useCallback}=React;const sb=supabase.createClient('https://yjhuyquvnqgwxuyqcxll.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqaHV5cXV2bnFnd3h1eXFjeGxsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NjM1MjYsImV4cCI6MjA5NjQzOTUyNn0.iwCVdDrGcpEVS7qs8qth2muUGBSSJhqRve9yFPJVDdw');const F=v=>`R$ ${Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`;const FD=d=>{if(!d)return'—';const[y,m,day]=d.split('T')[0].split('-');return`${day}/${m}/${y}`;};const TODAY=()=>new Date().toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});async function fetchTodosLancamentos(uid){
-  let todos=[];let from=0;const pageSize=1000;
+  // Busca SEMPRE todos os lançamentos, em blocos de 1000 (limite do Supabase por requisição),
+  // continuando até não sobrar mais nada — nunca depende de um número fixo de linhas.
+  let todos=[];let from=0;const pageSize=1000;let paginasComErro=0;
   while(true){
     const{data,error}=await sb.from('lancamentos').select('*').eq('user_id',uid).order('data',{ascending:false}).order('criado_em',{ascending:false}).range(from,from+pageSize-1);
-    if(error){console.warn('Erro ao paginar lancamentos:',error);break;}
+    if(error){
+      console.error('Erro ao paginar lancamentos (página a partir de '+from+'):',error);
+      paginasComErro++;
+      if(paginasComErro>=3){ if(typeof toast==='function')toast('⚠ Falha ao carregar todos os lançamentos — alguns podem estar faltando. Recarregue a página.',true); break; }
+      continue;// tenta a mesma página de novo antes de desistir
+    }
     if(!data||data.length===0)break;
     todos=todos.concat(data);
-    if(data.length<pageSize)break;// última página
+    if(data.length<pageSize)break;// última página (veio menos que o tamanho do bloco = acabou)
     from+=pageSize;
   }
   return todos;
