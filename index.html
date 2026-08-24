@@ -351,6 +351,22 @@ React.createElement('div',{style:{fontSize:11,color:'#999'}},'por unidade')
 )
 ),
 
+(()=>{
+const pesoTotal=ings.filter(i=>(i.tipo||'Insumo')==='Insumo').reduce((s,i)=>{
+const qtd=Number(i.quantidade||0);
+const un=(i.unidade||'g').toLowerCase();
+// Normaliza pra gramas/ml — kg e l viram ×1000; g, ml, un contam direto
+const fator=un==='kg'||un==='l'?1000:1;
+return s+qtd*fator;
+},0);
+return React.createElement('div',{style:{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'16px 20px',marginBottom:16,display:'flex',justifyContent:'space-between',alignItems:'center'}},
+React.createElement('div',null,
+React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700,letterSpacing:'0.5px',marginBottom:4}},'TAMANHO DO COOKIE'),
+React.createElement('div',{style:{fontSize:11,color:'#bbb'}},'Soma das matérias-primas da receita')
+),
+React.createElement('div',{style:{fontSize:26,fontWeight:800,color:'#111'}},pesoTotal.toFixed(0)+' g')
+);
+})(),
 React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:20}},
 React.createElement('div',{style:{background:'#fff',border:'1px solid #f0f0f0',borderRadius:12,padding:'14px 16px'}},
 React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700,letterSpacing:'0.5px',marginBottom:6}},'INGREDIENTES'),
