@@ -712,35 +712,39 @@ React.createElement('div',{style:{display:'flex',justifyContent:'space-between',
 const{fichas,estoque,ficha_ingredientes}=db;
 const cor='#dc2626';
 const hoje=TODAY();
-const storageKey='planejamento_feitos_'+uid+'_'+hoje;
-const ordemKey='planejamento_ordem_'+uid;
-const qtdKey='planejamento_qtd_'+uid+'_'+hoje;
+const storageKey='planejamento_feitos_'+uid+'_'+hoje;// "feito" reseta por dia (faz sentido: nova produção começa zerada)
+const ordemKey='planejamento_ordem_'+uid;// persiste — não depende do dia
+const qtdKey='planejamento_qtd_'+uid;// persiste — não depende do dia
+const extrasKey='planejamento_extras_'+uid;// persiste — não depende do dia
+const ocultosKey='planejamento_ocultos_'+uid;// persiste — não depende do dia
+
 const[feitos,setFeitos]=React.useState(()=>{try{const s=localStorage.getItem(storageKey);return s?new Set(JSON.parse(s)):new Set();}catch{return new Set();}});
-const[ocultos,setOcultos]=React.useState(()=>new Set());
-const[extras,setExtras]=React.useState(()=>new Set());
+const[ocultos,setOcultos]=React.useState(()=>{try{const s=localStorage.getItem(ocultosKey);return s?new Set(JSON.parse(s)):new Set();}catch{return new Set();}});
+const[extras,setExtras]=React.useState(()=>{try{const s=localStorage.getItem(extrasKey);return s?new Set(JSON.parse(s)):new Set();}catch{return new Set();}});
 const[addOpen,setAddOpen]=React.useState(false);
 const[addBusca,setAddBusca]=React.useState('');
 const[abaAtiva,setAbaAtiva]=React.useState('cookies');
 const[ordemIds,setOrdemIds]=React.useState(()=>{try{const s=localStorage.getItem(ordemKey);return s?JSON.parse(s):[];}catch{return[];}});
 const[qtdManual,setQtdManual]=React.useState(()=>{try{const s=localStorage.getItem(qtdKey);return s?JSON.parse(s):{};}catch{return{};}});
+const[dragId,setDragId]=React.useState(null);
 
 const toggleFeito=(id)=>setFeitos(prev=>{const n=new Set(prev);if(n.has(id))n.delete(id);else n.add(id);try{localStorage.setItem(storageKey,JSON.stringify([...n]));}catch{}return n;});
 
+const setOcultosPersist=(fn)=>setOcultos(prev=>{const n=fn(prev);try{localStorage.setItem(ocultosKey,JSON.stringify([...n]));}catch{}return n;});
+const setExtrasPersist=(fn)=>setExtras(prev=>{const n=fn(prev);try{localStorage.setItem(extrasKey,JSON.stringify([...n]));}catch{}return n;});
+
 const setQtdItem=(id,val)=>setQtdManual(prev=>{const n={...prev,[id]:val};try{localStorage.setItem(qtdKey,JSON.stringify(n));}catch{}return n;});
 
-const moverItem=(id,direcao)=>setOrdemIds(prev=>{
-const listaAtualIds=listaBase.map(l=>l.id);
-const atual=prev.length?prev:listaAtualIds;
-const arr=[...atual];
-// garante que todos os ids da lista estejam presentes no array de ordem
-listaAtualIds.forEach(lid=>{if(!arr.includes(lid))arr.push(lid);});
-const idx=arr.indexOf(id);
-const novoIdx=direcao==='up'?idx-1:idx+1;
-if(novoIdx<0||novoIdx>=arr.length)return prev;
-[arr[idx],arr[novoIdx]]=[arr[novoIdx],arr[idx]];
+const moveRow=(fromIdx,toIdx)=>{
+if(fromIdx===toIdx)return;
+const key=item=>item.id;
+const cur=lista.map(key);
+const arr=[...cur];
+const[m]=arr.splice(fromIdx,1);
+arr.splice(toIdx,0,m);
 try{localStorage.setItem(ordemKey,JSON.stringify(arr));}catch{}
-return arr;
-});
+setOrdemIds(arr);
+};
 
 const listaBase=React.useMemo(()=>{
 return(fichas||[]).filter(f=>f.categoria!=='Recheio').map(f=>{
@@ -820,7 +824,7 @@ React.createElement(FloatInput,{label:'Buscar cookie',acent:cor,value:addBusca,o
 React.createElement('div',{style:{maxHeight:220,overflowY:'auto',marginTop:10}},
 disponiveisParaAdd.length===0
 ?React.createElement('div',{style:{color:'#aaa',fontSize:12,padding:10,textAlign:'center'}},'Nenhum cookie disponível para adicionar.')
-:disponiveisParaAdd.map(f=>React.createElement('div',{key:f.id,onClick:()=>{setExtras(p=>new Set([...p,f.id]));setOcultos(p=>{const n=new Set(p);n.delete(f.id);return n;});setAddOpen(false);setAddBusca('');},style:{padding:'9px 12px',borderRadius:8,cursor:'pointer',fontSize:13,fontWeight:600,display:'flex',justifyContent:'space-between'},onMouseEnter:e=>e.currentTarget.style.background='#faf5ff',onMouseLeave:e=>e.currentTarget.style.background='transparent'},
+:disponiveisParaAdd.map(f=>React.createElement('div',{key:f.id,onClick:()=>{setExtrasPersist(p=>new Set([...p,f.id]));setOcultosPersist(p=>{const n=new Set(p);n.delete(f.id);return n;});setAddOpen(false);setAddBusca('');},style:{padding:'9px 12px',borderRadius:8,cursor:'pointer',fontSize:13,fontWeight:600,display:'flex',justifyContent:'space-between'},onMouseEnter:e=>e.currentTarget.style.background='#faf5ff',onMouseLeave:e=>e.currentTarget.style.background='transparent'},
 f.nome,React.createElement('span',{style:{color:cor,fontSize:11,fontWeight:700}},'+ adicionar')
 ))
 )
@@ -844,11 +848,8 @@ React.createElement('div',null,React.createElement('div',{style:{fontSize:10,col
 React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
 lista.map((item,idx)=>{
 const feito=feitos.has(item.id);
-return React.createElement('div',{key:item.id,style:{display:'flex',alignItems:'center',gap:10,padding:'14px 18px',borderBottom:idx<lista.length-1?'1px solid #f5f5f5':'none',opacity:feito?0.5:1,background:feito?'#fafafa':'#fff'}},
-React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:2}},
-React.createElement('button',{onClick:()=>moverItem(item.id,'up'),disabled:idx===0,style:{background:'none',border:'none',cursor:idx===0?'default':'pointer',color:idx===0?'#eee':'#999',fontSize:13,padding:0,lineHeight:1}},'▲'),
-React.createElement('button',{onClick:()=>moverItem(item.id,'down'),disabled:idx===lista.length-1,style:{background:'none',border:'none',cursor:idx===lista.length-1?'default':'pointer',color:idx===lista.length-1?'#eee':'#999',fontSize:13,padding:0,lineHeight:1}},'▼')
-),
+return React.createElement('div',{key:item.id,draggable:true,onDragStart:e=>{setDragId(idx);e.dataTransfer.effectAllowed='move';},onDragOver:e=>e.preventDefault(),onDrop:e=>{e.preventDefault();if(dragId!==null&&dragId!==idx)moveRow(dragId,idx);setDragId(null);},onDragEnd:()=>setDragId(null),style:{display:'flex',alignItems:'center',gap:12,padding:'14px 18px',borderBottom:idx<lista.length-1?'1px solid #f5f5f5':'none',opacity:feito?0.5:dragId===idx?0.4:1,background:feito?'#fafafa':'#fff',cursor:'grab'}},
+React.createElement('div',{style:{color:'#ddd',fontSize:16,flexShrink:0}},'⠿'),
 React.createElement('div',{onClick:()=>toggleFeito(item.id),style:{width:24,height:24,borderRadius:7,border:'2px solid '+(feito?'#16a34a':'#ddd'),background:feito?'#16a34a':'#fff',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}},feito&&React.createElement('span',{style:{color:'#fff',fontSize:14,fontWeight:900}},'✓')),
 React.createElement('div',{style:{flex:1,cursor:'pointer'},onClick:()=>toggleFeito(item.id)},
 React.createElement('div',{style:{fontWeight:700,fontSize:14,color:'#111',textDecoration:feito?'line-through':'none'}},item.nome+(item.manual?' 🔖':'')),
@@ -856,11 +857,11 @@ React.createElement('div',{style:{fontSize:11,color:'#aaa',marginTop:2}},item.qt
 ),
 React.createElement('input',{type:'number',value:item.sugerido,onClick:e=>e.stopPropagation(),onChange:e=>{const v=parseFloat(e.target.value);setQtdItem(item.id,isNaN(v)?0:v);},style:{width:64,textAlign:'right',fontWeight:800,fontSize:15,color:feito?'#aaa':cor,border:'1.5px solid '+(feito?'#eee':'#fee2e2'),borderRadius:8,padding:'6px 8px',outline:'none'}}),
 !feito&&React.createElement('button',{onClick:()=>irProduzir(item),style:{background:cor,color:'#fff',border:'none',borderRadius:8,padding:'8px 14px',fontSize:12,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}},'Produzir'),
-React.createElement('button',{onClick:()=>setOcultos(prev=>new Set([...prev,item.id])),style:{background:'none',border:'none',color:'#ccc',fontSize:16,cursor:'pointer',padding:'0 4px'}},'✕')
+React.createElement('button',{onClick:()=>setOcultosPersist(prev=>new Set([...prev,item.id])),style:{background:'none',border:'none',color:'#ccc',fontSize:16,cursor:'pointer',padding:'0 4px'}},'✕')
 );
 })
 ),
-React.createElement('div',{style:{fontSize:11,color:'#ccc',marginTop:10}},'🔖 = adicionado manualmente. Use as setas para reordenar, edite a quantidade direto no campo. Marcar como feito só risca da lista de hoje — para dar entrada de verdade no estoque, clique em "Produzir".')
+React.createElement('div',{style:{fontSize:11,color:'#ccc',marginTop:10}},'🔖 = adicionado manualmente. Arraste (⠿) para reordenar, edite a quantidade direto no campo. Marcar como feito só risca da lista de hoje — para dar entrada de verdade no estoque, clique em "Produzir".')
 )
 ),
 
@@ -903,6 +904,7 @@ React.createElement('td',{style:{padding:'12px',textAlign:'right',fontWeight:700
 )
 );
 }
+
 
 
 function ProducaoHistorico({uid,db,reload,setM}){const{fichas}=db;const[producoes,setProducoes]=React.useState([]);const[loading,setLoading]=React.useState(true);const[dtIni,setDtIni]=React.useState(()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),1).toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});});const[dtFim,setDtFim]=React.useState(TODAY());const[fichaFil,setFichaFil]=React.useState('');const[abaCat,setAbaCat]=React.useState('Cookie');// 'Cookie' | 'Recheio'
