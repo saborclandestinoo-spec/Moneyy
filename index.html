@@ -713,18 +713,36 @@ const{fichas,estoque,ficha_ingredientes}=db;
 const cor='#dc2626';
 const hoje=TODAY();
 const storageKey='planejamento_feitos_'+uid+'_'+hoje;
+const ordemKey='planejamento_ordem_'+uid;
+const qtdKey='planejamento_qtd_'+uid+'_'+hoje;
 const[feitos,setFeitos]=React.useState(()=>{try{const s=localStorage.getItem(storageKey);return s?new Set(JSON.parse(s)):new Set();}catch{return new Set();}});
 const[ocultos,setOcultos]=React.useState(()=>new Set());
 const[extras,setExtras]=React.useState(()=>new Set());
 const[addOpen,setAddOpen]=React.useState(false);
 const[addBusca,setAddBusca]=React.useState('');
 const[abaAtiva,setAbaAtiva]=React.useState('cookies');
+const[ordemIds,setOrdemIds]=React.useState(()=>{try{const s=localStorage.getItem(ordemKey);return s?JSON.parse(s):[];}catch{return[];}});
+const[qtdManual,setQtdManual]=React.useState(()=>{try{const s=localStorage.getItem(qtdKey);return s?JSON.parse(s):{};}catch{return{};}});
 
 const toggleFeito=(id)=>setFeitos(prev=>{const n=new Set(prev);if(n.has(id))n.delete(id);else n.add(id);try{localStorage.setItem(storageKey,JSON.stringify([...n]));}catch{}return n;});
 
-const calcCusto=f=>(ficha_ingredientes||[]).filter(i=>i.ficha_id===f.id).reduce((s,i)=>{const es=(estoque||[]).find(e=>e.id===i.estoque_id||e.nome===i.nome);return s+parseFloat(i.quantidade||0)*parseFloat(es?.custo||i.custo_unit||0);},0)/Number(f.rendimento||1);
+const setQtdItem=(id,val)=>setQtdManual(prev=>{const n={...prev,[id]:val};try{localStorage.setItem(qtdKey,JSON.stringify(n));}catch{}return n;});
 
-const lista=React.useMemo(()=>{
+const moverItem=(id,direcao)=>setOrdemIds(prev=>{
+const listaAtualIds=listaBase.map(l=>l.id);
+const atual=prev.length?prev:listaAtualIds;
+const arr=[...atual];
+// garante que todos os ids da lista estejam presentes no array de ordem
+listaAtualIds.forEach(lid=>{if(!arr.includes(lid))arr.push(lid);});
+const idx=arr.indexOf(id);
+const novoIdx=direcao==='up'?idx-1:idx+1;
+if(novoIdx<0||novoIdx>=arr.length)return prev;
+[arr[idx],arr[novoIdx]]=[arr[novoIdx],arr[idx]];
+try{localStorage.setItem(ordemKey,JSON.stringify(arr));}catch{}
+return arr;
+});
+
+const listaBase=React.useMemo(()=>{
 return(fichas||[]).filter(f=>f.categoria!=='Recheio').map(f=>{
 const est=(estoque||[]).find(e=>e.categoria==='Cookie'&&(e.nome||'').toLowerCase()===(f.nome||'').toLowerCase());
 const qtdEst=Number(est?.qtd||0);
@@ -732,10 +750,17 @@ const minimo=Number(est?.minimo||0);
 const abaixoDoMinimo=minimo>0&&qtdEst<minimo;
 if(!abaixoDoMinimo&&!extras.has(f.id))return null;
 if(ocultos.has(f.id))return null;
-const sugerido=abaixoDoMinimo?minimo-qtdEst:1;
+const sugeridoAuto=abaixoDoMinimo?minimo-qtdEst:1;
+const sugerido=qtdManual[f.id]!=null?Number(qtdManual[f.id]):sugeridoAuto;
 return{id:f.id,nome:f.nome,qtdEst,minimo,sugerido,manual:extras.has(f.id)};
-}).filter(Boolean).sort((a,b)=>{const au=a.minimo>0?(a.minimo-a.qtdEst)/a.minimo:0;const bu=b.minimo>0?(b.minimo-b.qtdEst)/b.minimo:0;return bu-au;});
-},[fichas,estoque,ocultos,extras]);
+}).filter(Boolean);
+},[fichas,estoque,ocultos,extras,qtdManual]);
+
+const lista=React.useMemo(()=>{
+if(!ordemIds.length)return[...listaBase].sort((a,b)=>{const au=a.minimo>0?(a.minimo-a.qtdEst)/a.minimo:0;const bu=b.minimo>0?(b.minimo-b.qtdEst)/b.minimo:0;return bu-au;});
+const posMap={};ordemIds.forEach((id,i)=>{posMap[id]=i;});
+return[...listaBase].sort((a,b)=>{const pa=posMap[a.id]!=null?posMap[a.id]:9999;const pb=posMap[b.id]!=null?posMap[b.id]:9999;return pa-pb;});
+},[listaBase,ordemIds]);
 
 const disponiveisParaAdd=(fichas||[]).filter(f=>f.categoria!=='Recheio'&&!lista.some(p=>p.id===f.id)&&(!addBusca||f.nome.toLowerCase().includes(addBusca.toLowerCase())));
 
@@ -743,33 +768,38 @@ const pendentes=lista.filter(p=>!feitos.has(p.id));
 const feitosCount=lista.filter(p=>feitos.has(p.id)).length;
 
 const irProduzir=(item)=>{
-const ficha=(fichas||[]).find(f=>f.id===item.id);
 setM({title:'Registrar Produção — '+item.nome,wide:true,body:React.createElement(ProducaoForm,{uid,db,reload,close:()=>setM(null),fichaIdInicial:item.id,qtdInicial:item.sugerido,categoriaFiltro:'Cookie'})});
 };
 
-// Aba Insumos — consolida tudo que a lista de Cookies (item pendente, não riscado) precisa: Insumo + Recheio + Cobertura
-const TIPOS_CONSOLIDAR=['Insumo','Recheio','Cobertura'];
-const insumosNecessarios=React.useMemo(()=>{
-const consolidado={};// chave: nome do ingrediente + unidade
+// Aba Insumos — consolida tudo que a lista de Cookies (item pendente, não riscado) precisa, separado por tipo
+const insumosPorTipo=React.useMemo(()=>{
+const grupos={'Insumo':{},'Recheio':{},'Cobertura':{}};
 pendentes.forEach(item=>{
-const ings=(ficha_ingredientes||[]).filter(i=>i.ficha_id===item.id&&TIPOS_CONSOLIDAR.includes(i.tipo||'Insumo'));
+const ings=(ficha_ingredientes||[]).filter(i=>i.ficha_id===item.id&&grupos[i.tipo||'Insumo']);
 ings.forEach(i=>{
+const tipo=i.tipo||'Insumo';
 const necessario=parseFloat(i.quantidade||0)*item.sugerido;
 if(necessario<=0)return;
 const key=(i.nome||'').toLowerCase()+'|'+(i.unidade||'');
-if(!consolidado[key])consolidado[key]={nome:i.nome,unidade:i.unidade||'g',necessario:0,estoqueId:i.estoque_id};
-consolidado[key].necessario+=necessario;
+if(!grupos[tipo][key])grupos[tipo][key]={nome:i.nome,unidade:i.unidade||'g',necessario:0,estoqueId:i.estoque_id};
+grupos[tipo][key].necessario+=necessario;
 });
 });
-return Object.values(consolidado).map(c=>{
+const montarLista=obj=>Object.values(obj).map(c=>{
 const item=c.estoqueId?(estoque||[]).find(e=>e.id===c.estoqueId):(estoque||[]).find(e=>(e.nome||'').toLowerCase()===c.nome.toLowerCase());
 const disponivel=item?Number(item.qtd||0):0;
 const falta=Math.max(0,c.necessario-disponivel);
 return{...c,disponivel,falta,suficiente:disponivel>=c.necessario};
 }).sort((a,b)=>b.falta-a.falta||a.nome.localeCompare(b.nome));
+return{
+'Insumo':montarLista(grupos['Insumo']),
+'Recheio':montarLista(grupos['Recheio']),
+'Cobertura':montarLista(grupos['Cobertura'])
+};
 },[pendentes,ficha_ingredientes,estoque]);
 
-const totalFaltando=insumosNecessarios.filter(i=>!i.suficiente).length;
+const totalFaltando=Object.values(insumosPorTipo).flat().filter(i=>!i.suficiente).length;
+const LABELS_TIPO={'Insumo':'Matéria-Prima','Recheio':'Recheio','Cobertura':'Cobertura'};
 
 return React.createElement(PW,{title:'Planejamento de Produção',sub:'Checklist do que precisa produzir e os insumos necessários',
 actions:abaAtiva==='cookies'?[React.createElement('button',{key:'add',onClick:()=>setAddOpen(true),style:{background:'#f5f5f5',color:cor,padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'}},'+ Adicionar item')]:[]},
@@ -814,19 +844,23 @@ React.createElement('div',null,React.createElement('div',{style:{fontSize:10,col
 React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
 lista.map((item,idx)=>{
 const feito=feitos.has(item.id);
-return React.createElement('div',{key:item.id,style:{display:'flex',alignItems:'center',gap:14,padding:'14px 18px',borderBottom:idx<lista.length-1?'1px solid #f5f5f5':'none',opacity:feito?0.5:1,background:feito?'#fafafa':'#fff'}},
+return React.createElement('div',{key:item.id,style:{display:'flex',alignItems:'center',gap:10,padding:'14px 18px',borderBottom:idx<lista.length-1?'1px solid #f5f5f5':'none',opacity:feito?0.5:1,background:feito?'#fafafa':'#fff'}},
+React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:2}},
+React.createElement('button',{onClick:()=>moverItem(item.id,'up'),disabled:idx===0,style:{background:'none',border:'none',cursor:idx===0?'default':'pointer',color:idx===0?'#eee':'#999',fontSize:13,padding:0,lineHeight:1}},'▲'),
+React.createElement('button',{onClick:()=>moverItem(item.id,'down'),disabled:idx===lista.length-1,style:{background:'none',border:'none',cursor:idx===lista.length-1?'default':'pointer',color:idx===lista.length-1?'#eee':'#999',fontSize:13,padding:0,lineHeight:1}},'▼')
+),
 React.createElement('div',{onClick:()=>toggleFeito(item.id),style:{width:24,height:24,borderRadius:7,border:'2px solid '+(feito?'#16a34a':'#ddd'),background:feito?'#16a34a':'#fff',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}},feito&&React.createElement('span',{style:{color:'#fff',fontSize:14,fontWeight:900}},'✓')),
 React.createElement('div',{style:{flex:1,cursor:'pointer'},onClick:()=>toggleFeito(item.id)},
 React.createElement('div',{style:{fontWeight:700,fontSize:14,color:'#111',textDecoration:feito?'line-through':'none'}},item.nome+(item.manual?' 🔖':'')),
 React.createElement('div',{style:{fontSize:11,color:'#aaa',marginTop:2}},item.qtdEst+' em estoque · mínimo '+item.minimo)
 ),
-React.createElement('div',{style:{fontWeight:800,fontSize:16,color:feito?'#aaa':cor,minWidth:60,textAlign:'right'}},'+'+item.sugerido),
+React.createElement('input',{type:'number',value:item.sugerido,onClick:e=>e.stopPropagation(),onChange:e=>{const v=parseFloat(e.target.value);setQtdItem(item.id,isNaN(v)?0:v);},style:{width:64,textAlign:'right',fontWeight:800,fontSize:15,color:feito?'#aaa':cor,border:'1.5px solid '+(feito?'#eee':'#fee2e2'),borderRadius:8,padding:'6px 8px',outline:'none'}}),
 !feito&&React.createElement('button',{onClick:()=>irProduzir(item),style:{background:cor,color:'#fff',border:'none',borderRadius:8,padding:'8px 14px',fontSize:12,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}},'Produzir'),
 React.createElement('button',{onClick:()=>setOcultos(prev=>new Set([...prev,item.id])),style:{background:'none',border:'none',color:'#ccc',fontSize:16,cursor:'pointer',padding:'0 4px'}},'✕')
 );
 })
 ),
-React.createElement('div',{style:{fontSize:11,color:'#ccc',marginTop:10}},'🔖 = adicionado manualmente. Marcar como feito só risca da lista de hoje — para dar entrada de verdade no estoque, clique em "Produzir".')
+React.createElement('div',{style:{fontSize:11,color:'#ccc',marginTop:10}},'🔖 = adicionado manualmente. Use as setas para reordenar, edite a quantidade direto no campo. Marcar como feito só risca da lista de hoje — para dar entrada de verdade no estoque, clique em "Produzir".')
 )
 ),
 
@@ -838,13 +872,24 @@ React.createElement('div',{style:{fontSize:15,fontWeight:700,color:'#555',margin
 React.createElement('div',{style:{fontSize:13,color:'#aaa'}},'Adicione ou deixe pendente algum cookie na aba anterior para ver os insumos necessários.')
 )
 :React.createElement(React.Fragment,null,
-React.createElement('div',{style:{fontSize:12,color:'#888',marginBottom:14}},'Soma de Matéria-Prima + Recheio + Cobertura necessários para produzir tudo que está pendente na aba Cookies.'),
+React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'16px 20px',marginBottom:16,boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
+React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700,letterSpacing:'0.5px',marginBottom:8}},'CONTABILIZANDO '+pendentes.length+' COOKIE(S)'),
+React.createElement('div',{style:{display:'flex',flexWrap:'wrap',gap:8}},
+pendentes.map(p=>React.createElement('span',{key:p.id,style:{background:'#fef2f2',color:cor,padding:'5px 12px',borderRadius:8,fontSize:12,fontWeight:700}},p.nome+' ×'+p.sugerido))
+)
+),
+
+Object.keys(insumosPorTipo).map(tipo=>{
+const itens=insumosPorTipo[tipo];
+if(itens.length===0)return null;
+return React.createElement('div',{key:tipo,style:{marginBottom:20}},
+React.createElement('div',{style:{fontSize:11,fontWeight:800,color:'#111',letterSpacing:'0.5px',textTransform:'uppercase',marginBottom:8,paddingBottom:6,borderBottom:'2px solid #f0f0f0'}},LABELS_TIPO[tipo]),
 React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},
 React.createElement('table',{style:{width:'100%',borderCollapse:'collapse'}},
 React.createElement('thead',null,React.createElement('tr',{style:{background:'#f9f9fb'}},
 ['Insumo','Necessário','Em estoque','Falta'].map((h,i)=>React.createElement('th',{key:i,style:{padding:'10px 12px',fontSize:11,fontWeight:700,color:'#888',textAlign:i===0?'left':'right',borderBottom:'1px solid #f0f0f0'}},h))
 )),
-React.createElement('tbody',null,insumosNecessarios.map((ins,idx)=>React.createElement('tr',{key:idx,style:{borderBottom:'1px solid #f7f7f7',background:!ins.suficiente?'#fff5f5':'#fff'}},
+React.createElement('tbody',null,itens.map((ins,idx)=>React.createElement('tr',{key:idx,style:{borderBottom:'1px solid #f7f7f7',background:!ins.suficiente?'#fff5f5':'#fff'}},
 React.createElement('td',{style:{padding:'12px',fontWeight:700,fontSize:13}},ins.nome),
 React.createElement('td',{style:{padding:'12px',textAlign:'right',fontSize:12}},ins.necessario.toFixed(0)+' '+ins.unidade),
 React.createElement('td',{style:{padding:'12px',textAlign:'right',fontSize:12,color:'#888'}},ins.disponivel.toFixed(0)+' '+ins.unidade),
@@ -852,10 +897,13 @@ React.createElement('td',{style:{padding:'12px',textAlign:'right',fontWeight:700
 )))
 )
 )
+);
+})
 )
 )
 );
 }
+
 
 function ProducaoHistorico({uid,db,reload,setM}){const{fichas}=db;const[producoes,setProducoes]=React.useState([]);const[loading,setLoading]=React.useState(true);const[dtIni,setDtIni]=React.useState(()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),1).toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});});const[dtFim,setDtFim]=React.useState(TODAY());const[fichaFil,setFichaFil]=React.useState('');const[abaCat,setAbaCat]=React.useState('Cookie');// 'Cookie' | 'Recheio'
 const fetchProducoes=React.useCallback(()=>{setLoading(true);let q=sb.from('producoes').select('*').eq('user_id',uid).gte('data',dtIni).lte('data',dtFim).order('data',{ascending:false}).order('hora',{ascending:false});q.then(({data})=>{setProducoes(data||[]);setLoading(false);});},[uid,dtIni,dtFim]);React.useEffect(()=>{fetchProducoes();},[fetchProducoes]);const list=React.useMemo(()=>{let l=producoes.filter(p=>{const f=(fichas||[]).find(x=>x.id===p.ficha_id);const cat=f?.categoria==='Recheio'?'Recheio':'Cookie';return cat===abaCat;});if(fichaFil)l=l.filter(p=>p.ficha_id===fichaFil);return l;},[producoes,fichas,abaCat,fichaFil]);const fichasDoTipo=(fichas||[]).filter(f=>(f.categoria==='Recheio'?'Recheio':'Cookie')===abaCat);const totalUn=list.reduce((s,p)=>s+Number(p.quantidade||0),0);const totalCusto=list.reduce((s,p)=>s+Number(p.custo_total||0),0);const custoMedioUn=totalUn>0?totalCusto/totalUn:0;// Agrupa por ficha para ranking
