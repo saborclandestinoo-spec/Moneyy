@@ -1071,6 +1071,8 @@ const[snapshots,setSnapshots]=React.useState([]);
 const[loadingSnap,setLoadingSnap]=React.useState(true);
 const[dtIni,setDtIni]=React.useState(()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),1).toISOString().split('T')[0];});
 const[dtFim,setDtFim]=React.useState(()=>TODAY());
+const[verBalanco,setVerBalanco]=React.useState(false);
+const[filtroCategoria,setFiltroCategoria]=React.useState('');
 
 React.useEffect(()=>{ let mounted=true;
   sb.from('estoque_snapshots').select('*').eq('user_id',uid).order('data',{ascending:true}).then(({data})=>{ if(mounted){setSnapshots(data||[]);setLoadingSnap(false);} });
@@ -1099,6 +1101,13 @@ const cmv=(estoqueInicial!=null&&estoqueFinal!=null)?estoqueInicial+compras-esto
 
 const abrirConfigSnap=()=>setM({title:'Snapshot manual',body:React.createElement(SnapshotForm,{uid,reload:async()=>{const{data}=await sb.from('estoque_snapshots').select('*').eq('user_id',uid).order('data',{ascending:true});setSnapshots(data||[]);},close:()=>setM(null),valorAtual:valorEstoqueHoje})});
 
+// Balanço/inventário — só disponível pra HOJE (é o único momento que temos o detalhe item a item; snapshots antigos só guardam o total)
+const CATEGORIAS_BALANCO=['Matéria-Prima','Recheio','Cookie','Embalagem'];
+const itensInventario=(estoque||[]).filter(e=>e.id&&!String(e.id).startsWith('f_')&&!String(e.id).startsWith('fr_')&&(!filtroCategoria||e.categoria===filtroCategoria));
+const porCategoriaBalanco={};
+itensInventario.forEach(e=>{ const cat=e.categoria||'Outros'; (porCategoriaBalanco[cat]=porCategoriaBalanco[cat]||[]).push(e); });
+const categoriasComItens=Object.keys(porCategoriaBalanco).sort();
+
 return React.createElement(PW,{title:'CMV — Custo de Mercadoria Vendida',sub:'Apuração por estoque: Inicial + Compras − Final',
 actions:[React.createElement('button',{key:'snap',onClick:abrirConfigSnap,style:{background:'#f5f5f5',color:cor,padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'}},'+ Snapshot manual')]},
 
@@ -1120,7 +1129,7 @@ React.createElement('div',{style:{fontSize:11,color:cor,fontWeight:700,letterSpa
 cmv!=null?React.createElement('div',{style:{fontSize:36,fontWeight:800,color:cor}},F(cmv)):React.createElement('div',{style:{fontSize:16,color:'#f5b5b5',fontWeight:600}},'Dados insuficientes para calcular')
 ),
 
-React.createElement('div',{style:{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'20px'}},
+React.createElement('div',{style:{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'20px',marginBottom:20}},
 React.createElement('div',{style:{fontWeight:700,fontSize:14,marginBottom:14}},'Composição do cálculo'),
 React.createElement('div',{style:{display:'flex',justifyContent:'space-between',padding:'10px 0',borderBottom:'1px solid #f5f5f5'}},
 React.createElement('div',null,React.createElement('div',{style:{fontSize:13,fontWeight:600}},'Estoque Inicial'),React.createElement('div',{style:{fontSize:11,color:'#aaa'}},snapInicial?'Snapshot de '+FD(snapInicial.data):'—')),
@@ -1140,10 +1149,50 @@ React.createElement('span',{style:{fontSize:18,fontWeight:800,color:cor}},cmv!=n
 )
 ),
 
+// Balanço de Estoque — inventário detalhado do valor atual
+React.createElement('div',{style:{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'20px'}},
+React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:verBalanco?16:0}},
+React.createElement('div',null,
+React.createElement('div',{style:{fontWeight:700,fontSize:14}},'Balanço de Estoque (hoje)'),
+React.createElement('div',{style:{fontSize:11,color:'#aaa'}},'Inventário completo — '+itensInventario.length+' item(s), total '+F(valorEstoqueHoje))
+),
+React.createElement('button',{onClick:()=>setVerBalanco(p=>!p),style:{background:'#f5f5f5',color:cor,border:'none',borderRadius:9,padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer'}},verBalanco?'Ocultar':'Ver inventário')
+),
+
+verBalanco&&React.createElement('div',null,
+React.createElement('div',{style:{display:'flex',gap:6,marginBottom:14,flexWrap:'wrap'}},
+React.createElement('button',{onClick:()=>setFiltroCategoria(''),style:{padding:'6px 12px',borderRadius:8,border:'none',cursor:'pointer',fontSize:11,fontWeight:700,background:!filtroCategoria?cor:'#f5f5f5',color:!filtroCategoria?'#fff':'#666'}},'Todas'),
+CATEGORIAS_BALANCO.map(c=>React.createElement('button',{key:c,onClick:()=>setFiltroCategoria(c),style:{padding:'6px 12px',borderRadius:8,border:'none',cursor:'pointer',fontSize:11,fontWeight:700,background:filtroCategoria===c?cor:'#f5f5f5',color:filtroCategoria===c?'#fff':'#666'}},c))
+),
+categoriasComItens.length===0?React.createElement('div',{style:{textAlign:'center',padding:20,color:'#bbb',fontSize:13}},'Nenhum item encontrado.'):
+categoriasComItens.map(cat=>{ const itens=porCategoriaBalanco[cat].sort((a,b)=>a.nome.localeCompare(b.nome));
+  const totalCat=itens.reduce((s,e)=>s+Number(e.qtd||0)*Number(e.custo||0),0);
+  return React.createElement('div',{key:cat,style:{marginBottom:18}},
+  React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8,paddingBottom:6,borderBottom:'2px solid #f0f0f0'}},
+  React.createElement('span',{style:{fontSize:11,fontWeight:800,color:'#111',letterSpacing:'0.5px',textTransform:'uppercase'}},cat),
+  React.createElement('span',{style:{fontSize:12,fontWeight:700,color:cor}},F(totalCat))
+  ),
+  React.createElement('table',{style:{width:'100%',borderCollapse:'collapse'}},
+  React.createElement('thead',null,React.createElement('tr',null,
+  ['Item','Qtd','Custo Unit.','Valor Total'].map((h,i)=>React.createElement('th',{key:i,style:{padding:'6px 8px',fontSize:10,fontWeight:700,color:'#aaa',textAlign:i===0?'left':'right'}},h))
+  )),
+  React.createElement('tbody',null,itens.map(e=>React.createElement('tr',{key:e.id,style:{borderBottom:'1px solid #f7f7f7'}},
+  React.createElement('td',{style:{padding:'8px',fontSize:12,fontWeight:600}},e.nome),
+  React.createElement('td',{style:{padding:'8px',fontSize:12,textAlign:'right',color:'#888'}},Number(e.qtd||0).toFixed(0)+' '+(e.unidade||'')),
+  React.createElement('td',{style:{padding:'8px',fontSize:12,textAlign:'right',color:'#888'}},F(e.custo||0)),
+  React.createElement('td',{style:{padding:'8px',fontSize:12,textAlign:'right',fontWeight:700}},F(Number(e.qtd||0)*Number(e.custo||0)))
+  )))
+  )
+  );
+})
+)
+),
+
 React.createElement('div',{style:{fontSize:11,color:'#ccc',marginTop:14}},snapshots.length+' snapshot(s) de estoque salvos no histórico. Um novo é criado automaticamente todo dia, na primeira vez que você abrir o sistema.')
 )
 );
 }
+
 
 function SnapshotForm({uid,reload,close,valorAtual}){
 const[valor,setValor]=React.useState(String(valorAtual.toFixed(2)));
