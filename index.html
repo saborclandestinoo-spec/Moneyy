@@ -240,36 +240,39 @@ const qtd=Number(e.qtd||0);
 const minimo=Number(e.minimo||0);
 const abaixoDoMinimo=minimo>0&&qtd<minimo;
 if(!abaixoDoMinimo)return null;
-// Última compra desse item: lançamento com estoque_id igual, entrada, ordenado por data mais recente
+const faltaGramas=minimo-qtd;
+const embG=Number(e.qtd_embalagem||1);
+const faltaPacotes=embG>0?faltaGramas/embG:null;
+// Última compra desse item: para preço e data de referência (fornecedor vem do cadastro do item, não daqui)
 const ultimaCompra=(lancamentos||[]).filter(l=>l.estoque_id===e.id&&l.estoque_op!=='saida').sort((a,b)=>(b.data_pag||b.venc||'').localeCompare(a.data_pag||a.venc||''))[0];
 return{
 id:e.id,nome:e.nome,categoria:e.categoria,unidade:e.unidade,
-qtdAtual:qtd,minimo,falta:minimo-qtd,
+qtdAtual:qtd,minimo,faltaGramas,faltaPacotes,embG,
 custoUnit:e.custo||0,
-fornecedor:ultimaCompra?.fornecedor||'—',
+fornecedor:e.fornecedor||'—',
 ultimoValor:ultimaCompra?.valor||null,
 ultimaData:ultimaCompra?.data_pag||ultimaCompra?.venc||null
 };
 }).filter(Boolean).filter(i=>!busca||i.nome.toLowerCase().includes(busca.toLowerCase()))
-.sort((a,b)=>(b.falta/b.minimo)-(a.falta/a.minimo));
+.sort((a,b)=>(b.faltaGramas/b.minimo)-(a.faltaGramas/a.minimo));
 },[estoque,lancamentos,busca]);
 
 const porCategoria={};
 itens.forEach(i=>{ (porCategoria[i.categoria]=porCategoria[i.categoria]||[]).push(i); });
 const categorias=Object.keys(porCategoria).sort();
 
-const valorEstimadoTotal=itens.reduce((s,i)=>s+i.falta*(i.custoUnit||0),0);
+const valorEstimadoTotal=itens.reduce((s,i)=>s+i.faltaGramas*(i.custoUnit||0),0);
 
 const imprimir=()=>{
-let html='<div style="font-family:Arial;padding:20px;max-width:600px">';
+let html='<div style="font-family:Arial;padding:20px;max-width:700px">';
 html+='<h2 style="margin-bottom:4px">Lista de Compras</h2>';
 html+='<div style="color:#888;font-size:12px;margin-bottom:20px">'+FD(TODAY())+'</div>';
 categorias.forEach(cat=>{
 html+='<h3 style="margin-top:20px;border-bottom:2px solid #eee;padding-bottom:6px">'+cat+'</h3>';
 html+='<table style="width:100%;border-collapse:collapse;margin-top:8px">';
-html+='<tr style="text-align:left;font-size:11px;color:#888"><th>Item</th><th>Qtd sugerida</th><th>Fornecedor</th><th>Último valor</th></tr>';
+html+='<tr style="text-align:left;font-size:11px;color:#888"><th>Item</th><th>Fornecedor</th><th>Preço pago</th><th>Data</th><th>Gramas</th><th>Pacotes</th></tr>';
 porCategoria[cat].forEach(i=>{
-html+='<tr style="border-top:1px solid #f0f0f0"><td style="padding:6px 0;font-weight:600">'+i.nome+'</td><td>'+i.falta.toFixed(0)+' '+i.unidade+'</td><td>'+i.fornecedor+'</td><td>'+(i.ultimoValor?F(i.ultimoValor):'—')+'</td></tr>';
+html+='<tr style="border-top:1px solid #f0f0f0"><td style="padding:6px 0;font-weight:600">'+i.nome+'</td><td>'+i.fornecedor+'</td><td>'+(i.ultimoValor?F(i.ultimoValor):'—')+'</td><td>'+(i.ultimaData?FD(i.ultimaData):'—')+'</td><td>'+i.faltaGramas.toFixed(0)+' '+i.unidade+'</td><td>'+(i.faltaPacotes!=null?i.faltaPacotes.toFixed(1):'—')+'</td></tr>';
 });
 html+='</table>';
 });
@@ -281,7 +284,7 @@ w.document.close();
 w.print();
 };
 
-return React.createElement(PW,{title:'Lista de Compras',sub:'Itens abaixo do estoque mínimo, com fornecedor e último valor pago'},
+return React.createElement(PW,{title:'Lista de Compras',sub:'Itens abaixo do estoque mínimo, com fornecedor cadastrado e último preço pago'},
 React.createElement('div',null,
 React.createElement(FloatInput,{label:'Buscar item',acent:cor,value:busca,onChange:e=>setBusca(e.target.value)}),
 
@@ -296,32 +299,35 @@ React.createElement('div',{style:{background:'#fef2f2',borderRadius:10,padding:'
 React.createElement('span',{style:{fontSize:12,color:cor,fontWeight:600}},itens.length+' item(s) precisam ser comprados'),
 React.createElement('span',{style:{fontSize:16,fontWeight:800,color:cor}},F(valorEstimadoTotal))
 ),
-React.createElement('div',null,
-categorias.map(cat=>React.createElement('div',{key:cat,style:{marginBottom:16}},
-React.createElement('div',{style:{fontSize:11,fontWeight:800,color:'#111',letterSpacing:'0.5px',textTransform:'uppercase',marginBottom:8,paddingBottom:6,borderBottom:'2px solid #f0f0f0'}},cat),
-porCategoria[cat].map(i=>React.createElement('div',{key:i.id,style:{background:'#fff',border:'1px solid #f0f0f0',borderRadius:12,padding:'14px 16px',marginBottom:8,display:'flex',alignItems:'center',gap:12}},
-React.createElement('div',{style:{cursor:'grab',color:'#ddd',fontSize:14,flexShrink:0}},'⠿'),
-React.createElement('div',{style:{flex:1}},
-React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}},
-React.createElement('span',{style:{fontWeight:700,fontSize:13}},i.nome),
-React.createElement('span',{style:{fontWeight:800,fontSize:14,color:cor}},i.falta.toFixed(0)+' '+i.unidade)
-),
-React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:11,color:'#888'}},
-React.createElement('span',null,'Fornecedor: '+i.fornecedor+(i.ultimaData?' ('+FD(i.ultimaData)+')':'')),
-React.createElement('span',null,i.ultimoValor?'Último: '+F(i.ultimoValor):'sem histórico')
-)
-)
-))
-))
-)
-),
 
-itens.length>0&&React.createElement('div',{style:{display:'flex',justifyContent:'flex-end',marginTop:18}},
+categorias.map(cat=>React.createElement('div',{key:cat,style:{marginBottom:20}},
+React.createElement('div',{style:{fontSize:11,fontWeight:800,color:'#111',letterSpacing:'0.5px',textTransform:'uppercase',marginBottom:8,paddingBottom:6,borderBottom:'2px solid #f0f0f0'}},cat),
+React.createElement('div',{style:{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,overflow:'hidden'}},
+React.createElement('table',{style:{width:'100%',borderCollapse:'collapse'}},
+React.createElement('thead',null,React.createElement('tr',{style:{background:'#f9f9fb'}},
+['','Insumo','Fornecedor','Preço Pago','Data','Gramas','Pacotes'].map((h,i)=>React.createElement('th',{key:i,style:{padding:'10px 12px',fontSize:11,fontWeight:700,color:'#888',textAlign:i<2?'left':'right',borderBottom:'1px solid #f0f0f0'}},h))
+)),
+React.createElement('tbody',null,porCategoria[cat].map(i=>React.createElement('tr',{key:i.id,style:{borderBottom:'1px solid #f7f7f7'}},
+React.createElement('td',{style:{padding:'12px',width:28,color:'#ddd',fontSize:14,cursor:'grab'}},'⠿'),
+React.createElement('td',{style:{padding:'12px',fontWeight:700,fontSize:13}},i.nome),
+React.createElement('td',{style:{padding:'12px',fontSize:12,color:'#666'}},i.fornecedor),
+React.createElement('td',{style:{padding:'12px',textAlign:'right',fontSize:12}},i.ultimoValor?F(i.ultimoValor):'—'),
+React.createElement('td',{style:{padding:'12px',textAlign:'right',fontSize:12,color:'#888'}},i.ultimaData?FD(i.ultimaData):'—'),
+React.createElement('td',{style:{padding:'12px',textAlign:'right',fontWeight:700,fontSize:13,color:cor}},i.faltaGramas.toFixed(0)+' '+i.unidade),
+React.createElement('td',{style:{padding:'12px',textAlign:'right',fontWeight:700,fontSize:13,color:cor}},i.faltaPacotes!=null?i.faltaPacotes.toFixed(1):'—')
+)))
+)
+)
+)),
+
+React.createElement('div',{style:{display:'flex',justifyContent:'flex-end',marginTop:18}},
 React.createElement('button',{onClick:imprimir,style:{background:cor,color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},'Imprimir')
+)
 )
 )
 );
 }
+
 
 function Estoque({uid,db,reload,setM}){const{estoque,fichas,ficha_ingredientes,lancamentos}=db;const[sec,setSec]=React.useState('Matéria-Prima');const[busca,setBusca]=React.useState('');const[mostrarInativos,setMostrarInativos]=React.useState(false);const SECOES=[{id:'Matéria-Prima',label:'Matérias Primas',desc:'Ingredientes e insumos brutos',cor:'#b45309',almox:false},{id:'Recheio',label:'Recheios',desc:'Recheios produzidos ou comprados',cor:'#7c3aed',almox:false},{id:'Cookie',label:'Cookies',desc:'Produtos acabados prontos para venda',cor:'#dc2626',almox:false},{id:'Embalagem',label:'Embalagens',desc:'Caixas, saquinhos e materiais de embalagem',cor:'#0284c7',almox:false},{id:'Material de Produção',label:'Mat. de Produção',desc:'Almoxarifado — entradas e saídas de produção',cor:'#059669',almox:true},{id:'Material de Limpeza',label:'Mat. de Limpeza',desc:'Almoxarifado — higiene e limpeza',cor:'#0891b2',almox:true},{id:'Almoxarifado',label:'Almoxarifado (Todos)',desc:'Todos os itens marcados como uso interno, de qualquer categoria. Saída gera despesa automática.',cor:'#16a34a',almox:true}];// Calculate cost from ficha ingredients
 const calcCustoFicha=fichaId=>{const ings=(ficha_ingredientes||[]).filter(i=>i.ficha_id===fichaId);const total=ings.reduce((s,i)=>{const est=(estoque||[]).find(e=>e.id===i.estoque_id||e.nome===i.nome);return s+parseFloat(i.quantidade||0)*parseFloat(est?.custo||i.custo_unit||0);},0);const f=(fichas||[]).find(x=>x.id===fichaId);const rend=Number(f?.rendimento||1);return rend>0?total/rend:total;};const items=React.useMemo(()=>{const estoqueVisivel=mostrarInativos?estoque:(estoque||[]).filter(e=>e.ativo!==false);if(sec==='Cookie'){// Mostra SOMENTE fichas técnicas cadastradas — soma qtd caso haja registros duplicados no estoque com o mesmo nome
