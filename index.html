@@ -259,7 +259,7 @@ React.useEffect(()=>{
 let mounted=true;
 const ids=itensBase.map(i=>i.id);
 if(ids.length===0){setUltimasDatas({});return;}
-sb.from('estoque_movimentos').select('estoque_id,criado_em,tipo').in('estoque_id',ids).eq('tipo','entrada').order('criado_em',{ascending:false}).then(({data})=>{
+sb.from('estoque_movimentos').select('estoque_id,criado_em,tipo,motivo').in('estoque_id',ids).eq('tipo','entrada').eq('motivo','compra').order('criado_em',{ascending:false}).then(({data})=>{
 if(!mounted||!data)return;
 const map={};
 data.forEach(m=>{ if(!map[m.estoque_id])map[m.estoque_id]=m.criado_em; });// primeira ocorrência = mais recente (já ordenado)
@@ -317,18 +317,9 @@ React.createElement('span',{style:{fontSize:16,fontWeight:800,color:cor}},F(valo
 categorias.map(cat=>React.createElement('div',{key:cat,style:{marginBottom:20}},
 React.createElement('div',{style:{fontSize:11,fontWeight:800,color:'#111',letterSpacing:'0.5px',textTransform:'uppercase',marginBottom:8,paddingBottom:6,borderBottom:'2px solid #f0f0f0'}},cat),
 React.createElement('div',{style:{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,overflow:'hidden'}},
-React.createElement('table',{style:{width:'100%',borderCollapse:'collapse',tableLayout:'fixed'}},
-React.createElement('colgroup',null,
-React.createElement('col',{style:{width:'32px'}}),
-React.createElement('col',{style:{width:'auto'}}),
-React.createElement('col',{style:{width:'140px'}}),
-React.createElement('col',{style:{width:'100px'}}),
-React.createElement('col',{style:{width:'90px'}}),
-React.createElement('col',{style:{width:'80px'}}),
-React.createElement('col',{style:{width:'90px'}})
-),
+React.createElement('table',{style:{width:'100%',borderCollapse:'collapse'}},
 React.createElement('thead',null,React.createElement('tr',{style:{background:'#f9f9fb'}},
-['','Insumo','Fornecedor','Preço Pago','Data','Pacotes','Gramas'].map((h,i)=>React.createElement('th',{key:i,style:{padding:'10px 12px',fontSize:11,fontWeight:700,color:'#888',textAlign:i<2?'left':'right',borderBottom:'1px solid #f0f0f0',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},h))
+['','Insumo','Fornecedor','Preço Pago','Data','Pacotes','Gramas'].map((h,i)=>{const larguras=[32,null,null,110,100,90,100];return React.createElement('th',{key:i,style:{padding:'10px 12px',fontSize:11,fontWeight:700,color:'#888',textAlign:i<2?'left':'right',borderBottom:'1px solid #f0f0f0',whiteSpace:'nowrap',width:larguras[i]||undefined}},h);})
 )),
 React.createElement('tbody',null,porCategoria[cat].map(i=>React.createElement('tr',{key:i.id,style:{borderBottom:'1px solid #f7f7f7'}},
 React.createElement('td',{style:{padding:'12px',color:'#ddd',fontSize:14,cursor:'grab'}},'⠿'),
