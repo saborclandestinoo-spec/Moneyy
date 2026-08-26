@@ -286,7 +286,7 @@ html+='<h3 style="margin-top:20px;border-bottom:2px solid #eee;padding-bottom:6p
 html+='<table style="width:100%;border-collapse:collapse;margin-top:8px">';
 html+='<tr style="text-align:left;font-size:11px;color:#888"><th>Item</th><th>Fornecedor</th><th>Preço pago</th><th>Data</th><th>Pacotes</th><th>Gramas</th></tr>';
 porCategoria[cat].forEach(i=>{
-html+='<tr style="border-top:1px solid #f0f0f0"><td style="padding:6px 0;font-weight:600">'+i.nome+'</td><td>'+i.fornecedor+'</td><td>'+F(i.custoUnit)+'</td><td>'+(i.ultimaData?FD(i.ultimaData):'—')+'</td><td>'+(i.faltaPacotes!=null?i.faltaPacotes:'—')+'</td><td>'+i.faltaGramas.toFixed(0)+' '+i.unidade+'</td></tr>';
+html+='<tr style="border-top:1px solid #f0f0f0"><td style="padding:6px 0;font-weight:600">'+i.nome+'</td><td>'+i.fornecedor+'</td><td>'+F(i.custoUnit*(i.embG||1))+'</td><td>'+(i.ultimaData?FD(i.ultimaData):'—')+'</td><td>'+(i.faltaPacotes!=null?i.faltaPacotes:'—')+'</td><td>'+i.faltaGramas.toFixed(0)+' '+i.unidade+'</td></tr>';
 });
 html+='</table>';
 });
@@ -319,13 +319,13 @@ React.createElement('div',{style:{fontSize:11,fontWeight:800,color:'#111',letter
 React.createElement('div',{style:{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,overflow:'hidden'}},
 React.createElement('table',{style:{width:'100%',borderCollapse:'collapse',tableLayout:'fixed'}},
 React.createElement('colgroup',null,
-React.createElement('col',{style:{width:28}}),
-React.createElement('col',{style:{width:'26%'}}),
-React.createElement('col',{style:{width:'20%'}}),
-React.createElement('col',{style:{width:'14%'}}),
-React.createElement('col',{style:{width:'14%'}}),
-React.createElement('col',{style:{width:'13%'}}),
-React.createElement('col',{style:{width:'13%'}})
+React.createElement('col',{style:{width:'32px'}}),
+React.createElement('col',{style:{width:'auto'}}),
+React.createElement('col',{style:{width:'140px'}}),
+React.createElement('col',{style:{width:'100px'}}),
+React.createElement('col',{style:{width:'90px'}}),
+React.createElement('col',{style:{width:'80px'}}),
+React.createElement('col',{style:{width:'90px'}})
 ),
 React.createElement('thead',null,React.createElement('tr',{style:{background:'#f9f9fb'}},
 ['','Insumo','Fornecedor','Preço Pago','Data','Pacotes','Gramas'].map((h,i)=>React.createElement('th',{key:i,style:{padding:'10px 12px',fontSize:11,fontWeight:700,color:'#888',textAlign:i<2?'left':'right',borderBottom:'1px solid #f0f0f0',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},h))
@@ -334,7 +334,7 @@ React.createElement('tbody',null,porCategoria[cat].map(i=>React.createElement('t
 React.createElement('td',{style:{padding:'12px',color:'#ddd',fontSize:14,cursor:'grab'}},'⠿'),
 React.createElement('td',{style:{padding:'12px',fontWeight:700,fontSize:13,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},i.nome),
 React.createElement('td',{style:{padding:'12px',fontSize:12,color:'#666',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},i.fornecedor),
-React.createElement('td',{style:{padding:'12px',textAlign:'right',fontSize:12}},F(i.custoUnit)),
+React.createElement('td',{style:{padding:'12px',textAlign:'right',fontSize:12}},F(i.custoUnit*(i.embG||1))),
 React.createElement('td',{style:{padding:'12px',textAlign:'right',fontSize:12,color:'#888'}},i.ultimaData?FD(i.ultimaData):'—'),
 React.createElement('td',{style:{padding:'12px',textAlign:'right',fontWeight:700,fontSize:13,color:cor}},i.faltaPacotes!=null?i.faltaPacotes:'—'),
 React.createElement('td',{style:{padding:'12px',textAlign:'right',fontWeight:700,fontSize:13,color:cor}},i.faltaGramas.toFixed(0)+' '+i.unidade)
