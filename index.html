@@ -296,7 +296,7 @@ React.createElement('div',{style:{background:'#fef2f2',borderRadius:10,padding:'
 React.createElement('span',{style:{fontSize:12,color:cor,fontWeight:600}},itens.length+' item(s) precisam ser comprados'),
 React.createElement('span',{style:{fontSize:16,fontWeight:800,color:cor}},F(valorEstimadoTotal))
 ),
-React.createElement('div',{style:{maxHeight:420,overflowY:'auto'}},
+React.createElement('div',null,
 categorias.map(cat=>React.createElement('div',{key:cat,style:{marginBottom:16}},
 React.createElement('div',{style:{fontSize:11,fontWeight:800,color:'#111',letterSpacing:'0.5px',textTransform:'uppercase',marginBottom:8,paddingBottom:6,borderBottom:'2px solid #f0f0f0'}},cat),
 porCategoria[cat].map(i=>React.createElement('div',{key:i.id,style:{padding:'10px 0',borderBottom:'1px solid #f7f7f7'}},
