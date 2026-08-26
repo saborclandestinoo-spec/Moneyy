@@ -282,7 +282,7 @@ w.print();
 };
 
 return React.createElement(PW,{title:'Lista de Compras',sub:'Itens abaixo do estoque mínimo, com fornecedor e último valor pago'},
-React.createElement('div',{style:{maxWidth:640}},
+React.createElement('div',null,
 React.createElement(FloatInput,{label:'Buscar item',acent:cor,value:busca,onChange:e=>setBusca(e.target.value)}),
 
 itens.length===0
