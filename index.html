@@ -357,7 +357,7 @@ const cor='#dc2626';
 const[busca,setBusca]=React.useState('');
 const[ultimasDatas,setUltimasDatas]=React.useState({});// estoqueId -> data mais recente de entrada no histórico
 
-const CATEGORIAS_LC=['Matéria-Prima','Recheio','Embalagem'];
+const CATEGORIAS_LC=['Matéria-Prima','Recheio','Embalagem','Material de Limpeza','Material de Produção'];
 
 const itensBase=React.useMemo(()=>{
 return(estoque||[]).filter(e=>e.id&&!String(e.id).startsWith('f_')&&!String(e.id).startsWith('fr_')&&e.ativo!==false&&CATEGORIAS_LC.includes(e.categoria)).map(e=>{
