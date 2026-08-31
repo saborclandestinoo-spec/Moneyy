@@ -299,8 +299,13 @@ const[scannerAtivo,setScannerAtivo]=React.useState(false);
 const[erroScanner,setErroScanner]=React.useState('');
 const scannerRef=React.useRef(null);
 const html5QrCodeRef=React.useRef(null);
+const[itemBaixaRapida,setItemBaixaRapida]=React.useState(null);
+const[qtdBaixaRapida,setQtdBaixaRapida]=React.useState('');
+const[buscaBaixa,setBuscaBaixa]=React.useState('');
+const[registrando,setRegistrando]=React.useState(false);
 
 const itensAlmox=(estoque||[]).filter(e=>e.id&&!String(e.id).startsWith('f_')&&!String(e.id).startsWith('fr_')&&e.almoxarifado===true&&e.ativo!==false);
+const itensBaixaFiltrados=itensAlmox.filter(e=>!buscaBaixa||e.nome.toLowerCase().includes(buscaBaixa.toLowerCase()));
 
 const pararScanner=async()=>{
 if(html5QrCodeRef.current){try{await html5QrCodeRef.current.stop();html5QrCodeRef.current.clear();}catch(e){}html5QrCodeRef.current=null;}
@@ -360,11 +365,32 @@ new w.QRCode(w.document.getElementById('qr-print-'+e.id),{text:'moneyy_estoque:'
 setTimeout(()=>w.print(),400);
 };
 
+// Baixa Rápida — fluxo de poucos toques: escolhe item → digita quantidade num teclado grande → confirma
+const confirmarBaixaRapida=async()=>{
+const qtdN=parseFloat(qtdBaixaRapida);
+if(!qtdN||qtdN<=0){toast('Informe uma quantidade válida',true);return;}
+setRegistrando(true);
+const item=itemBaixaRapida;
+const saldoAntes=Number(item.qtd||0);
+const saldoDepois=saldoAntes-qtdN;
+const{error:errUpd}=await sb.from('estoque').update({qtd:saldoDepois}).eq('id',item.id);
+if(errUpd){toast('Erro ao dar baixa: '+errUpd.message,true);setRegistrando(false);return;}
+await registrarMovEstoque(uid,{estoqueId:String(item.id),nomeItem:item.nome,tipo:'saida',quantidade:qtdN,saldoAntes,saldoDepois,motivo:'saida_manual',descricao:'Baixa rápida — almoxarifado',custoUnit:item.custo});
+// Gera despesa automática, igual já configurado pro Almoxarifado
+const valorSaida=qtdN*Number(item.custo||0);
+if(valorSaida>0){
+await sb.from('lancamentos').insert({user_id:uid,tipo:'despesa',descricao:'Almoxarifado — '+item.nome+' (baixa rápida)',valor:parseFloat(valorSaida.toFixed(2)),data:TODAY(),competencia:TODAY(),categoria:'',pago:true,data_pag:TODAY(),obs:'saida_almoxarifado'});
+}
+toast('✓ Baixa de '+qtdN+' '+item.unidade+' de '+item.nome+' registrada!',false,true);
+setItemBaixaRapida(null);setQtdBaixaRapida('');setBuscaBaixa('');
+await reload();setRegistrando(false);
+};
+
 return React.createElement(PW,{title:'Scanner QR — Almoxarifado',sub:'Escaneie o QR Code do item para dar baixa rápido'},
 
 React.createElement('div',{style:{display:'flex',gap:4,background:'#f5f5f5',borderRadius:11,padding:3,marginBottom:20,width:'fit-content'}},
-[{id:'escanear',l:'Escanear'},{id:'imprimir',l:'QR Codes dos Itens'}].map(t=>
-React.createElement('button',{key:t.id,onClick:()=>{if(t.id!=='escanear')pararScanner();setAbaAtiva(t.id);},style:{padding:'8px 20px',borderRadius:8,fontSize:12,fontWeight:700,border:'none',cursor:'pointer',background:abaAtiva===t.id?'#fff':'transparent',color:abaAtiva===t.id?cor:'#888',boxShadow:abaAtiva===t.id?'0 1px 4px rgba(0,0,0,0.1)':'none'}},t.l)
+[{id:'escanear',l:'Escanear'},{id:'baixa_rapida',l:'Baixa Rápida'},{id:'imprimir',l:'QR Codes dos Itens'}].map(t=>
+React.createElement('button',{key:t.id,onClick:()=>{if(t.id!=='escanear')pararScanner();setItemBaixaRapida(null);setAbaAtiva(t.id);},style:{padding:'8px 20px',borderRadius:8,fontSize:12,fontWeight:700,border:'none',cursor:'pointer',background:abaAtiva===t.id?'#fff':'transparent',color:abaAtiva===t.id?cor:'#888',boxShadow:abaAtiva===t.id?'0 1px 4px rgba(0,0,0,0.1)':'none'}},t.l)
 )),
 
 abaAtiva==='escanear'&&React.createElement('div',{style:{maxWidth:420}},
@@ -377,6 +403,34 @@ React.createElement('div',{id:'qr-reader-div',style:{width:'100%',borderRadius:1
 React.createElement('button',{onClick:pararScanner,style:{background:'#f5f5f5',color:'#555',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',marginTop:14,width:'100%'}},'Cancelar')
 ),
 erroScanner&&React.createElement('div',{style:{background:'#fffbeb',borderRadius:10,padding:'10px 14px',marginTop:14,fontSize:12,color:'#92400e'}},erroScanner)
+),
+
+abaAtiva==='baixa_rapida'&&React.createElement('div',{style:{maxWidth:420}},
+
+!itemBaixaRapida?React.createElement('div',null,
+React.createElement(FloatInput,{label:'Buscar item',acent:cor,value:buscaBaixa,onChange:e=>setBuscaBaixa(e.target.value)}),
+React.createElement('div',{style:{marginTop:14,display:'flex',flexDirection:'column',gap:8}},
+itensBaixaFiltrados.length===0
+?React.createElement('div',{style:{textAlign:'center',padding:30,color:'#bbb',fontSize:13}},'Nenhum item de Almoxarifado encontrado.')
+:itensBaixaFiltrados.map(e=>React.createElement('button',{key:e.id,onClick:()=>{setItemBaixaRapida(e);setQtdBaixaRapida('');},style:{display:'flex',justifyContent:'space-between',alignItems:'center',background:'#fff',border:'1px solid #f0f0f0',borderRadius:12,padding:'16px 18px',cursor:'pointer',textAlign:'left'}},
+React.createElement('span',{style:{fontWeight:700,fontSize:15,color:'#111'}},e.nome),
+React.createElement('span',{style:{fontSize:12,color:'#aaa'}},Number(e.qtd||0).toFixed(0)+' '+e.unidade)
+))
+)
+)
+:React.createElement('div',{style:{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:20}},
+React.createElement('button',{onClick:()=>setItemBaixaRapida(null),style:{background:'none',border:'none',color:cor,fontSize:12,fontWeight:700,cursor:'pointer',padding:0,marginBottom:16}},'← Trocar item'),
+React.createElement('div',{style:{textAlign:'center',marginBottom:20}},
+React.createElement('div',{style:{fontSize:18,fontWeight:800,color:'#111'}},itemBaixaRapida.nome),
+React.createElement('div',{style:{fontSize:12,color:'#aaa',marginTop:2}},Number(itemBaixaRapida.qtd||0).toFixed(0)+' '+itemBaixaRapida.unidade+' em estoque')
+),
+React.createElement('input',{type:'number',autoFocus:true,value:qtdBaixaRapida,onChange:e=>setQtdBaixaRapida(e.target.value),placeholder:'0',style:{width:'100%',fontSize:48,fontWeight:800,textAlign:'center',border:'none',outline:'none',color:cor,background:'transparent',marginBottom:6}}),
+React.createElement('div',{style:{textAlign:'center',fontSize:13,color:'#aaa',marginBottom:20}},itemBaixaRapida.unidade+' retiradas'),
+React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:16}},
+[1,5,10,20,50,100].map(n=>React.createElement('button',{key:n,onClick:()=>setQtdBaixaRapida(String(n)),style:{background:'#f5f5f5',color:'#555',border:'none',borderRadius:9,padding:'10px 0',fontSize:13,fontWeight:700,cursor:'pointer'}},n))
+),
+React.createElement('button',{onClick:confirmarBaixaRapida,disabled:registrando,style:{background:cor,color:'#fff',width:'100%',padding:'16px',borderRadius:12,fontSize:16,fontWeight:800,border:'none',cursor:'pointer'}},registrando?'Registrando...':'✓ Confirmar Baixa')
+)
 ),
 
 abaAtiva==='imprimir'&&React.createElement('div',null,
@@ -396,6 +450,7 @@ itensAlmox.map(e=>React.createElement(QRItemCard,{key:e.id,item:e}))
 )
 );
 }
+
 
 function QRItemCard({item}){
 const ref=React.useRef(null);
