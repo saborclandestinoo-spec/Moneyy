@@ -115,7 +115,7 @@ function Auth({onLogin}){const[mode,setMode]=useState('login');const[name,setNam
       <span class="total-label">Total</span>
       <span class="total-val">R$ ${total}</span>
     </div>
-  </body></html>`;}function _printHtml(html){const old=document.getElementById('_print_frame');if(old)old.remove();const iframe=document.createElement('iframe');iframe.id='_print_frame';iframe.style.cssText='position:fixed;top:0;left:0;width:1px;height:1px;border:none;opacity:0;pointer-events:none;';document.body.appendChild(iframe);const doc=iframe.contentDocument||iframe.contentWindow.document;doc.open();doc.write(html);doc.close();setTimeout(()=>{try{iframe.contentWindow.focus();iframe.contentWindow.print();}catch(e){toast('Erro ao imprimir: '+e.message,true);}setTimeout(()=>{try{if(iframe.parentNode)iframe.parentNode.removeChild(iframe);}catch(e){}},4000);},600);}function imprimirEtiqueta(pedido){_printHtml(gerarLabelHTML(pedido));}function Toggle({on,onChange}){return React.createElement('div',{onClick:onChange,style:{width:44,height:24,borderRadius:12,background:on?'#16a34a':'#d1d5db',position:'relative',transition:'background 0.2s',cursor:'pointer',flexShrink:0}},React.createElement('div',{style:{width:18,height:18,borderRadius:'50%',background:'#fff',position:'absolute',top:3,left:on?23:3,transition:'left 0.2s',boxShadow:'0 1px 4px rgba(0,0,0,0.25)'}}));}function DREConfigPage({uid,db,reload,setM}){
+  </body></html>`;}function _printHtml(html){const old=document.getElementById('_print_frame');if(old)old.remove();const iframe=document.createElement('iframe');iframe.id='_print_frame';iframe.style.cssText='position:fixed;top:0;left:0;width:1px;height:1px;border:none;opacity:0;pointer-events:none;';document.body.appendChild(iframe);const doc=iframe.contentDocument||iframe.contentWindow.document;doc.open();doc.write(html);doc.close();setTimeout(()=>{try{iframe.contentWindow.focus();iframe.contentWindow.print();}catch(e){toast('Erro ao imprimir: '+e.message,true);}setTimeout(()=>{try{if(iframe.parentNode)iframe.parentNode.removeChild(iframe);}catch(e){}},4000);},600);}function imprimirEtiqueta(pedido){_printHtml(gerarLabelHTML(pedido));}function Toggle({on,onChange}){return React.createElement('div',{onClick:onChange,style:{width:44,height:24,borderRadius:12,background:on?'#16a34a':'#d1d5db',position:'relative',transition:'background 0.2s',cursor:'pointer',flexShrink:0}},React.createElement('div',{style:{width:18,height:18,borderRadius:'50%',background:'#fff',position:'absolute',top:3,left:on?23:3,transition:'left 0.2s',boxShadow:'0 1px 4px rgba(0,0,0,0.25)'}}));}function DREConfigPage({uid,db,reload,setM,emModal}){
 const{categorias_fin=[]}=db;
 const cor='#dc2626';
 const[ocultas,setOcultas]=React.useState(new Set());
@@ -152,10 +152,13 @@ React.createElement('span',{style:{fontSize:13,color:marcada?'#111':'#bbb',textD
 c.custom&&React.createElement('span',{style:{fontSize:9,fontWeight:700,color:'#7c3aed',background:'#faf5ff',padding:'2px 6px',borderRadius:5}},'PERSONALIZADA')
 );};
 
-if(loading)return React.createElement(PW,{title:'Categorias do DRE'},React.createElement('div',{style:{textAlign:'center',padding:40,color:'#aaa'}},'Carregando...'));
+if(loading)return emModal?React.createElement('div',{style:{minWidth:420,textAlign:'center',padding:40,color:'#aaa'}},'Carregando...'):React.createElement(PW,{title:'Categorias do DRE'},React.createElement('div',{style:{textAlign:'center',padding:40,color:'#aaa'}},'Carregando...'));
 
-return React.createElement(PW,{title:'Categorias do DRE',sub:'Escolha quais categorias entram no cálculo do DRE',
-actions:[React.createElement('button',{key:'save',onClick:salvar,disabled:salvando,style:{background:cor,color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},salvando?'Salvando...':'Salvar')]},
+const botaoSalvar=React.createElement('button',{key:'save',onClick:salvar,disabled:salvando,style:{background:cor,color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},salvando?'Salvando...':'Salvar');
+const Wrapper=({children})=>emModal
+?React.createElement('div',{style:{minWidth:520,maxWidth:640}},children,React.createElement('div',{style:{display:'flex',justifyContent:'flex-end',gap:8,marginTop:18,paddingTop:14,borderTop:'1px solid #f5f5f5'}},React.createElement('button',{onClick:()=>setM(null),style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'}},'Fechar'),botaoSalvar))
+:React.createElement(PW,{title:'Categorias do DRE',sub:'Escolha quais categorias entram no cálculo do DRE',actions:[botaoSalvar]},children);
+return React.createElement(Wrapper,null,
 
 React.createElement('div',{style:{background:'#fffbeb',borderRadius:10,padding:'12px 16px',marginBottom:20,fontSize:12,color:'#92400e',maxWidth:700}},'Desmarque uma categoria para removê-la do cálculo do DRE — os valores dela deixam de contar nos totais (Receita Líquida, Lucro etc). Isso não apaga nem afeta os lançamentos, só a forma como o DRE é calculado.'),
 
@@ -892,36 +895,76 @@ open&&React.createElement('div',{style:{position:'absolute',top:'calc(100% + 6px
 React.createElement('div',{style:{width:150,borderRight:'1px solid #f0f0f0',padding:'12px 8px',flexShrink:0}},ATALHOS.map((a,i)=>React.createElement('button',{key:i,onClick:a.fn,style:{display:'block',width:'100%',textAlign:'left',padding:'7px 10px',borderRadius:7,border:'none',background:'transparent',fontSize:12,color:'#555',cursor:'pointer',marginBottom:2}},a.l))),// Calendars
 React.createElement('div',{style:{padding:'16px',flex:1}},selecting&&React.createElement('div',{style:{fontSize:11,color:'#dc2626',marginBottom:8,fontWeight:600}},'Clique na data final'),React.createElement('div',{style:{display:'flex',gap:20,alignItems:'flex-start'}},React.createElement('button',{onClick:()=>navM(-1),style:{background:'none',border:'none',cursor:'pointer',fontSize:16,color:'#888',padding:'4px',marginTop:2}},'‹'),renderMonth(view.y,view.m),renderMonth(m2y,m2m),React.createElement('button',{onClick:()=>navM(1),style:{background:'none',border:'none',cursor:'pointer',fontSize:16,color:'#888',padding:'4px',marginTop:2}},'›')))));}
 
-function FinDRE({uid,db,reload,setM}){const ativos=db.ativos||[];// Calculates monthly depreciation for a given month (only active assets within useful life)
-const calcDeprMes=mesStr=>{// mesStr = 'YYYY-MM'
-const[ano,mes]=mesStr.split('-').map(Number);const ultimoDia=new Date(ano,mes,0).toLocaleDateString('sv-SE');const primeiroDia=mesStr+'-01';return ativos.filter(a=>a.ativo).reduce((s,a)=>{const ini=new Date(a.data_aquisicao+'T12:00:00');const fimVida=new Date(ini);fimVida.setFullYear(fimVida.getFullYear()+(parseInt(a.vida_util_anos)||10));const fimVidaStr=fimVida.toLocaleDateString('sv-SE');// Asset must have been acquired before or during this month AND not fully depreciated
-if(a.data_aquisicao>ultimoDia)return s;if(fimVidaStr<primeiroDia)return s;const mensal=((parseFloat(a.valor_aquisicao)||0)-(parseFloat(a.valor_residual)||0))/((parseInt(a.vida_util_anos)||10)*12);return s+mensal;},0);};const{lancamentos,categorias_fin:catsFin=[],dre_categorias_ocultas=[]}=db;const catsOcultasSet=new Set(dre_categorias_ocultas.map(d=>d.categoria));const[dtIni,setDtIni]=React.useState(()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),1).toISOString().split('T')[0];});const[dtFim,setDtFim]=React.useState(()=>new Date(new Date().getFullYear(),new Date().getMonth()+1,0).toISOString().split('T')[0]);
-const[abertos,setAbertos]=React.useState({vendas:true,deducoes:false,cmv:true,despVar:false,despFixa:true});
+function FinDRE({uid,db,reload,setM}){const ativos=db.ativos||[];
+const calcDeprMes=mesStr=>{const[ano,mes]=mesStr.split('-').map(Number);const ultimoDia=new Date(ano,mes,0).toLocaleDateString('sv-SE');const primeiroDia=mesStr+'-01';return ativos.filter(a=>a.ativo).reduce((s,a)=>{const ini=new Date(a.data_aquisicao+'T12:00:00');const fimVida=new Date(ini);fimVida.setFullYear(fimVida.getFullYear()+(parseInt(a.vida_util_anos)||10));const fimVidaStr=fimVida.toLocaleDateString('sv-SE');if(a.data_aquisicao>ultimoDia)return s;if(fimVidaStr<primeiroDia)return s;const mensal=((parseFloat(a.valor_aquisicao)||0)-(parseFloat(a.valor_residual)||0))/((parseInt(a.vida_util_anos)||10)*12);return s+mensal;},0);};
+
+const{lancamentos,categorias_fin:catsFin=[],dre_categorias_ocultas=[]}=db;
+const catsOcultasSet=new Set(dre_categorias_ocultas.map(d=>d.categoria));
+const[dtIni,setDtIni]=React.useState(()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),1).toISOString().split('T')[0];});
+const[dtFim,setDtFim]=React.useState(()=>new Date(new Date().getFullYear(),new Date().getMonth()+1,0).toISOString().split('T')[0]);
+const[abertos,setAbertos]=React.useState({receita:true,deducoes:false,cmv:true,despVendas:false,despAdm:false,depr:false,fin:false});
 const toggle=k=>setAbertos(p=>({...p,[k]:!p[k]}));
-// DRE por competência — inclui todos os lançamentos do período (pagos e a receber)
-// DRE por competência: usa l.competencia quando disponível, senão l.data
-const periodo=React.useMemo(()=>(lancamentos||[]).filter(l=>{const raw=l.competencia||l.data||'';// YYYY-MM → YYYY-MM-01 para compatibilidade; compara com datas exatas do filtro
-const dtComp=raw.match(/^\d{4}-\d{2}$/)?raw+'-01':raw;const catLancRaw=l.categoria||'';const catLancCod=catLancRaw.split(' ')[0];// extrai só o código, já que a categoria pode vir salva como 'codigo nome' junto
-const ocultaPorPrefixo=[...catsOcultasSet].some(cod=>catLancCod===cod||catLancCod.startsWith(cod+'.')||catLancRaw===cod||catLancRaw.startsWith(cod+'.'));return dtComp>=dtIni&&dtComp<=dtFim&&l.obs!=='compra_estoque'&&catLancRaw.trim()!=''&&!ocultaPorPrefixo;}),[lancamentos,dtIni,dtFim,catsOcultasSet]);const isRepasse=l=>(l.descricao||'').toLowerCase().includes('repasse')||(l.obs||'').includes('repasse');const somaCat=prefixo=>periodo.filter(l=>l.tipo==='despesa'&&(l.categoria||'').startsWith(prefixo)).reduce((s,l)=>s+Number(l.valor||0),0);const somaCatExata=c=>periodo.filter(l=>l.categoria===c).reduce((s,l)=>s+Number(l.valor||0),0);// 3 — Receita Bruta
-const receitaBruta=periodo.filter(l=>l.tipo==='receita'&&!isRepasse(l)&&!(l.categoria||'').startsWith('3.2')).reduce((s,l)=>s+Number(l.valor||0),0);const isDed=l=>(l.categoria||'').startsWith('3.2')||(l.categoria||'').toLowerCase().includes('das')||(l.categoria||'').toLowerCase().includes('simples nacional')||(l.categoria||'').toLowerCase().includes('cancelamento')||(l.categoria||'').toLowerCase().includes('desconto concedido');const deducoesPeriodo=periodo.filter(l=>isDed(l));const deducoes=deducoesPeriodo.reduce((s,l)=>s+Number(l.valor||0),0);const receitaLiquida=receitaBruta-deducoes;// 4.1 — CMV
-const cmv=somaCat('4.1');const lucroBruto=receitaLiquida-cmv;// 4.2 — Despesas com vendas
-const despVendas=somaCat('4.2');// 4.3 — Despesas administrativas
-const despAdm=somaCat('4.3');// 4.4 — Despesas financeiras
-const despFin=somaCat('4.4');const lucroOperacional=lucroBruto-despVendas-despAdm-despFin;const lucroLiquido=lucroOperacional-despFin;const margemLiquida=receitaBruta>0?lucroLiquido/receitaBruta*100:0;
 
-// Detalhamento de linhas filhas por grupo, coletado como arrays (não JSX ainda) — reutiliza a mesma lógica de cálculo de antes
-const receitaProdutos=[{label:'Receita de Venda de Produtos',valor:receitaBruta,pct:100}];
-const outrasReceitas=periodo.filter(l=>l.tipo==='receita'&&!isRepasse(l)&&!(l.categoria||'').startsWith('3.1')&&!(l.categoria||'').startsWith('3.2')).reduce((acc,l)=>{const k=l.categoria||l.descricao||'Outras Receitas';if(!acc.find(x=>x.k===k))acc.push({k,v:0});acc.find(x=>x.k===k).v+=Number(l.valor||0);return acc;},[]).map(g=>({label:g.k,valor:g.v,pct:receitaBruta>0?g.v/receitaBruta*100:0}));
-const deducoesDetalhe=periodo.filter(l=>isDed(l)).reduce((acc,l)=>{const k=l.categoria||l.descricao||'Deduções';if(!acc.find(x=>x.k===k))acc.push({k,v:0});acc.find(x=>x.k===k).v+=Number(l.valor||0);return acc;},[]).map(g=>({label:g.k,valor:-g.v,pct:receitaBruta>0?g.v/receitaBruta*100:0}));
-const cmvDetalhe=periodo.filter(l=>l.tipo==='despesa'&&(l.categoria||'').startsWith('4.1')).reduce((acc,l)=>{const k=l.categoria||l.descricao||'CMV';if(!acc.find(x=>x.k===k))acc.push({k,v:0});acc.find(x=>x.k===k).v+=Number(l.valor||0);return acc;},[]).map(g=>({label:g.k,valor:-g.v,pct:receitaBruta>0?g.v/receitaBruta*100:0}));
-const despVarDetalhe=periodo.filter(l=>l.tipo==='despesa'&&(l.categoria||'').startsWith('4.2')).reduce((acc,l)=>{const k=l.categoria||l.descricao||'Despesas Variáveis';if(!acc.find(x=>x.k===k))acc.push({k,v:0});acc.find(x=>x.k===k).v+=Number(l.valor||0);return acc;},[]).map(g=>({label:g.k,valor:-g.v,pct:receitaBruta>0?g.v/receitaBruta*100:0}));
-const despFixaDetalhe=periodo.filter(l=>l.tipo==='despesa'&&((l.categoria||'').startsWith('4.3')||(l.categoria||'').startsWith('4.4'))).reduce((acc,l)=>{const k=l.categoria||l.descricao||'Despesas Fixas';if(!acc.find(x=>x.k===k))acc.push({k,v:0});acc.find(x=>x.k===k).v+=Number(l.valor||0);return acc;},[]).map(g=>({label:g.k,valor:-g.v,pct:receitaBruta>0?g.v/receitaBruta*100:0}));
+// Regime de competência: usa l.competencia quando disponível, senão l.data
+const periodo=React.useMemo(()=>(lancamentos||[]).filter(l=>{const raw=l.competencia||l.data||'';
+const dtComp=raw.match(/^\d{4}-\d{2}$/)?raw+'-01':raw;
+const catLancRaw=l.categoria||'';const catLancCod=catLancRaw.split(' ')[0];
+const ocultaPorPrefixo=[...catsOcultasSet].some(cod=>catLancCod===cod||catLancCod.startsWith(cod+'.')||catLancRaw===cod||catLancRaw.startsWith(cod+'.'));
+return dtComp>=dtIni&&dtComp<=dtFim&&l.obs!=='compra_estoque'&&catLancRaw.trim()!=''&&!ocultaPorPrefixo;}),[lancamentos,dtIni,dtFim,catsOcultasSet]);
 
-const CORES={receita:{bg:'#f0fdf4',bgHover:'#dcfce7',text:'#166534',valor:'#16a34a'},despesa:{bg:'#fef2f2',bgHover:'#fee2e2',text:'#991b1b',valor:'#dc2626'},total:{bg:'#f4f4f5',bgHover:'#f4f4f5',text:'#111',valor:'#111'}};
+const isRepasse=l=>(l.descricao||'').toLowerCase().includes('repasse')||(l.obs||'').includes('repasse');
+// Código puro da categoria (ignora o nome grudado, ex: "4.1.1 Ingredientes" -> "4.1.1")
+const codDe=l=>(l.categoria||'').split(' ')[0];
+const somaCat=prefixo=>periodo.filter(l=>l.tipo==='despesa'&&(codDe(l)===prefixo||codDe(l).startsWith(prefixo+'.'))).reduce((s,l)=>s+Number(l.valor||0),0);
+
+// ===== Receita Bruta =====
+const receitaBruta=periodo.filter(l=>l.tipo==='receita'&&!isRepasse(l)&&!codDe(l).startsWith('3.2')).reduce((s,l)=>s+Number(l.valor||0),0);
+// ===== Deduções =====
+const isDed=l=>codDe(l).startsWith('3.2')||(l.categoria||'').toLowerCase().includes('das')||(l.categoria||'').toLowerCase().includes('simples nacional')||(l.categoria||'').toLowerCase().includes('cancelamento')||(l.categoria||'').toLowerCase().includes('desconto concedido');
+const deducoes=periodo.filter(isDed).reduce((s,l)=>s+Number(l.valor||0),0);
+const receitaLiquida=receitaBruta-deducoes;
+// ===== CMV =====
+const cmv=somaCat('4.1');
+const lucroBruto=receitaLiquida-cmv;
+// ===== Despesas Operacionais (Vendas + Administrativas), separando Depreciação =====
+const CODS_DEPRECIACAO=['4.2.1.7','4.3.3.7'];
+const ehDepreciacao=l=>CODS_DEPRECIACAO.includes(codDe(l));
+const despVendasTotal=somaCat('4.2');
+const despAdmTotal=somaCat('4.3');
+const depreciacaoLanc=periodo.filter(l=>l.tipo==='despesa'&&ehDepreciacao(l)).reduce((s,l)=>s+Number(l.valor||0),0);
+// Despesas operacionais = vendas + adm, MENOS a depreciação (que sai separada, abaixo do EBITDA)
+const despVendas=despVendasTotal-periodo.filter(l=>l.tipo==='despesa'&&codDe(l)==='4.2.1.7').reduce((s,l)=>s+Number(l.valor||0),0);
+const despAdm=despAdmTotal-periodo.filter(l=>l.tipo==='despesa'&&codDe(l)==='4.3.3.7').reduce((s,l)=>s+Number(l.valor||0),0);
+const despOperacionais=despVendas+despAdm;
+const ebitda=lucroBruto-despOperacionais;
+// ===== Depreciação (lançada + calculada dos ativos cadastrados) =====
+const mesRef=dtIni.slice(0,7);
+const deprAtivos=calcDeprMes(mesRef);
+const depreciacaoTotal=depreciacaoLanc+deprAtivos;
+const ebit=ebitda-depreciacaoTotal;
+// ===== Resultado Financeiro =====
+const despFin=somaCat('4.4');
+const receitasFin=periodo.filter(l=>l.tipo==='receita'&&codDe(l).startsWith('3.3')).reduce((s,l)=>s+Number(l.valor||0),0);
+const resultadoFinanceiro=receitasFin-despFin;
+const lucroLiquido=ebit+resultadoFinanceiro;
+const margemLiquida=receitaBruta>0?lucroLiquido/receitaBruta*100:0;
+
+// ===== Detalhamento por grupo =====
+const agrupar=(filtroFn,sinal)=>periodo.filter(filtroFn).reduce((acc,l)=>{const k=l.categoria||l.descricao||'Outros';if(!acc.find(x=>x.k===k))acc.push({k,v:0});acc.find(x=>x.k===k).v+=Number(l.valor||0);return acc;},[]).map(g=>({label:g.k,valor:sinal*g.v,pct:receitaBruta>0?g.v/receitaBruta*100:0})).sort((a,b)=>Math.abs(b.valor)-Math.abs(a.valor));
+
+const receitaDetalhe=agrupar(l=>l.tipo==='receita'&&!isRepasse(l)&&!codDe(l).startsWith('3.2')&&!codDe(l).startsWith('3.3'),1);
+const deducoesDetalhe=agrupar(isDed,-1);
+const cmvDetalhe=agrupar(l=>l.tipo==='despesa'&&(codDe(l)==='4.1'||codDe(l).startsWith('4.1.')),-1);
+const despVendasDetalhe=agrupar(l=>l.tipo==='despesa'&&(codDe(l)==='4.2'||codDe(l).startsWith('4.2.'))&&codDe(l)!=='4.2.1.7',-1);
+const despAdmDetalhe=agrupar(l=>l.tipo==='despesa'&&(codDe(l)==='4.3'||codDe(l).startsWith('4.3.'))&&codDe(l)!=='4.3.3.7',-1);
+const deprDetalhe=[...agrupar(l=>l.tipo==='despesa'&&ehDepreciacao(l),-1),...(deprAtivos>0?[{label:'Depreciação de Ativos (calculada)',valor:-deprAtivos,pct:receitaBruta>0?deprAtivos/receitaBruta*100:0}]:[])];
+const finDetalhe=[...agrupar(l=>l.tipo==='despesa'&&(codDe(l)==='4.4'||codDe(l).startsWith('4.4.')),-1),...agrupar(l=>l.tipo==='receita'&&codDe(l).startsWith('3.3'),1)];
+
+const CORES={receita:{bg:'#f0fdf4',text:'#166534',valor:'#16a34a'},despesa:{bg:'#fef2f2',text:'#991b1b',valor:'#dc2626'}};
 
 const GrupoHeader=({label,valor,pct,tipo,groupKey,temFilhos})=>{const cor=CORES[tipo];const aberto=abertos[groupKey];
 return React.createElement('div',{onClick:()=>temFilhos&&toggle(groupKey),style:{display:'grid',gridTemplateColumns:'20px minmax(0,1fr) 130px 70px',alignItems:'center',padding:'12px 14px',background:cor.bg,cursor:temFilhos?'pointer':'default',borderRadius:8,marginBottom:aberto?2:6}},
-temFilhos?React.createElement('span',{style:{fontSize:11,color:cor.text,transition:'transform 0.15s',display:'inline-block',transform:aberto?'rotate(0deg)':'rotate(-90deg)'}},'▾'):React.createElement('span',null),
+temFilhos?React.createElement('span',{style:{fontSize:11,color:cor.text,display:'inline-block',transform:aberto?'rotate(0deg)':'rotate(-90deg)'}},'▾'):React.createElement('span',null),
 React.createElement('span',{style:{fontWeight:700,fontSize:13,color:cor.text}},label),
 React.createElement('span',{style:{textAlign:'right',fontWeight:800,fontSize:13,color:cor.valor}},valor<0?'('+F(Math.abs(valor))+')':F(valor)),
 React.createElement('span',{style:{textAlign:'right',fontSize:11,fontWeight:700,color:cor.text,opacity:0.75}},pct!=null?pct.toFixed(1)+'%':'')
@@ -941,45 +984,57 @@ React.createElement('span',{style:{textAlign:'right',fontWeight:800,fontSize:des
 React.createElement('span',{style:{textAlign:'right',fontSize:destaque?12:11,fontWeight:700,color:valor>=0?'#16a34a':'#dc2626'}},pct!=null?pct.toFixed(1)+'%':'')
 );
 
-return React.createElement(PW,{title:'DRE',sub:'Demonstração do Resultado do Exercício',actions:[React.createElement(DateRangePicker,{key:'drp',dtIni,dtFim,onChangeDtIni:setDtIni,onChangeDtFim:setDtFim})]},
+const pctDe=v=>receitaBruta>0?v/receitaBruta*100:0;
+
+return React.createElement(PW,{title:'DRE',sub:'Demonstração do Resultado do Exercício',
+actions:[
+React.createElement('button',{key:'cfg',onClick:()=>setM({title:'Categorias do DRE',wide:true,body:React.createElement(DREConfigPage,{uid,db,reload,setM,emModal:true})}),style:{background:'#f5f5f5',color:'#dc2626',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:600,border:'none',cursor:'pointer'}},'⚙ Configurar'),
+React.createElement(DateRangePicker,{key:'drp',dtIni,dtFim,onChangeDtIni:setDtIni,onChangeDtFim:setDtFim})
+]},
+
 React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}},
 React.createElement(SC,{label:'Receita Líquida',val:F(receitaLiquida),color:'#16a34a'}),
 React.createElement(SC,{label:'Lucro Bruto',val:F(lucroBruto),color:'#2563eb'}),
-React.createElement(SC,{label:'Lucro Líquido',val:F(lucroLiquido),color:lucroLiquido>=0?'#16a34a':'#dc2626'}),
-React.createElement(SC,{label:'Margem Líquida',val:margemLiquida.toFixed(1)+'%',color:margemLiquida>=0?'#16a34a':'#dc2626'})
+React.createElement(SC,{label:'EBITDA',val:F(ebitda),color:ebitda>=0?'#16a34a':'#dc2626'}),
+React.createElement(SC,{label:'Lucro Líquido',val:F(lucroLiquido),color:lucroLiquido>=0?'#16a34a':'#dc2626'})
 ),
 
-React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'16px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)',maxWidth:760,margin:'0 auto'}},
+React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'16px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)',maxWidth:780,margin:'0 auto'}},
 
-// Vendas Brutas
-React.createElement(GrupoHeader,{label:'Vendas Brutas',valor:receitaBruta,pct:100,tipo:'receita',groupKey:'vendas',temFilhos:receitaProdutos.length+outrasReceitas.length>0}),
-abertos.vendas&&React.createElement('div',null,receitaProdutos.map((l,i)=>React.createElement(SubLinha,{key:'rp'+i,...l})),outrasReceitas.map((l,i)=>React.createElement(SubLinha,{key:'or'+i,...l}))),
+React.createElement(GrupoHeader,{label:'RECEITA OPERACIONAL BRUTA',valor:receitaBruta,pct:100,tipo:'receita',groupKey:'receita',temFilhos:receitaDetalhe.length>0}),
+abertos.receita&&React.createElement('div',null,receitaDetalhe.map((l,i)=>React.createElement(SubLinha,{key:'r'+i,...l}))),
 
-// Deduções
-deducoes>0&&React.createElement(GrupoHeader,{label:'Deduções sobre Vendas',valor:-deducoes,pct:receitaBruta>0?deducoes/receitaBruta*100:0,tipo:'despesa',groupKey:'deducoes',temFilhos:deducoesDetalhe.length>0}),
-deducoes>0&&abertos.deducoes&&React.createElement('div',null,deducoesDetalhe.map((l,i)=>React.createElement(SubLinha,{key:'ded'+i,...l}))),
+React.createElement(GrupoHeader,{label:'(-) Deduções da Receita Bruta',valor:-deducoes,pct:pctDe(deducoes),tipo:'despesa',groupKey:'deducoes',temFilhos:deducoesDetalhe.length>0}),
+abertos.deducoes&&React.createElement('div',null,deducoesDetalhe.map((l,i)=>React.createElement(SubLinha,{key:'d'+i,...l}))),
 
-React.createElement(TotalLinha,{label:'Receita Líquida',valor:receitaLiquida,pct:receitaBruta>0?receitaLiquida/receitaBruta*100:0}),
+React.createElement(TotalLinha,{label:'= RECEITA OPERACIONAL LÍQUIDA',valor:receitaLiquida,pct:pctDe(receitaLiquida)}),
 
-// CMV
-React.createElement(GrupoHeader,{label:'Custo de Mercadoria Vendida — CMV',valor:-cmv,pct:receitaBruta>0?cmv/receitaBruta*100:0,tipo:'despesa',groupKey:'cmv',temFilhos:cmvDetalhe.length>0}),
-abertos.cmv&&React.createElement('div',null,cmvDetalhe.map((l,i)=>React.createElement(SubLinha,{key:'cmv'+i,...l}))),
+React.createElement(GrupoHeader,{label:'(-) Custo da Mercadoria Vendida (CMV)',valor:-cmv,pct:pctDe(cmv),tipo:'despesa',groupKey:'cmv',temFilhos:cmvDetalhe.length>0}),
+abertos.cmv&&React.createElement('div',null,cmvDetalhe.map((l,i)=>React.createElement(SubLinha,{key:'c'+i,...l}))),
 
-React.createElement(TotalLinha,{label:'Lucro Bruto',valor:lucroBruto,pct:receitaBruta>0?lucroBruto/receitaBruta*100:0}),
+React.createElement(TotalLinha,{label:'= LUCRO BRUTO',valor:lucroBruto,pct:pctDe(lucroBruto)}),
 
-// Despesas Variáveis
-despVendas>0&&React.createElement(GrupoHeader,{label:'Despesas Variáveis',valor:-despVendas,pct:receitaBruta>0?despVendas/receitaBruta*100:0,tipo:'despesa',groupKey:'despVar',temFilhos:despVarDetalhe.length>0}),
-despVendas>0&&abertos.despVar&&React.createElement('div',null,despVarDetalhe.map((l,i)=>React.createElement(SubLinha,{key:'dv'+i,...l}))),
+React.createElement(GrupoHeader,{label:'(-) Despesas com Vendas',valor:-despVendas,pct:pctDe(despVendas),tipo:'despesa',groupKey:'despVendas',temFilhos:despVendasDetalhe.length>0}),
+abertos.despVendas&&React.createElement('div',null,despVendasDetalhe.map((l,i)=>React.createElement(SubLinha,{key:'dv'+i,...l}))),
 
-// Despesas Fixas
-(despAdm+despFin)>0&&React.createElement(GrupoHeader,{label:'Despesas Fixas',valor:-(despAdm+despFin),pct:receitaBruta>0?(despAdm+despFin)/receitaBruta*100:0,tipo:'despesa',groupKey:'despFixa',temFilhos:despFixaDetalhe.length>0}),
-(despAdm+despFin)>0&&abertos.despFixa&&React.createElement('div',null,despFixaDetalhe.map((l,i)=>React.createElement(SubLinha,{key:'df'+i,...l}))),
+React.createElement(GrupoHeader,{label:'(-) Despesas Administrativas',valor:-despAdm,pct:pctDe(despAdm),tipo:'despesa',groupKey:'despAdm',temFilhos:despAdmDetalhe.length>0}),
+abertos.despAdm&&React.createElement('div',null,despAdmDetalhe.map((l,i)=>React.createElement(SubLinha,{key:'da'+i,...l}))),
 
-React.createElement(TotalLinha,{label:'Lucro Operacional (EBIT)',valor:lucroOperacional,pct:receitaBruta>0?lucroOperacional/receitaBruta*100:0}),
-React.createElement(TotalLinha,{label:'LUCRO LÍQUIDO DO PERÍODO',valor:lucroLiquido,pct:receitaBruta>0?margemLiquida:0,destaque:true})
+React.createElement(TotalLinha,{label:'= EBITDA (Lucro Operacional antes de Depr.)',valor:ebitda,pct:pctDe(ebitda)}),
+
+React.createElement(GrupoHeader,{label:'(-) Depreciação e Amortização',valor:-depreciacaoTotal,pct:pctDe(depreciacaoTotal),tipo:'despesa',groupKey:'depr',temFilhos:deprDetalhe.length>0}),
+abertos.depr&&React.createElement('div',null,deprDetalhe.map((l,i)=>React.createElement(SubLinha,{key:'dp'+i,...l}))),
+
+React.createElement(TotalLinha,{label:'= EBIT (Resultado Operacional)',valor:ebit,pct:pctDe(ebit)}),
+
+React.createElement(GrupoHeader,{label:'(+/-) Resultado Financeiro',valor:resultadoFinanceiro,pct:pctDe(Math.abs(resultadoFinanceiro)),tipo:resultadoFinanceiro>=0?'receita':'despesa',groupKey:'fin',temFilhos:finDetalhe.length>0}),
+abertos.fin&&React.createElement('div',null,finDetalhe.map((l,i)=>React.createElement(SubLinha,{key:'f'+i,...l}))),
+
+React.createElement(TotalLinha,{label:'= LUCRO LÍQUIDO DO EXERCÍCIO',valor:lucroLiquido,pct:margemLiquida,destaque:true})
 ),
-React.createElement('div',{style:{fontSize:11,color:'#aaa',marginTop:8,maxWidth:760,margin:'8px auto 0'}},'Regime de competência — inclui receitas e despesas do período independente de pagamento. Compras de estoque entram como CMV apenas quando consumidas em Produção.')
+React.createElement('div',{style:{fontSize:11,color:'#aaa',marginTop:8,maxWidth:780,margin:'8px auto 0'}},'Regime de competência — inclui receitas e despesas do período independente de pagamento. Depreciação soma lançamentos manuais + cálculo automático dos ativos cadastrados. Use "⚙ Configurar" para escolher quais categorias entram no cálculo.')
 );}
+
 function AnaliseVendas({uid,db,reload,setM}){const hoje=TODAY();const[dtIni,setDtIni]=React.useState(()=>{const d=new Date();d.setDate(1);return d.toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});});const[dtFim,setDtFim]=React.useState(hoje);const[pedidos,setPedidos]=React.useState([]);const[pedidosAnt,setPedidosAnt]=React.useState([]);const[loading,setLoading]=React.useState(false);const canvasRef=React.useRef(null);const chartRef=React.useRef(null);const diasPeriodo=Math.round((new Date(dtFim)-new Date(dtIni))/86400000)+1;const dtIniAnt=(()=>{const d=new Date(dtIni+'T12:00:00');d.setDate(d.getDate()-diasPeriodo);return d.toLocaleDateString('sv-SE');})();const dtFimAnt=(()=>{const d=new Date(dtIni+'T12:00:00');d.setDate(d.getDate()-1);return d.toLocaleDateString('sv-SE');})();const fetchPeriodo=async(ini,fim,setter)=>{let all=[];let from=0;const pageSize=1000;while(true){const{data,error}=await sb.from('pedidos_cw').select('*').eq('user_id',uid).gte('data_pedido',ini).lte('data_pedido',fim).order('data_pedido',{ascending:true}).range(from,from+pageSize-1);if(error||!data||data.length===0)break;all=all.concat(data);if(data.length<pageSize)break;from+=pageSize;}setter(all);};React.useEffect(()=>{let cancelado=false;setLoading(true);Promise.all([fetchPeriodo(dtIni,dtFim,d=>!cancelado&&setPedidos(d)),fetchPeriodo(dtIniAnt,dtFimAnt,d=>!cancelado&&setPedidosAnt(d))]).then(()=>!cancelado&&setLoading(false));return()=>{cancelado=true;};},[uid,dtIni,dtFim]);const naoCancelados=React.useMemo(()=>pedidos.filter(p=>!isPedCancelado(p)),[pedidos]);const naoCanceladosAnt=React.useMemo(()=>pedidosAnt.filter(p=>!isPedCancelado(p)),[pedidosAnt]);const faturamentoTotal=naoCancelados.reduce((s,p)=>s+Number(p.total||0),0);const faturamentoAnt=naoCanceladosAnt.reduce((s,p)=>s+Number(p.total||0),0);const varFat=faturamentoAnt>0?(faturamentoTotal-faturamentoAnt)/faturamentoAnt*100:0;const ticketMedio=naoCancelados.length>0?faturamentoTotal/naoCancelados.length:0;const ticketMedioAnt=naoCanceladosAnt.length>0?faturamentoAnt/naoCanceladosAnt.length:0;const varPed=naoCanceladosAnt.length>0?(naoCancelados.length-naoCanceladosAnt.length)/naoCanceladosAnt.length*100:0;const varTicket=ticketMedioAnt>0?(ticketMedio-ticketMedioAnt)/ticketMedioAnt*100:0;const porDiaIdx=(lista,iniStr)=>{const g={};const ini=new Date(iniStr+'T12:00:00');lista.forEach(p=>{const d=new Date(p.data_pedido+'T12:00:00');const idx=Math.round((d-ini)/86400000);g[idx]=(g[idx]||0)+Number(p.total||0);});return g;};const gAtual=porDiaIdx(naoCancelados,dtIni);const gAnt=porDiaIdx(naoCanceladosAnt,dtIniAnt);const mesNome=new Date(dtIni+'T12:00:00').toLocaleString('pt-BR',{month:'long'});const mesNomeAnt=new Date(dtIniAnt+'T12:00:00').toLocaleString('pt-BR',{month:'long'});React.useEffect(()=>{if(loading||!canvasRef.current)return;const labels=Array.from({length:diasPeriodo},(_,i)=>{const d=new Date(dtIni+'T12:00:00');d.setDate(d.getDate()+i);return String(d.getDate()).padStart(2,'0')+' '+d.toLocaleString('pt-BR',{month:'short'}).replace('.','');});const dataAtual=Array.from({length:diasPeriodo},(_,i)=>gAtual[i]||0);const dataAnterior=Array.from({length:diasPeriodo},(_,i)=>gAnt[i]||0);if(chartRef.current)chartRef.current.destroy();const ctx=canvasRef.current.getContext('2d');chartRef.current=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'Faturamento '+mesNome,data:dataAtual,borderColor:'rgba(37,99,235,.85)',backgroundColor:'rgba(37,99,235,.08)',fill:true,tension:.4,pointRadius:3,pointBackgroundColor:'rgba(37,99,235,.9)',borderWidth:2},{label:'Faturamento '+mesNomeAnt,data:dataAnterior,borderColor:'rgba(250,180,80,.8)',backgroundColor:'rgba(250,180,80,.05)',fill:true,tension:.4,pointRadius:3,pointBackgroundColor:'rgba(250,180,80,.9)',borderWidth:2,borderDash:[4,3]}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.dataset.label+': '+F(c.parsed.y)}}},scales:{x:{grid:{display:false},ticks:{font:{size:9},color:'#999',maxTicksLimit:16}},y:{grid:{color:'rgba(0,0,0,.04)'},ticks:{font:{size:9},color:'#999',callback:v=>'R$ '+v}}}}});return()=>{if(chartRef.current)chartRef.current.destroy();};},[loading,dtIni,dtFim,JSON.stringify(gAtual),JSON.stringify(gAnt)]);return React.createElement(PW,{title:'Análise de Vendas',sub:'Faturamento por dia',actions:[React.createElement(DateRangePicker,{key:'dr',dtIni,dtFim,onChangeDtIni:setDtIni,onChangeDtFim:setDtFim,openRight:true})]},loading&&React.createElement('div',{style:{textAlign:'center',padding:30,color:'#ccc'}},'Carregando...'),!loading&&React.createElement('div',{style:{background:'#fff',borderRadius:14,padding:'20px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},React.createElement('div',{style:{display:'flex',gap:40,marginBottom:20,flexWrap:'wrap'}},React.createElement('div',null,React.createElement('div',{style:{fontSize:11,color:'#aaa',fontWeight:600,marginBottom:4}},'Faturamento'),React.createElement('div',{style:{display:'flex',alignItems:'baseline',gap:8}},React.createElement('span',{style:{fontSize:24,fontWeight:800,color:'#111'}},F(faturamentoTotal)),React.createElement('span',{style:{fontSize:12,fontWeight:700,color:varFat>=0?'#16a34a':'#dc2626'}},(varFat>=0?'↑ ':'↓ ')+Math.abs(varFat).toFixed(1)+'%'))),React.createElement('div',null,React.createElement('div',{style:{fontSize:11,color:'#aaa',fontWeight:600,marginBottom:4}},'Pedidos'),React.createElement('div',{style:{display:'flex',alignItems:'baseline',gap:8}},React.createElement('span',{style:{fontSize:24,fontWeight:800,color:'#111'}},naoCancelados.length),React.createElement('span',{style:{fontSize:12,fontWeight:700,color:varPed>=0?'#16a34a':'#dc2626'}},(varPed>=0?'↑ ':'↓ ')+Math.abs(varPed).toFixed(1)+'%'))),React.createElement('div',null,React.createElement('div',{style:{fontSize:11,color:'#aaa',fontWeight:600,marginBottom:4}},'Ticket médio'),React.createElement('div',{style:{display:'flex',alignItems:'baseline',gap:8}},React.createElement('span',{style:{fontSize:24,fontWeight:800,color:'#111'}},F(ticketMedio)),React.createElement('span',{style:{fontSize:12,fontWeight:700,color:varTicket>=0?'#16a34a':'#dc2626'}},(varTicket>=0?'↑ ':'↓ ')+Math.abs(varTicket).toFixed(1)+'%')))),React.createElement('div',{style:{height:380}},React.createElement('canvas',{ref:canvasRef})),React.createElement('div',{style:{display:'flex',gap:24,marginTop:14,fontSize:12}},React.createElement('span',{style:{display:'flex',alignItems:'center',gap:6}},React.createElement('span',{style:{width:12,height:12,borderRadius:'50%',background:'rgba(37,99,235,.85)',display:'inline-block'}}),'Faturamento por dia ('+mesNome+')'),React.createElement('span',{style:{display:'flex',alignItems:'center',gap:6}},React.createElement('span',{style:{width:12,height:12,borderRadius:'50%',background:'rgba(250,180,80,.8)',display:'inline-block'}}),'Faturamento por dia ('+mesNomeAnt+')'))));}function AnaliseProdutos({uid,db,reload,setM}){const{fichas,estoque,ficha_ingredientes}=db;const hoje=TODAY();const[dtIni,setDtIni]=React.useState(()=>{const d=new Date();d.setDate(1);return d.toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});});const[dtFim,setDtFim]=React.useState(hoje);const[pedidos,setPedidos]=React.useState([]);const[loading,setLoading]=React.useState(false);const[busca,setBusca]=React.useState('');React.useEffect(()=>{let cancelado=false;const buscar=async()=>{setLoading(true);let all=[];let from=0;const pageSize=1000;while(true){const{data,error}=await sb.from('pedidos_cw').select('*').eq('user_id',uid).gte('data_pedido',dtIni).lte('data_pedido',dtFim).order('data_pedido',{ascending:true}).range(from,from+pageSize-1);if(error||!data||data.length===0)break;all=all.concat(data);if(data.length<pageSize)break;from+=pageSize;}if(!cancelado){setPedidos(all);setLoading(false);}};buscar();return()=>{cancelado=true;};},[uid,dtIni,dtFim]);const naoCancelados=React.useMemo(()=>pedidos.filter(p=>!isPedCancelado(p)),[pedidos]);const calcCustoUnit=fichaNome=>{const f=(fichas||[]).find(x=>x.nome===fichaNome);if(!f)return 0;const ings=(ficha_ingredientes||[]).filter(i=>i.ficha_id===f.id);return ings.reduce((s,i)=>{const est=(estoque||[]).find(e=>e.id===i.estoque_id||e.nome===i.nome);return s+parseFloat(i.quantidade||0)*parseFloat(est?.custo||i.custo_unit||0);},0);};const porProduto=React.useMemo(()=>{const g={};naoCancelados.forEach(p=>{const itens=(p.raw&&p.raw.items||p.itens||[]).filter(it=>!isCancelledItem(it));itens.forEach(it=>{const nomeBruto=(it.name||it.nome||'Sem nome').trim();const normN=s=>(s||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[-_\s]+/g,' ').trim();const nLow=normN(nomeBruto);let nome=nomeBruto;const aliasMatch=campo=>f=>(f[campo]||'').split('|').map(a=>normN(a)).includes(nLow);const fExata=(fichas||[]).find(f=>normN(f.nome)===nLow);const fCw=(fichas||[]).find(aliasMatch('nome_cw'));const fIfood=(fichas||[]).find(aliasMatch('nome_ifood'));const fMatch=fExata||fCw||fIfood;if(fMatch)nome=fMatch.nome;const qtd=Number(it.quantity||1);const precoUnit=Number(it.price||it.unit_price||0);const valor=precoUnit*qtd;if(!g[nome])g[nome]={qtd:0,valor:0};g[nome].qtd+=qtd;g[nome].valor+=valor;});});return Object.entries(g).map(([nome,v])=>{const custoUnit=calcCustoUnit(nome);const custoTotal=custoUnit*v.qtd;const lucro=v.valor-custoTotal;const margem=v.valor>0?lucro/v.valor*100:0;return{nome,...v,custoUnit,custoTotal,lucro,margem};}).sort((a,b)=>b.valor-a.valor);},[naoCancelados,fichas,ficha_ingredientes,estoque]);const listFiltrada=busca?porProduto.filter(p=>p.nome.toLowerCase().includes(busca.toLowerCase())):porProduto;const totalQtdProd=listFiltrada.reduce((s,p)=>s+p.qtd,0);const totalValProd=listFiltrada.reduce((s,p)=>s+p.valor,0);const totalCustoProd=listFiltrada.reduce((s,p)=>s+p.custoTotal,0);const totalLucroProd=totalValProd-totalCustoProd;const margemTotal=totalValProd>0?totalLucroProd/totalValProd*100:0;return React.createElement(PW,{title:'Análise de Produtos',sub:'Quantidade vendida e faturamento por produto',actions:[React.createElement(DateRangePicker,{key:'dr',dtIni,dtFim,onChangeDtIni:setDtIni,onChangeDtFim:setDtFim,openRight:true})]},loading&&React.createElement('div',{style:{textAlign:'center',padding:30,color:'#ccc'}},'Carregando...'),!loading&&React.createElement(React.Fragment,null,React.createElement('input',{placeholder:'Buscar produto...',value:busca,onChange:e=>setBusca(e.target.value),style:{background:'#f5f5f5',border:'none',borderRadius:9,padding:'9px 14px',fontSize:13,color:'#111',outline:'none',width:260,marginBottom:14}}),React.createElement('div',{style:{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},listFiltrada.length===0?React.createElement('div',{style:{textAlign:'center',color:'#ccc',padding:30}},'Sem produtos no período'):React.createElement(Tbl,{cols:['Produto','Qtd vendida','Faturamento','Custo','Lucro','Margem'],rows:[['TOTAL',totalQtdProd,F(totalValProd),F(totalCustoProd),F(totalLucroProd),margemTotal.toFixed(1)+'%'],...listFiltrada.map(p=>[p.nome,p.qtd,F(p.valor),F(p.custoTotal),F(p.lucro),p.margem.toFixed(1)+'%'])].map((r,i)=>React.createElement(TR,{key:i,cells:r.map((c,j)=>React.createElement('span',{style:{fontWeight:i===0?800:j===0?600:400,fontSize:12,color:i===0?'#111':j===3?'#dc2626':j===4?'#16a34a':j===0?'#111':'#555'}},c))}))}))));}function FinBalanco({uid,db,reload,setM}){const{contas,lancamentos,estoque}=db;const[dataRef,setDataRef]=React.useState(TODAY());// Ativo Circulante
 const caixaEBancos=(contas||[]).reduce((s,c)=>s+saldoRealConta(c,lancamentos),0);const aReceber=(lancamentos||[]).filter(l=>l.tipo==='receita'&&!l.pago&&(l.venc||l.data)<=dataRef).reduce((s,l)=>s+Number(l.valor||0),0);const estoqueIngred=(estoque||[]).filter(e=>e.categoria==='Matéria-Prima').reduce((s,e)=>s+Number(e.qtd||0)*Number(e.custo||0),0);const estoqueEmbal=(estoque||[]).filter(e=>e.categoria==='Embalagem'||e.categoria==='Descartável').reduce((s,e)=>s+Number(e.qtd||0)*Number(e.custo||0),0);const estoqueProdAcabado=(estoque||[]).filter(e=>e.categoria==='Cookie').reduce((s,e)=>s+Number(e.qtd||0)*Number(e.custo||0),0);const ativoCirculante=caixaEBancos+aReceber+estoqueIngred+estoqueEmbal+estoqueProdAcabado;// Passivo Circulante
 const aPagar=(lancamentos||[]).filter(l=>l.tipo==='despesa'&&!l.pago&&(l.venc||l.data)<=dataRef).reduce((s,l)=>s+Number(l.valor||0),0);const passivoCirculante=aPagar;// Patrimônio Líquido = Ativo Total - Passivo Total (residual, pelo princípio contábil A = P + PL)
