@@ -910,7 +910,8 @@ const periodo=React.useMemo(()=>(lancamentos||[]).filter(l=>{const raw=l.compete
 const dtComp=raw.match(/^\d{4}-\d{2}$/)?raw+'-01':raw;
 const catLancRaw=l.categoria||'';const catLancCod=catLancRaw.split(' ')[0];
 const ocultaPorPrefixo=[...catsOcultasSet].some(cod=>catLancCod===cod||catLancCod.startsWith(cod+'.')||catLancRaw===cod||catLancRaw.startsWith(cod+'.'));
-return dtComp>=dtIni&&dtComp<=dtFim&&l.obs!=='compra_estoque'&&catLancRaw.trim()!=''&&!ocultaPorPrefixo;}),[lancamentos,dtIni,dtFim,catsOcultasSet]);
+const ehTransferencia=catLancRaw.toLowerCase().includes('transferencia')||catLancRaw.toLowerCase().includes('transferência')||(l.forma_pag||'').toLowerCase()==='transferencia';
+return dtComp>=dtIni&&dtComp<=dtFim&&l.obs!=='compra_estoque'&&catLancRaw.trim()!=''&&!ocultaPorPrefixo&&!ehTransferencia;}),[lancamentos,dtIni,dtFim,catsOcultasSet]);
 
 const isRepasse=l=>(l.descricao||'').toLowerCase().includes('repasse')||(l.obs||'').includes('repasse');
 // Código puro da categoria (ignora o nome grudado, ex: "4.1.1 Ingredientes" -> "4.1.1")
@@ -920,7 +921,8 @@ const somaCat=prefixo=>periodo.filter(l=>l.tipo==='despesa'&&(codDe(l)===prefixo
 // ===== Receita Bruta =====
 const receitaBruta=periodo.filter(l=>l.tipo==='receita'&&!isRepasse(l)&&!codDe(l).startsWith('3.2')).reduce((s,l)=>s+Number(l.valor||0),0);
 // ===== Deduções =====
-const isDed=l=>codDe(l).startsWith('3.2')||(l.categoria||'').toLowerCase().includes('das')||(l.categoria||'').toLowerCase().includes('simples nacional')||(l.categoria||'').toLowerCase().includes('cancelamento')||(l.categoria||'').toLowerCase().includes('desconto concedido');
+const isDed=l=>{const cod=codDe(l);if(cod==='3.2'||cod.startsWith('3.2.'))return true;// só o código manda; buscar por texto causava falso positivo (ex: 'Consumidas' contém 'das')
+const nome=(l.categoria||'').toLowerCase();return nome.includes('simples nacional')||nome.includes('das - ')||nome.includes('cancelamento')||nome.includes('desconto concedido');};
 const deducoes=periodo.filter(isDed).reduce((s,l)=>s+Number(l.valor||0),0);
 const receitaLiquida=receitaBruta-deducoes;
 // ===== CMV =====
@@ -951,13 +953,19 @@ const margemLiquida=receitaBruta>0?lucroLiquido/receitaBruta*100:0;
 
 // ===== Detalhamento por grupo =====
 const nomeLimpo=cat=>{const raw=cat||'';const semCod=raw.replace(/^[0-9]+(\.[0-9]+)*\s*/,'');return (semCod||raw).replace(/^\(-\)\s*/,'').trim();};
-const agrupar=(filtroFn,sinal)=>periodo.filter(filtroFn).reduce((acc,l)=>{const k=nomeLimpo(l.categoria)||l.descricao||'Outros';if(!acc.find(x=>x.k===k))acc.push({k,v:0});acc.find(x=>x.k===k).v+=Number(l.valor||0);return acc;},[]).map(g=>({label:g.k,valor:sinal*g.v,pct:receitaBruta>0?g.v/receitaBruta*100:0})).sort((a,b)=>Math.abs(b.valor)-Math.abs(a.valor));
+const CODS_GENERICOS=['3.1','3.2','4.1','4.2','4.3','4.4'];
+const chaveAgrupamento=l=>{const cod=codDe(l);
+// Se o lançamento usa só a categoria-pai genérica (ex: '3.1 Receita de Venda de Produtos'),
+// agrupa pela descrição, que é onde está a informação útil (ex: 'Vendas PIX')
+if(CODS_GENERICOS.includes(cod)&&l.descricao)return l.descricao;
+return nomeLimpo(l.categoria)||l.descricao||'Outros';};
+const agrupar=(filtroFn,sinal)=>periodo.filter(filtroFn).reduce((acc,l)=>{const k=chaveAgrupamento(l);if(!acc.find(x=>x.k===k))acc.push({k,v:0});acc.find(x=>x.k===k).v+=Number(l.valor||0);return acc;},[]).map(g=>({label:g.k,valor:sinal*g.v,pct:receitaBruta>0?g.v/receitaBruta*100:0})).sort((a,b)=>Math.abs(b.valor)-Math.abs(a.valor));
 
 const receitaDetalhe=agrupar(l=>l.tipo==='receita'&&!isRepasse(l)&&!codDe(l).startsWith('3.2')&&!codDe(l).startsWith('3.3'),1);
 const deducoesDetalhe=agrupar(isDed,-1);
 // Dedução dividida em 3 subgrupos contábeis: Impostos / Taxas / Perdas e Descontos
 const GRUPOS_DED=[
-{titulo:'Impostos',cods:['3.2.1'],extra:l=>(l.categoria||'').toLowerCase().includes('das')||(l.categoria||'').toLowerCase().includes('simples nacional')},
+{titulo:'Impostos',cods:['3.2.1'],extra:l=>(l.categoria||'').toLowerCase().includes('simples nacional')},
 {titulo:'Taxas',cods:['3.2.2','3.2.3','3.2.6'],extra:()=>false},
 {titulo:'Perdas e Descontos',cods:['3.2.4','3.2.5'],extra:l=>(l.categoria||'').toLowerCase().includes('cancelamento')||(l.categoria||'').toLowerCase().includes('desconto concedido')}
 ];
