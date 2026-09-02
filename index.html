@@ -950,10 +950,23 @@ const lucroLiquido=ebit+resultadoFinanceiro;
 const margemLiquida=receitaBruta>0?lucroLiquido/receitaBruta*100:0;
 
 // ===== Detalhamento por grupo =====
-const agrupar=(filtroFn,sinal)=>periodo.filter(filtroFn).reduce((acc,l)=>{const k=l.categoria||l.descricao||'Outros';if(!acc.find(x=>x.k===k))acc.push({k,v:0});acc.find(x=>x.k===k).v+=Number(l.valor||0);return acc;},[]).map(g=>({label:g.k,valor:sinal*g.v,pct:receitaBruta>0?g.v/receitaBruta*100:0})).sort((a,b)=>Math.abs(b.valor)-Math.abs(a.valor));
+const nomeLimpo=cat=>{const raw=cat||'';const semCod=raw.replace(/^[0-9]+(\.[0-9]+)*\s*/,'');return (semCod||raw).replace(/^\(-\)\s*/,'').trim();};
+const agrupar=(filtroFn,sinal)=>periodo.filter(filtroFn).reduce((acc,l)=>{const k=nomeLimpo(l.categoria)||l.descricao||'Outros';if(!acc.find(x=>x.k===k))acc.push({k,v:0});acc.find(x=>x.k===k).v+=Number(l.valor||0);return acc;},[]).map(g=>({label:g.k,valor:sinal*g.v,pct:receitaBruta>0?g.v/receitaBruta*100:0})).sort((a,b)=>Math.abs(b.valor)-Math.abs(a.valor));
 
 const receitaDetalhe=agrupar(l=>l.tipo==='receita'&&!isRepasse(l)&&!codDe(l).startsWith('3.2')&&!codDe(l).startsWith('3.3'),1);
 const deducoesDetalhe=agrupar(isDed,-1);
+// Dedução dividida em 3 subgrupos contábeis: Impostos / Taxas / Perdas e Descontos
+const GRUPOS_DED=[
+{titulo:'Impostos',cods:['3.2.1'],extra:l=>(l.categoria||'').toLowerCase().includes('das')||(l.categoria||'').toLowerCase().includes('simples nacional')},
+{titulo:'Taxas',cods:['3.2.2','3.2.3','3.2.6'],extra:()=>false},
+{titulo:'Perdas e Descontos',cods:['3.2.4','3.2.5'],extra:l=>(l.categoria||'').toLowerCase().includes('cancelamento')||(l.categoria||'').toLowerCase().includes('desconto concedido')}
+];
+const deducoesPorGrupo=GRUPOS_DED.map(g=>{
+const filtro=l=>isDed(l)&&(g.cods.some(c=>codDe(l)===c||codDe(l).startsWith(c+'.'))||g.extra(l));
+const itens=agrupar(filtro,-1);
+const total=periodo.filter(filtro).reduce((s,l)=>s+Number(l.valor||0),0);
+return{titulo:g.titulo,itens,total};
+}).filter(g=>g.total>0);
 const cmvDetalhe=agrupar(l=>l.tipo==='despesa'&&(codDe(l)==='4.1'||codDe(l).startsWith('4.1.')),-1);
 const despVendasDetalhe=agrupar(l=>l.tipo==='despesa'&&(codDe(l)==='4.2'||codDe(l).startsWith('4.2.'))&&codDe(l)!=='4.2.1.7',-1);
 const despAdmDetalhe=agrupar(l=>l.tipo==='despesa'&&(codDe(l)==='4.3'||codDe(l).startsWith('4.3.'))&&codDe(l)!=='4.3.3.7',-1);
@@ -1005,7 +1018,20 @@ React.createElement(GrupoHeader,{label:'RECEITA OPERACIONAL BRUTA',valor:receita
 abertos.receita&&React.createElement('div',null,receitaDetalhe.map((l,i)=>React.createElement(SubLinha,{key:'r'+i,...l}))),
 
 React.createElement(GrupoHeader,{label:'(-) Deduções da Receita Bruta',valor:-deducoes,pct:pctDe(deducoes),tipo:'despesa',groupKey:'deducoes',temFilhos:deducoesDetalhe.length>0}),
-abertos.deducoes&&React.createElement('div',null,deducoesDetalhe.map((l,i)=>React.createElement(SubLinha,{key:'d'+i,...l}))),
+abertos.deducoes&&React.createElement('div',null,deducoesPorGrupo.map((g,gi)=>React.createElement('div',{key:'dg'+gi},
+React.createElement('div',{style:{display:'grid',gridTemplateColumns:'20px minmax(0,1fr) 130px 70px',alignItems:'center',padding:'7px 14px 7px 28px',background:'#fafafa'}},
+React.createElement('span',null),
+React.createElement('span',{style:{fontSize:12,fontWeight:700,color:'#555'}},g.titulo),
+React.createElement('span',{style:{textAlign:'right',fontSize:12,fontWeight:700,color:'#991b1b'}},'('+F(g.total)+')'),
+React.createElement('span',{style:{textAlign:'right',fontSize:11,color:'#aaa'}},pctDe(g.total).toFixed(1)+'%')
+),
+g.itens.map((l,i)=>React.createElement('div',{key:'di'+i,style:{display:'grid',gridTemplateColumns:'20px minmax(0,1fr) 130px 70px',alignItems:'center',padding:'7px 14px 7px 48px'}},
+React.createElement('span',null),
+React.createElement('span',{style:{fontSize:12,color:'#888'}},l.label),
+React.createElement('span',{style:{textAlign:'right',fontSize:12,color:'#666'}},l.valor<0?'('+F(Math.abs(l.valor))+')':F(l.valor)),
+React.createElement('span',{style:{textAlign:'right',fontSize:11,color:'#bbb'}},l.pct!=null?l.pct.toFixed(1)+'%':'')
+))
+))),
 
 React.createElement(TotalLinha,{label:'= RECEITA OPERACIONAL LÍQUIDA',valor:receitaLiquida,pct:pctDe(receitaLiquida)}),
 
