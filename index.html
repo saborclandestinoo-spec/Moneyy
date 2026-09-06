@@ -1620,7 +1620,7 @@ if(!error){toast(ids.length+' lançamento(s) atualizado(s)!',false,true);await a
 setLd(false);return;
 }
 // Se mudou a frequência de um parcelado/recorrente, recriar as parcelas futuras não pagas
-if(inicial&&inicial.id&&inicial.grupo_id&&((tipoLanc==='Parcelado'&&freqParc&&freqParc!==inicial.recorrente)||(tipoLanc==='Recorrente'&&freqRec&&freqRec!==inicial.recorrente))){
+if(inicial&&inicial.id&&inicial.grupo_id&&inicial.recorrente&&((tipoLanc==='Parcelado'&&freqParc&&freqParc!==inicial.recorrente)||(tipoLanc==='Recorrente'&&freqRec&&freqRec!==inicial.recorrente))){
 const{data:todasParcelas}=await sb.from('lancamentos').select('*').eq('grupo_id',inicial.grupo_id).eq('user_id',uid).order('venc',{ascending:true});
 if(todasParcelas&&todasParcelas.length>0){
 const jasPagas=todasParcelas.filter(p=>p.pago);
