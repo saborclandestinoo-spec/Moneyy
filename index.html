@@ -367,62 +367,100 @@ const[verHistorico,setVerHistorico]=React.useState(false);
 React.useEffect(()=>{let mounted=true;
 sb.from('inventarios').select('*').eq('user_id',uid).order('data',{ascending:false}).limit(20).then(({data})=>{if(mounted)setHistorico(data||[]);});
 return()=>{mounted=false;};},[uid]);
+
+// Filtra itens reais (sem virtuais de fichas) e deduplica por nome+categoria
+const itensReais=React.useMemo(()=>{
+const raw=(estoque||[]).filter(e=>e.id&&!String(e.id).startsWith('f_')&&!String(e.id).startsWith('fr_')&&e.ativo!==false);
+const seen={};
+return raw.filter(e=>{const key=(e.nome||'').toLowerCase()+'|'+(e.categoria||'');if(seen[key])return false;seen[key]=true;return true;});
+},[estoque]);
+
 const CATEGORIAS=['Matéria-Prima','Recheio','Cookie','Embalagem','Material de Produção','Material de Limpeza'];
-const itens=(estoque||[]).filter(e=>e.id&&!String(e.id).startsWith('f_')&&!String(e.id).startsWith('fr_')&&e.ativo!==false&&(!filtro||e.categoria===filtro)&&(!busca||e.nome.toLowerCase().includes(busca.toLowerCase()))).sort((a,b)=>(a.categoria||'').localeCompare(b.categoria||'')||a.nome.localeCompare(b.nome));
+const itens=itensReais.filter(e=>(!filtro||e.categoria===filtro)&&(!busca||e.nome.toLowerCase().includes(busca.toLowerCase()))).sort((a,b)=>(a.categoria||'').localeCompare(b.categoria||'')||a.nome.localeCompare(b.nome));
+
 const porCategoria={};itens.forEach(i=>{(porCategoria[i.categoria]=porCategoria[i.categoria]||[]).push(i);});
 const categorias=Object.keys(porCategoria).sort();
 const setQtdContada=(id,val)=>setContagem(prev=>({...prev,[id]:val}));
 const itensTocados=itens.filter(i=>contagem[i.id]!==undefined&&contagem[i.id]!=='');
 const itensComDiferenca=itensTocados.filter(i=>{const c=parseFloat(contagem[i.id]);return!isNaN(c)&&c!==Number(i.qtd||0);});
+const totalItens=itens.length;
+const totalContados=itensTocados.length;
+
 const salvarInventario=async()=>{
 if(itensComDiferenca.length===0){toast('Nenhuma diferença encontrada.',false,true);return;}
 setSalvando(true);const ajustes=[];
 for(const item of itensComDiferenca){
-const qtdSistema=Number(item.qtd||0);const qtdContada=parseFloat(contagem[item.id]);const diferenca=qtdContada-qtdSistema;
-await sb.from('estoque').update({qtd:qtdContada}).eq('id',item.id);
-await registrarMovEstoque(uid,{estoqueId:String(item.id),nomeItem:item.nome,tipo:diferenca>0?'entrada':'saida',quantidade:Math.abs(diferenca),saldoAntes:qtdSistema,saldoDepois:qtdContada,motivo:'ajuste_inventario',descricao:'Ajuste por inventário físico em '+FD(TODAY())});
-ajustes.push({nome:item.nome,categoria:item.categoria,qtd_sistema:qtdSistema,qtd_contada:qtdContada,diferenca});}
-await sb.from('inventarios').insert({user_id:uid,data:TODAY(),ajustes:JSON.stringify(ajustes),total_itens:itensTocados.length,total_diferencas:itensComDiferenca.length});
-toast('Inventário salvo! '+itensComDiferenca.length+' ajuste(s).',false,true);
+const qtdS=Number(item.qtd||0);const qtdC=parseFloat(contagem[item.id]);const dif=qtdC-qtdS;
+await sb.from('estoque').update({qtd:qtdC}).eq('id',item.id);
+await registrarMovEstoque(uid,{estoqueId:String(item.id),nomeItem:item.nome,tipo:dif>0?'entrada':'saida',quantidade:Math.abs(dif),saldoAntes:qtdS,saldoDepois:qtdC,motivo:'ajuste_inventario',descricao:'Inventário físico '+FD(TODAY())});
+ajustes.push({nome:item.nome,categoria:item.categoria,qtd_sistema:qtdS,qtd_contada:qtdC,diferenca:dif});}
+await sb.from('inventarios').insert({user_id:uid,data:TODAY(),ajustes:JSON.stringify(ajustes),total_itens:totalContados,total_diferencas:itensComDiferenca.length});
+toast('✓ Inventário salvo! '+itensComDiferenca.length+' ajuste(s).',false,true);
 setContagem({});await reload();
 const{data:hist}=await sb.from('inventarios').select('*').eq('user_id',uid).order('data',{ascending:false}).limit(20);setHistorico(hist||[]);setSalvando(false);};
-return React.createElement(PW,{title:'Inventário — Contagem Física',sub:'Compare o estoque do sistema com a contagem real',
-actions:[itensComDiferenca.length>0&&React.createElement('button',{key:'save',onClick:salvarInventario,disabled:salvando,style:{background:cor,color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},salvando?'Salvando...':'Salvar ('+itensComDiferenca.length+' ajuste'+(itensComDiferenca.length>1?'s':'')+')')].filter(Boolean)},
-React.createElement('div',{style:{display:'flex',gap:10,marginBottom:16,flexWrap:'wrap',alignItems:'center'}},
+
+const preencherTodosIgual=()=>{const novo={};itens.forEach(i=>{novo[i.id]=String(Number(i.qtd||0));});setContagem(novo);toast('Contagem preenchida com valores do sistema — ajuste apenas os que diferem.',false,true);};
+
+return React.createElement(PW,{title:'Inventário',sub:'Contagem física do estoque — compare com o sistema e ajuste',
+actions:[
+React.createElement('button',{key:'fill',onClick:preencherTodosIgual,style:{background:'#f5f5f5',color:'#555',padding:'8px 16px',borderRadius:9,fontSize:12,fontWeight:600,border:'none',cursor:'pointer'}},'Preencher tudo'),
+itensComDiferenca.length>0&&React.createElement('button',{key:'save',onClick:salvarInventario,disabled:salvando,style:{background:cor,color:'#fff',padding:'8px 16px',borderRadius:9,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},salvando?'Salvando...':'Salvar ('+itensComDiferenca.length+' ajuste'+(itensComDiferenca.length>1?'s':'')+')')
+].filter(Boolean)},
+
+React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:20}},
+React.createElement('div',{style:{background:'#fff',borderRadius:12,padding:'16px',textAlign:'center',border:'1px solid #f0f0f0'}},
+React.createElement('div',{style:{fontSize:28,fontWeight:800,color:'#111'}},totalItens),
+React.createElement('div',{style:{fontSize:11,fontWeight:700,color:'#888',marginTop:4}},'Itens no estoque')),
+React.createElement('div',{style:{background:'#fff',borderRadius:12,padding:'16px',textAlign:'center',border:'1px solid #f0f0f0'}},
+React.createElement('div',{style:{fontSize:28,fontWeight:800,color:'#2563eb'}},totalContados),
+React.createElement('div',{style:{fontSize:11,fontWeight:700,color:'#888',marginTop:4}},'Contados')),
+React.createElement('div',{style:{background:itensComDiferenca.length>0?'#fef2f2':'#f0fdf4',borderRadius:12,padding:'16px',textAlign:'center',border:'1px solid '+(itensComDiferenca.length>0?'#fecaca':'#bbf7d0')}},
+React.createElement('div',{style:{fontSize:28,fontWeight:800,color:itensComDiferenca.length>0?cor:'#16a34a'}},itensComDiferenca.length),
+React.createElement('div',{style:{fontSize:11,fontWeight:700,color:'#888',marginTop:4}},'Diferenças'))),
+
+React.createElement('div',{style:{display:'flex',gap:10,marginBottom:20,flexWrap:'wrap',alignItems:'center'}},
 React.createElement('div',{style:{flex:1,minWidth:200}},React.createElement(FloatInput,{label:'Buscar item',acent:cor,value:busca,onChange:e=>setBusca(e.target.value)})),
 React.createElement('div',{style:{display:'flex',gap:4,flexWrap:'wrap'}},
-React.createElement('button',{onClick:()=>setFiltro(''),style:{padding:'7px 14px',borderRadius:8,fontSize:11,fontWeight:700,border:'none',cursor:'pointer',background:!filtro?cor:'#f5f5f5',color:!filtro?'#fff':'#888'}},'Todos'),
-CATEGORIAS.map(c=>React.createElement('button',{key:c,onClick:()=>setFiltro(c),style:{padding:'7px 14px',borderRadius:8,fontSize:11,fontWeight:700,border:'none',cursor:'pointer',background:filtro===c?cor:'#f5f5f5',color:filtro===c?'#fff':'#888',whiteSpace:'nowrap'}},c)))),
-itensComDiferenca.length>0&&React.createElement('div',{style:{background:'#fef2f2',borderRadius:10,padding:'12px 16px',marginBottom:16,fontSize:12,color:cor,fontWeight:600}},'⚠ '+itensComDiferenca.length+' item(s) com diferença'),
-categorias.map(cat=>React.createElement('div',{key:cat,style:{marginBottom:20}},
-React.createElement('div',{style:{fontSize:11,fontWeight:800,color:'#111',letterSpacing:'0.5px',textTransform:'uppercase',marginBottom:8,paddingBottom:6,borderBottom:'2px solid #f0f0f0'}},cat),
-React.createElement('div',{style:{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,overflow:'hidden'}},
-React.createElement('table',{style:{width:'100%',borderCollapse:'collapse'}},
-React.createElement('thead',null,React.createElement('tr',{style:{background:'#f9f9fb'}},
-['Item','Un.','Sistema','Contagem','Diferença'].map((h,i)=>React.createElement('th',{key:i,style:{padding:'10px 12px',fontSize:11,fontWeight:700,color:'#888',textAlign:i<2?'left':'center',borderBottom:'1px solid #f0f0f0'}},h)))),
-React.createElement('tbody',null,porCategoria[cat].map(item=>{
-const qtdS=Number(item.qtd||0);const c=contagem[item.id];const qtdC=c!==undefined&&c!==''?parseFloat(c):null;
-const temDif=qtdC!==null&&qtdC!==qtdS;const dif=qtdC!==null?qtdC-qtdS:null;
-return React.createElement('tr',{key:item.id,style:{borderBottom:'1px solid #f7f7f7',background:temDif?(dif>0?'#f0fdf4':'#fef2f2'):'#fff'}},
-React.createElement('td',{style:{padding:'12px',fontWeight:700,fontSize:13}},item.nome),
-React.createElement('td',{style:{padding:'12px',fontSize:12,color:'#888'}},item.unidade||'un'),
-React.createElement('td',{style:{padding:'12px',textAlign:'center',fontSize:13,fontWeight:600,color:'#555'}},qtdS.toFixed(0)),
-React.createElement('td',{style:{padding:'12px',textAlign:'center'}},
-React.createElement('input',{type:'number',value:c!==undefined?c:'',placeholder:qtdS.toFixed(0),onChange:e=>setQtdContada(item.id,e.target.value),style:{width:80,textAlign:'center',border:'1.5px solid '+(temDif?cor:'#eee'),borderRadius:8,padding:'7px',fontSize:14,fontWeight:700,outline:'none',color:temDif?cor:'#111'}})),
-React.createElement('td',{style:{padding:'12px',textAlign:'center',fontWeight:700,fontSize:13,color:dif===null?'#ccc':dif===0?'#16a34a':dif>0?'#2563eb':'#dc2626'}},dif===null?'—':dif===0?'OK':(dif>0?'+':'')+dif.toFixed(0)));})))))),
-React.createElement('div',{style:{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'20px',marginTop:20}},
+React.createElement('button',{onClick:()=>setFiltro(''),style:{padding:'7px 12px',borderRadius:8,fontSize:11,fontWeight:700,border:'none',cursor:'pointer',background:!filtro?cor:'#f5f5f5',color:!filtro?'#fff':'#888'}},'Todos'),
+CATEGORIAS.map(c=>React.createElement('button',{key:c,onClick:()=>setFiltro(c),style:{padding:'7px 12px',borderRadius:8,fontSize:11,fontWeight:700,border:'none',cursor:'pointer',background:filtro===c?cor:'#f5f5f5',color:filtro===c?'#fff':'#888',whiteSpace:'nowrap'}},c)))),
+
+categorias.length===0?React.createElement('div',{style:{textAlign:'center',padding:60,color:'#ccc'}},React.createElement('div',{style:{fontSize:28,marginBottom:10}},'📦'),React.createElement('div',{style:{fontSize:14,fontWeight:600}},'Nenhum item encontrado')):
+categorias.map(cat=>React.createElement('div',{key:cat,style:{marginBottom:24}},
+React.createElement('div',{style:{fontSize:12,fontWeight:800,color:'#111',letterSpacing:'0.5px',textTransform:'uppercase',marginBottom:10,paddingBottom:8,borderBottom:'2px solid #f0f0f0',display:'flex',justifyContent:'space-between'}},
+React.createElement('span',null,cat),
+React.createElement('span',{style:{color:'#aaa',fontWeight:600}},porCategoria[cat].length+' itens')),
+
+React.createElement('div',{style:{display:'grid',gap:8}},
+porCategoria[cat].map(item=>{
+const qtdS=Number(item.qtd||0);
+const c=contagem[item.id];
+const qtdC=c!==undefined&&c!==''?parseFloat(c):null;
+const temDif=qtdC!==null&&qtdC!==qtdS;
+const dif=qtdC!==null?qtdC-qtdS:null;
+return React.createElement('div',{key:item.id,style:{display:'flex',alignItems:'center',gap:14,background:temDif?(dif>0?'#f0fdf4':'#fef2f2'):'#fff',border:'1px solid '+(temDif?(dif>0?'#bbf7d0':'#fecaca'):'#f0f0f0'),borderRadius:12,padding:'14px 16px'}},
+React.createElement('div',{style:{flex:1,minWidth:0}},
+React.createElement('div',{style:{fontWeight:700,fontSize:14,color:'#111',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},item.nome),
+React.createElement('div',{style:{fontSize:11,color:'#aaa',marginTop:2}},'Sistema: '+qtdS.toFixed(0)+' '+(item.unidade||'un'))),
+React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10}},
+React.createElement('input',{type:'number',value:c!==undefined?c:'',placeholder:qtdS.toFixed(0),onChange:e=>setQtdContada(item.id,e.target.value),style:{width:80,textAlign:'center',border:'2px solid '+(temDif?cor:'#e5e7eb'),borderRadius:10,padding:'10px 8px',fontSize:16,fontWeight:800,outline:'none',color:temDif?cor:'#111',background:temDif?'#fff':'#fafafa'}}),
+React.createElement('div',{style:{width:70,textAlign:'center',fontSize:13,fontWeight:700,color:dif===null?'#ddd':dif===0?'#16a34a':dif>0?'#2563eb':cor}},
+dif===null?'—':dif===0?'✓ OK':(dif>0?'+':'')+dif.toFixed(0))));
+}))
+)),
+
+React.createElement('div',{style:{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'20px',marginTop:24}},
 React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:verHistorico?16:0}},
-React.createElement('div',null,React.createElement('div',{style:{fontWeight:700,fontSize:14}},'Histórico de Inventários'),React.createElement('div',{style:{fontSize:11,color:'#aaa'}},historico.length+' registros')),
+React.createElement('div',null,React.createElement('div',{style:{fontWeight:700,fontSize:14}},'Histórico de Inventários'),React.createElement('div',{style:{fontSize:11,color:'#aaa'}},historico.length+' registro(s)')),
 React.createElement('button',{onClick:()=>setVerHistorico(p=>!p),style:{background:'#f5f5f5',color:cor,border:'none',borderRadius:9,padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer'}},verHistorico?'Ocultar':'Ver')),
 verHistorico&&(historico.length===0?React.createElement('div',{style:{textAlign:'center',padding:20,color:'#bbb',fontSize:13}},'Nenhum inventário registrado.'):
-React.createElement('table',{style:{width:'100%',borderCollapse:'collapse'}},
-React.createElement('thead',null,React.createElement('tr',null,['Data','Itens','Diferenças','Detalhes'].map((h,i)=>React.createElement('th',{key:i,style:{padding:'8px',fontSize:10,fontWeight:700,color:'#aaa',textAlign:i===0?'left':'center',borderBottom:'1px solid #f0f0f0'}},h)))),
-React.createElement('tbody',null,historico.map(h=>{const aj=h.ajustes?JSON.parse(h.ajustes):[];
-return React.createElement('tr',{key:h.id,style:{borderBottom:'1px solid #f7f7f7'}},
-React.createElement('td',{style:{padding:'8px',fontSize:12,fontWeight:600}},FD(h.data)),
-React.createElement('td',{style:{padding:'8px',fontSize:12,textAlign:'center'}},h.total_itens||'—'),
-React.createElement('td',{style:{padding:'8px',fontSize:12,textAlign:'center',fontWeight:700,color:h.total_diferencas>0?cor:'#16a34a'}},h.total_diferencas||0),
-React.createElement('td',{style:{padding:'8px',fontSize:11,textAlign:'center',color:'#888'}},aj.slice(0,3).map(a=>a.nome+' ('+a.diferenca+')').join(', ')+(aj.length>3?' +mais...':'')));}))))));}
+historico.map(h=>{const aj=h.ajustes?JSON.parse(h.ajustes):[];
+return React.createElement('div',{key:h.id,style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 0',borderBottom:'1px solid #f5f5f5'}},
+React.createElement('div',null,
+React.createElement('div',{style:{fontWeight:700,fontSize:13}},FD(h.data)),
+React.createElement('div',{style:{fontSize:11,color:'#888',marginTop:2}},h.total_itens+' contados · '+h.total_diferencas+' ajuste(s)')),
+React.createElement('div',{style:{fontSize:11,color:'#888',textAlign:'right',maxWidth:300}},aj.slice(0,3).map(a=>a.nome+' ('+(a.diferenca>0?'+':'')+a.diferenca+')').join(', ')+(aj.length>3?' +mais...':'')));})))
+);}
+
 
 function ScannerQRPage({uid,db,reload,setM}){
 const{estoque}=db;
