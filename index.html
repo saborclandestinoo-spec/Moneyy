@@ -433,7 +433,64 @@ entregadoresAtivos.forEach((e,i)=>{const rota=rotas[e.id]||[];const cor=COR[i%CO
 const pontos=[[BASE_LAT,BASE_LON],...rota.map(p=>{const addr=p.raw&&p.raw.delivery_address||{};const lat=parseFloat(addr.latitude);const lon=parseFloat(addr.longitude);return lat&&lon?[lat,lon]:null;}).filter(Boolean)];if(pontos.length>1){const line=L.polyline(pontos,{color:cor,weight:3,opacity:0.5,dashArray:'8,4'}).addTo(map);markersRef.current.push(line);}}});},[pedidosEntrega,pedidosEntregues,entregadores,rotas,rotasReais]);return React.createElement('div',{style:{position:'relative'}},carregandoRotas&&React.createElement('div',{style:{position:'absolute',top:10,right:10,zIndex:500,background:'#fff',borderRadius:9,padding:'6px 12px',fontSize:11,fontWeight:600,color:'#7c3aed',boxShadow:'0 2px 8px rgba(0,0,0,0.15)',display:'flex',alignItems:'center',gap:6}},React.createElement('div',{style:{width:10,height:10,border:'2px solid #ede9fe',borderTopColor:'#7c3aed',borderRadius:'50%',animation:'spin 0.7s linear infinite'}}),'Calculando rotas pelas ruas...'),React.createElement('div',{ref:mapRef,style:{width:'100%',height:'calc(100vh - 220px)',minHeight:480,borderRadius:14,overflow:'hidden',boxShadow:'0 2px 12px rgba(0,0,0,0.12)',zIndex:1}}));}
 
 
-function EntregasConfig({uid,baseAddr,setBaseAddr,baseLat,baseLon,setBaseLat,setBaseLon,salvarBase,close}){const[addr,setAddr]=React.useState(baseAddr||'');const[loading,setLoading]=React.useState(false);const salvar=async()=>{if(!addr.trim()){toast('Informe o endereço',true);return;}setLoading(true);setBaseAddr(addr);localStorage.setItem('base_addr_'+uid,addr);const r=await salvarBase(addr);setLoading(false);if(r)close();};return React.createElement('div',null,React.createElement('div',{style:{background:'#eff6ff',borderRadius:10,padding:'12px 14px',fontSize:12,color:'#2563eb',marginBottom:16,lineHeight:1.7}},'📍 Configure o endereço completo da sua confeitaria. Será usado como ponto de saída nas rotas e no mapa.'),React.createElement(FloatInput,{label:'Endereço completo *',acent:'#dc2626',value:addr,onChange:e=>setAddr(e.target.value)}),React.createElement('div',{style:{fontSize:11,color:'#aaa',marginBottom:16,marginTop:-8}},'Ex: Rua das Flores, 123, Centro, Fernandópolis, SP'),baseLat&&baseLon&&React.createElement('div',{style:{background:'#f0fdf4',borderRadius:10,padding:'8px 14px',fontSize:12,color:'#16a34a',marginBottom:16}},'✓ Coords: '+baseLat.toFixed(5)+', '+baseLon.toFixed(5)),React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},React.createElement('button',{onClick:close,style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'}},'Cancelar'),React.createElement('button',{onClick:salvar,disabled:loading,style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},loading?'Buscando...':'Salvar e localizar')));}function PedEntregas({uid,db,reload,setM}){const{pedidos_cw}=db;const hoje=TODAY();const[aba,setAba]=React.useState('mapa');const[entregadores,setEntregadores]=React.useState(()=>{try{return JSON.parse(localStorage.getItem('motoboys_'+uid)||'[]');}catch{return[];}});const[novoNome,setNovoNome]=React.useState('');const[novoFone,setNovoFone]=React.useState('');const[selEntregas,setSelEntregas]=React.useState(new Set());const[selEntregador,setSelEntregador]=React.useState('');const[statusEntregas,setStatusEntregas]=React.useState(()=>{try{return JSON.parse(localStorage.getItem('status_entregas_'+uid)||'{}');}catch{return{};}});const[baseAddr,setBaseAddr]=React.useState(localStorage.getItem('base_addr_'+uid)||'Fernandópolis, SP');const[baseLat,setBaseLat]=React.useState(()=>parseFloat(localStorage.getItem('base_lat_'+uid)||'-20.2838'));const[baseLon,setBaseLon]=React.useState(()=>parseFloat(localStorage.getItem('base_lon_'+uid)||'-50.2468'));const BASE_LAT=baseLat,BASE_LON=baseLon;const salvarBase=async addr=>{try{const res=await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1');const data=await res.json();if(data&&data[0]){const lat=parseFloat(data[0].lat);const lon=parseFloat(data[0].lon);setBaseLat(lat);setBaseLon(lon);localStorage.setItem('base_lat_'+uid,String(lat));localStorage.setItem('base_lon_'+uid,String(lon));toast('Localização atualizada!',false,true);return{lat,lon};}else{toast('Endereço não encontrado',true);}}catch(e){toast('Erro ao buscar endereço',true);}return null;};const saveEntregadores=list=>{setEntregadores(list);try{localStorage.setItem('motoboys_'+uid,JSON.stringify(list));}catch{}};
+function EntregasConfig({uid,baseAddr,setBaseAddr,baseLat,baseLon,setBaseLat,setBaseLon,salvarBase,close}){const[addr,setAddr]=React.useState(baseAddr||'');const[loading,setLoading]=React.useState(false);const salvar=async()=>{if(!addr.trim()){toast('Informe o endereço',true);return;}setLoading(true);setBaseAddr(addr);localStorage.setItem('base_addr_'+uid,addr);const r=await salvarBase(addr);setLoading(false);if(r)close();};return React.createElement('div',null,React.createElement('div',{style:{background:'#eff6ff',borderRadius:10,padding:'12px 14px',fontSize:12,color:'#2563eb',marginBottom:16,lineHeight:1.7}},'📍 Configure o endereço completo da sua confeitaria. Será usado como ponto de saída nas rotas e no mapa.'),React.createElement(FloatInput,{label:'Endereço completo *',acent:'#dc2626',value:addr,onChange:e=>setAddr(e.target.value)}),React.createElement('div',{style:{fontSize:11,color:'#aaa',marginBottom:16,marginTop:-8}},'Ex: Rua das Flores, 123, Centro, Fernandópolis, SP'),baseLat&&baseLon&&React.createElement('div',{style:{background:'#f0fdf4',borderRadius:10,padding:'8px 14px',fontSize:12,color:'#16a34a',marginBottom:16}},'✓ Coords: '+baseLat.toFixed(5)+', '+baseLon.toFixed(5)),React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},React.createElement('button',{onClick:close,style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'}},'Cancelar'),React.createElement('button',{onClick:salvar,disabled:loading,style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},loading?'Buscando...':'Salvar e localizar')));}function PainelEntregadores({BASE_LAT,entregadores}){
+const[desp,setDesp]=React.useState([]);
+React.useEffect(()=>{
+try{const d=JSON.parse(localStorage.getItem('despachados_'+BASE_LAT)||'[]');setDesp(d);}
+catch{setDesp([]);}
+},[BASE_LAT]);
+const hoje=TODAY();
+const despHoje=desp.filter(d=>d.data===hoje);
+const porEnt={};
+despHoje.forEach(d=>{
+if(!porEnt[d.entregador])porEnt[d.entregador]={nome:d.entregador,telefone:d.telefone||'',pedidos:0,total:0,formas:{PIX:0,Dinheiro:0,Cartão:0,iFood:0,Outros:0}};
+porEnt[d.entregador].pedidos+=d.entregas.length;
+porEnt[d.entregador].total+=d.totalGeral||d.entregas.reduce((s,e)=>s+Number(e.total||0),0);
+Object.entries(d.totais||{}).forEach(([k,v])=>{if(porEnt[d.entregador].formas[k]!==undefined)porEnt[d.entregador].formas[k]+=v;});
+});
+const lista=Object.values(porEnt);
+return React.createElement('div',{style:{background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden',marginBottom:16}},
+React.createElement('div',{style:{padding:'14px 16px',borderBottom:'1px solid #f0f0f0',fontWeight:700,fontSize:14}},'Entregas Despachadas Hoje'),
+lista.length===0
+?React.createElement('div',{style:{padding:40,textAlign:'center',color:'#ccc',fontSize:13}},'Nenhum despacho registrado hoje')
+:React.createElement('table',{style:{width:'100%',borderCollapse:'collapse'}},
+React.createElement('thead',null,React.createElement('tr',{style:{background:'#f9f9fb'}},
+['Entregador','Pedidos','Total','PIX','Dinheiro','Cartão','iFood','Outros'].map(h=>React.createElement('th',{key:h,style:{padding:'10px 14px',fontSize:11,fontWeight:700,color:'#888',textAlign:'left',borderBottom:'1px solid #f0f0f0'}},h)))),
+React.createElement('tbody',null,lista.map((e,i)=>React.createElement('tr',{key:i,style:{borderBottom:'1px solid #f7f7f7'}},
+React.createElement('td',{style:{padding:'12px 14px',fontWeight:700,fontSize:13}},
+e.nome,e.telefone&&React.createElement('a',{href:'https://wa.me/55'+e.telefone.replace(/\D/g,''),target:'_blank',style:{display:'block',fontSize:11,color:'#25d366',fontWeight:600}},'WhatsApp')),
+React.createElement('td',{style:{padding:'12px 14px',fontWeight:600}},e.pedidos),
+React.createElement('td',{style:{padding:'12px 14px',fontWeight:800,color:'#dc2626'}},F(e.total)),
+React.createElement('td',{style:{padding:'12px 14px',color:e.formas.PIX>0?'#111':'#ddd'}},e.formas.PIX>0?F(e.formas.PIX):'—'),
+React.createElement('td',{style:{padding:'12px 14px',color:e.formas.Dinheiro>0?'#111':'#ddd'}},e.formas.Dinheiro>0?F(e.formas.Dinheiro):'—'),
+React.createElement('td',{style:{padding:'12px 14px',color:e.formas['Cartão']>0?'#111':'#ddd'}},e.formas['Cartão']>0?F(e.formas['Cartão']):'—'),
+React.createElement('td',{style:{padding:'12px 14px',color:e.formas.iFood>0?'#111':'#ddd'}},e.formas.iFood>0?F(e.formas.iFood):'—'),
+React.createElement('td',{style:{padding:'12px 14px',color:e.formas.Outros>0?'#111':'#ddd'}},e.formas.Outros>0?F(e.formas.Outros):'—'))))));}
+
+function PainelHistorico({BASE_LAT}){
+const[desp,setDesp]=React.useState([]);
+React.useEffect(()=>{
+try{const d=JSON.parse(localStorage.getItem('despachados_'+BASE_LAT)||'[]');setDesp(d);}
+catch{setDesp([]);}
+},[BASE_LAT]);
+const limpar=()=>{if(confirm('Limpar histórico de despachos?')){localStorage.removeItem('despachados_'+BASE_LAT);setDesp([]);}};
+const todasEntregas=[].concat(...desp.map(d=>d.entregas.map(e=>({...e,data:d.data,hora:d.hora,entregador:d.entregador}))));
+return React.createElement('div',{style:{background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden'}},
+React.createElement('div',{style:{padding:'14px 16px',borderBottom:'1px solid #f0f0f0',display:'flex',justifyContent:'space-between',alignItems:'center'}},
+React.createElement('span',{style:{fontWeight:700,fontSize:14}},'Todas as Entregas Despachadas ('+todasEntregas.length+')'),
+desp.length>0&&React.createElement('button',{onClick:limpar,style:{background:'#fef2f2',color:'#dc2626',border:'none',borderRadius:8,padding:'5px 12px',fontSize:11,cursor:'pointer'}},'Limpar')),
+todasEntregas.length===0
+?React.createElement('div',{style:{padding:40,textAlign:'center',color:'#ccc',fontSize:13}},'Nenhum despacho registrado')
+:React.createElement(Tbl,{cols:['Data','Hora','Entregador','Pedido','Cliente','Endereço','Total'],rows:todasEntregas.map((e,i)=>React.createElement(TR,{key:i,cells:[
+React.createElement('span',null,FD(e.data)),
+React.createElement('span',null,e.hora),
+React.createElement('span',{style:{fontWeight:700}},e.entregador),
+React.createElement('span',{style:{color:'#dc2626',fontWeight:700}},'#'+e.pedido_id),
+React.createElement('span',null,e.cliente),
+React.createElement('span',{style:{fontSize:11,color:'#888'}},e.endereco||'—'),
+React.createElement('span',{style:{fontWeight:700,color:'#16a34a'}},F(e.total))]})),empty:'Nenhum despacho.'}));}
+
+function PedEntregas({uid,db,reload,setM}){const{pedidos_cw}=db;const hoje=TODAY();const[aba,setAba]=React.useState('mapa');const[entregadores,setEntregadores]=React.useState(()=>{try{return JSON.parse(localStorage.getItem('motoboys_'+uid)||'[]');}catch{return[];}});const[novoNome,setNovoNome]=React.useState('');const[novoFone,setNovoFone]=React.useState('');const[selEntregas,setSelEntregas]=React.useState(new Set());const[selEntregador,setSelEntregador]=React.useState('');const[statusEntregas,setStatusEntregas]=React.useState(()=>{try{return JSON.parse(localStorage.getItem('status_entregas_'+uid)||'{}');}catch{return{};}});const[baseAddr,setBaseAddr]=React.useState(localStorage.getItem('base_addr_'+uid)||'Fernandópolis, SP');const[baseLat,setBaseLat]=React.useState(()=>parseFloat(localStorage.getItem('base_lat_'+uid)||'-20.2838'));const[baseLon,setBaseLon]=React.useState(()=>parseFloat(localStorage.getItem('base_lon_'+uid)||'-50.2468'));const BASE_LAT=baseLat,BASE_LON=baseLon;const salvarBase=async addr=>{try{const res=await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1');const data=await res.json();if(data&&data[0]){const lat=parseFloat(data[0].lat);const lon=parseFloat(data[0].lon);setBaseLat(lat);setBaseLon(lon);localStorage.setItem('base_lat_'+uid,String(lat));localStorage.setItem('base_lon_'+uid,String(lon));toast('Localização atualizada!',false,true);return{lat,lon};}else{toast('Endereço não encontrado',true);}}catch(e){toast('Erro ao buscar endereço',true);}return null;};const saveEntregadores=list=>{setEntregadores(list);try{localStorage.setItem('motoboys_'+uid,JSON.stringify(list));}catch{}};
 const salvarStatus=(pedId,st)=>{const novo={...statusEntregas,[pedId]:st};setStatusEntregas(novo);try{localStorage.setItem('status_entregas_'+uid,JSON.stringify(novo));}catch{}};
 const toggleSelEntrega=pedId=>setSelEntregas(prev=>{const n=new Set(prev);n.has(pedId)?n.delete(pedId):n.add(pedId);return n;});
 const selecionarTodas=()=>{if(selEntregas.size===pedidosEntrega.length)setSelEntregas(new Set());else setSelEntregas(new Set(pedidosEntrega.map(p=>p.id)));};
@@ -470,71 +527,14 @@ const pedidosEmRota=React.useMemo(()=>(pedidos_cw||[]).filter(p=>{const isHoje=p
 React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20,flexWrap:'wrap',gap:12}},React.createElement('div',null,React.createElement('h1',{style:{fontSize:22,fontWeight:800,color:'#111',letterSpacing:'-0.5px'}},'Gestão de Entregas'),React.createElement('p',{style:{fontSize:12,color:'#aaa',marginTop:4}},pedidosEntrega.length+' aguardando · '+pedidosEmRota.length+' em rota · '+pedidosEntregues.length+' entregues')),React.createElement('div',{style:{display:'flex',gap:8,alignItems:'center'}},React.createElement('button',{onClick:()=>setM({title:'⚙ Configurar Loja',body:React.createElement(EntregasConfig,{uid,baseAddr,setBaseAddr,baseLat,baseLon,setBaseLat,setBaseLon,salvarBase,close:()=>setM(null)})}),style:{background:'#f5f5f5',color:'#555',padding:'8px 14px',borderRadius:9,fontSize:12,fontWeight:600,border:'none',cursor:'pointer'}},'⚙ Configurar'),React.createElement('div',{style:{display:'flex',gap:4,background:'#f5f5f5',borderRadius:12,padding:4}},ABA_TABS.map(t=>React.createElement('button',{key:t.id,onClick:()=>setAba(t.id),style:{padding:'7px 14px',borderRadius:9,fontSize:12,fontWeight:600,border:'none',cursor:'pointer',background:aba===t.id?'#fff':'transparent',color:aba===t.id?'#111':'#888',boxShadow:aba===t.id?'0 1px 4px rgba(0,0,0,0.1)':'none',whiteSpace:'nowrap'}},t.l))))),aba==='mapa'&&React.createElement('div',null,// Legenda
 React.createElement('div',{style:{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12,alignItems:'center'}},entregadores.map((e,i)=>React.createElement('div',{key:e.id,style:{display:'flex',alignItems:'center',gap:6,padding:'5px 12px',borderRadius:20,background:'#fff',boxShadow:'0 1px 4px rgba(0,0,0,0.08)',opacity:e.status==='pausado'?0.5:1}},React.createElement('div',{style:{width:10,height:10,borderRadius:3,background:COR[i%COR.length]}}),React.createElement('span',{style:{fontSize:12,fontWeight:600}},e.nome),React.createElement('span',{style:{fontSize:10,color:'#aaa'}},'('+(rotas[e.id]||[]).length+' pedidos)'))),React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6,padding:'5px 12px',borderRadius:20,background:'#fff',boxShadow:'0 1px 4px rgba(0,0,0,0.08)'}},React.createElement('div',{style:{width:10,height:10,borderRadius:3,background:'#16a34a'}}),React.createElement('span',{style:{fontSize:12,fontWeight:600}},'Entregues')),React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6,padding:'5px 12px',borderRadius:20,background:'#fff',boxShadow:'0 1px 4px rgba(0,0,0,0.08)'}},React.createElement('div',{style:{width:10,height:10,borderRadius:'50%',background:'#111'}}),React.createElement('span',{style:{fontSize:12,fontWeight:600}},'🏠 '+baseAddr.split(',')[0]))),typeof L!=='undefined'?React.createElement(MapaEntregas,{pedidosEntrega:[...pedidosEntrega,...pedidosEmRota],pedidosEntregues,entregadores,rotas,BASE_LAT,BASE_LON,COR,uid,setBaseLat,setBaseLon}):React.createElement('div',{style:{background:'#f8f9fc',borderRadius:14,padding:'40px',textAlign:'center',color:'#aaa'}},'Carregando mapa...')),aba==='despacho'&&React.createElement(MapaDespacho,{pedidosEntrega:pedidosEntrega.filter(p=>['confirmed','ready'].includes(p.status)),BASE_LAT,BASE_LON,baseAddr,entregadores,setEntregadores:saveEntregadores}),
 aba==='painel'&&React.createElement('div',null,
-// Cards de resumo
 React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}},
 React.createElement(SC,{label:'Aguardando',val:pedidosEntrega.length,color:'#f59e0b'}),
 React.createElement(SC,{label:'Em rota',val:pedidosEmRota.length,color:'#2563eb'}),
 React.createElement(SC,{label:'Entregues',val:pedidosEntregues.length,color:'#16a34a'}),
 React.createElement(SC,{label:'Faturamento',val:F(pedidosEntregues.reduce((s,p)=>s+Number(p.total||0),0)),color:'#dc2626'})),
-// Tabela de entregadores com despachos do dia
-React.createElement((()=>{
-const BASE_KEY='despachados_'+BASE_LAT;
-const[desp]=React.useState(()=>{try{return JSON.parse(localStorage.getItem(BASE_KEY)||'[]');}catch{return[];}});
-const hoje=TODAY();
-const despHoje=desp.filter(d=>d.data===hoje);
-// Agrupa por entregador
-const porEnt={};
-despHoje.forEach(d=>{
-if(!porEnt[d.entregador])porEnt[d.entregador]={nome:d.entregador,telefone:d.telefone,pedidos:0,total:0,taxas:0,formas:{PIX:0,Dinheiro:0,Cartão:0,iFood:0,Outros:0}};
-porEnt[d.entregador].pedidos+=d.entregas.length;
-porEnt[d.entregador].total+=d.totalGeral||d.entregas.reduce((s,e)=>s+Number(e.total||0),0);
-Object.entries(d.totais||{}).forEach(([k,v])=>{if(porEnt[d.entregador].formas[k]!==undefined)porEnt[d.entregador].formas[k]+=v;});
-});
-const lista=Object.values(porEnt);
-return React.createElement('div',{style:{background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden'}},
-React.createElement('div',{style:{padding:'14px 16px',borderBottom:'1px solid #f0f0f0',fontWeight:700,fontSize:14}},'Entregas Despachadas Hoje'),
-lista.length===0
-?React.createElement('div',{style:{padding:40,textAlign:'center',color:'#ccc',fontSize:13}},'Nenhum despacho registrado hoje')
-:React.createElement('table',{style:{width:'100%',borderCollapse:'collapse'}},
-React.createElement('thead',null,
-React.createElement('tr',{style:{background:'#f9f9fb'}},
-['Entregador','Pedidos','Total','PIX','Dinheiro','Cartão','iFood','Outros'].map(h=>
-React.createElement('th',{key:h,style:{padding:'10px 14px',fontSize:11,fontWeight:700,color:'#888',textAlign:'left',borderBottom:'1px solid #f0f0f0'}},h)))),
-React.createElement('tbody',null,
-lista.map((e,i)=>React.createElement('tr',{key:i,style:{borderBottom:'1px solid #f7f7f7'}},
-React.createElement('td',{style:{padding:'12px 14px',fontWeight:700,fontSize:13}},
-React.createElement('div',null,e.nome),
-e.telefone&&React.createElement('a',{href:'https://wa.me/55'+e.telefone.replace(/\D/g,''),target:'_blank',style:{fontSize:11,color:'#25d366',fontWeight:600}},'WhatsApp')),
-React.createElement('td',{style:{padding:'12px 14px',fontWeight:600}},e.pedidos),
-React.createElement('td',{style:{padding:'12px 14px',fontWeight:800,color:'#dc2626'}},F(e.total)),
-React.createElement('td',{style:{padding:'12px 14px',color:e.formas.PIX>0?'#111':'#ddd',fontWeight:e.formas.PIX>0?600:400}},e.formas.PIX>0?F(e.formas.PIX):'—'),
-React.createElement('td',{style:{padding:'12px 14px',color:e.formas.Dinheiro>0?'#111':'#ddd'}},e.formas.Dinheiro>0?F(e.formas.Dinheiro):'—'),
-React.createElement('td',{style:{padding:'12px 14px',color:e.formas['Cartão']>0?'#111':'#ddd'}},e.formas['Cartão']>0?F(e.formas['Cartão']):'—'),
-React.createElement('td',{style:{padding:'12px 14px',color:e.formas.iFood>0?'#111':'#ddd'}},e.formas.iFood>0?F(e.formas.iFood):'—'),
-React.createElement('td',{style:{padding:'12px 14px',color:e.formas.Outros>0?'#111':'#ddd'}},e.formas.Outros>0?F(e.formas.Outros):'—')
-)))));
-})()),
-// Todas as entregas despachadas (histórico completo)
-React.createElement((()=>{
-const BASE_KEY='despachados_'+BASE_LAT;
-const[desp,setDesp]=React.useState(()=>{try{return JSON.parse(localStorage.getItem(BASE_KEY)||'[]');}catch{return[];}});
-return React.createElement('div',{style:{background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden',marginTop:16}},
-React.createElement('div',{style:{padding:'14px 16px',borderBottom:'1px solid #f0f0f0',display:'flex',justifyContent:'space-between',alignItems:'center'}},
-React.createElement('span',{style:{fontWeight:700,fontSize:14}},'Todas as Entregas Despachadas'),
-desp.length>0&&React.createElement('button',{onClick:()=>{if(confirm('Limpar histórico?')){localStorage.removeItem(BASE_KEY);setDesp([]);}},style:{background:'#fef2f2',color:'#dc2626',border:'none',borderRadius:8,padding:'5px 12px',fontSize:11,cursor:'pointer'}},'Limpar')),
-desp.length===0
-?React.createElement('div',{style:{padding:40,textAlign:'center',color:'#ccc',fontSize:13}},'Nenhum despacho registrado')
-:React.createElement(Tbl,{cols:['Data','Hora','Entregador','Pedido','Cliente','Endereço','Total'],rows:[].concat(...desp.map(d=>d.entregas.map(e=>React.createElement(TR,{key:d.id+'_'+e.pedido_id,cells:[
-React.createElement('span',null,FD(d.data)),
-React.createElement('span',null,d.hora),
-React.createElement('span',{style:{fontWeight:700}},d.entregador),
-React.createElement('span',{style:{color:'#dc2626',fontWeight:700}},'#'+e.pedido_id),
-React.createElement('span',null,e.cliente),
-React.createElement('span',{style:{fontSize:11,color:'#888'}},e.endereco||'—'),
-React.createElement('span',{style:{fontWeight:700,color:'#16a34a'}},F(e.total))
-]})))),empty:'Nenhum despacho.'})
-);
-})())),aba==='financeiro'&&React.createElement('div',null,React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:20}},React.createElement(SC,{label:'Total em entregas',val:F(pedidosEntregues.reduce((s,p)=>s+Number(p.total||0),0)),color:'#dc2626'}),React.createElement(SC,{label:'Taxas de entrega',val:F(pedidosEntregues.reduce((s,p)=>s+Number(p.raw&&p.raw.delivery_fee||0),0)),color:'#2563eb'}),React.createElement(SC,{label:'Entregas concluídas',val:pedidosEntregues.length,color:'#16a34a'})),entregadores.map((e,i)=>{const cor=COR[i%COR.length];const FCOR={PIX:'#16a34a',Dinheiro:'#6b7280','Cartão Crédito':'#f59e0b','Cartão Débito':'#3b82f6',iFood:'#dc2626'};// Calcula totais do motoboy (baseado nos pedidos atribuídos)
+React.createElement(PainelEntregadores,{BASE_LAT,entregadores:entregadores||[]}),
+React.createElement(PainelHistorico,{BASE_LAT})),
+aba==='financeiro'&&React.createElement('div',null,React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:20}},React.createElement(SC,{label:'Total em entregas',val:F(pedidosEntregues.reduce((s,p)=>s+Number(p.total||0),0)),color:'#dc2626'}),React.createElement(SC,{label:'Taxas de entrega',val:F(pedidosEntregues.reduce((s,p)=>s+Number(p.raw&&p.raw.delivery_fee||0),0)),color:'#2563eb'}),React.createElement(SC,{label:'Entregas concluídas',val:pedidosEntregues.length,color:'#16a34a'})),entregadores.map((e,i)=>{const cor=COR[i%COR.length];const FCOR={PIX:'#16a34a',Dinheiro:'#6b7280','Cartão Crédito':'#f59e0b','Cartão Débito':'#3b82f6',iFood:'#dc2626'};// Calcula totais do motoboy (baseado nos pedidos atribuídos)
 // Todos pedidos do dia (entregues + em rota + pendentes)
 const todosPedDia=[...pedidosEntregues,...pedidosEmRota,...pedidosEntrega];const formas={PIX:0,Dinheiro:0,'Cartão Crédito':0,'Cartão Débito':0,iFood:0};let totalBruto=0;todosPedDia.forEach(p=>{totalBruto+=Number(p.total||0);(p.pagamentos||[]).forEach(pg=>{const k=(pg.payment_method||'').toLowerCase();const v=Number(pg.value||pg.total||0);if(k==='pix'||k==='pix_auto')formas.PIX+=v;else if(k==='money'||k==='cash')formas.Dinheiro+=v;else if(k==='ifood'||k==='online_credit_card')formas.iFood+=v;else if(k==='credit_card')formas['Cartão Crédito']+=v;else if(k==='debit_card')formas['Cartão Débito']+=v;});});const totalFormas=Object.values(formas).reduce((s,v)=>s+v,0);const meusPed=rotas[e.id]||[];if(totalFormas===0&&todosPedDia.length===0)return null;return React.createElement('div',{key:e.id,style:{background:'#fff',borderRadius:14,padding:'18px',boxShadow:'0 1px 8px rgba(0,0,0,0.07)',marginBottom:14,borderLeft:'4px solid '+cor}},React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}},React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10}},React.createElement('div',{style:{width:32,height:32,borderRadius:'50%',background:cor+'20',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16}},'🛵'),React.createElement('div',null,React.createElement('div',{style:{fontWeight:700,fontSize:14}},e.nome),React.createElement('div',{style:{fontSize:11,color:'#aaa'}},todosPedDia.length+' pedidos do dia'))),React.createElement('div',{style:{textAlign:'right'}},React.createElement('div',{style:{fontSize:11,color:'#aaa'}},'Total a receber'),React.createElement('div',{style:{fontWeight:800,fontSize:20,color:cor}},F(totalFormas)))),React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))',gap:8}},Object.entries(formas).filter(([,v])=>v>0).map(([f,v])=>React.createElement('div',{key:f,style:{background:'#f8f9fc',borderRadius:10,padding:'10px 12px',borderLeft:'3px solid '+(FCOR[f]||'#555')}},React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:4}},f),React.createElement('div',{style:{fontSize:16,fontWeight:800,color:FCOR[f]||'#111'}},F(v))))));}).filter(Boolean),// Se nenhum entregador tem pedidos
 entregadores.length===0&&React.createElement('div',{style:{textAlign:'center',padding:'40px',color:'#ccc',background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}},'Cadastre entregadores na aba Despacho')),aba==='metricas'&&React.createElement('div',null,React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}},React.createElement(SC,{label:'Total entregues',val:pedidosEntregues.length,color:'#16a34a'}),React.createElement(SC,{label:'Faturamento',val:F(pedidosEntregues.reduce((s,p)=>s+Number(p.total||0),0)),color:'#dc2626'}),React.createElement(SC,{label:'Taxa de entrega',val:F(pedidosEntregues.reduce((s,p)=>s+Number(p.raw&&p.raw.delivery_fee||0),0)),color:'#2563eb'}),React.createElement(SC,{label:'Ticket médio',val:F(pedidosEntregues.length>0?pedidosEntregues.reduce((s,p)=>s+Number(p.total||0),0)/pedidosEntregues.length:0),color:'#7c3aed'})),React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}},// Bairros
