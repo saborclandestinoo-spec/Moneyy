@@ -210,7 +210,14 @@ const pontos=[[BASE_LAT,BASE_LON],...rota.map(p=>{const addr=p.raw&&p.raw.delive
 const salvarStatus=(pedId,st)=>{const novo={...statusEntregas,[pedId]:st};setStatusEntregas(novo);try{localStorage.setItem('status_entregas_'+uid,JSON.stringify(novo));}catch{}};
 const toggleSelEntrega=pedId=>setSelEntregas(prev=>{const n=new Set(prev);n.has(pedId)?n.delete(pedId):n.add(pedId);return n;});
 const selecionarTodas=()=>{if(selEntregas.size===pedidosEntrega.length)setSelEntregas(new Set());else setSelEntregas(new Set(pedidosEntrega.map(p=>p.id)));};
-const gerarLinkRota=(entregas)=>{const waypoints=entregas.filter(p=>p.endereco).map(p=>encodeURIComponent(p.endereco)).join('/');return'https://www.google.com/maps/dir/'+encodeURIComponent(baseAddr)+'/'+waypoints;};
+const gerarLinkRota=(entregas)=>{
+const ends=entregas.filter(p=>p.endereco).map(p=>p.endereco);
+if(ends.length===0)return'https://www.google.com/maps';
+if(ends.length===1)return'https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(baseAddr)+'&destination='+encodeURIComponent(ends[0])+'&travelmode=driving';
+const dest=ends[ends.length-1];
+const waypts=ends.slice(0,-1).join('|');
+return'https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(baseAddr)+'&destination='+encodeURIComponent(dest)+'&waypoints='+encodeURIComponent(waypts)+'&travelmode=driving';
+};
 const enviarWhatsApp=()=>{
 const entregador=entregadores.find(e=>e.id===selEntregador);
 if(!entregador||!entregador.telefone){toast('Selecione um entregador com telefone cadastrado',true);return;}
@@ -221,7 +228,7 @@ let msg='🚀 *Rota de Entregas*\n\n';
 msg+='📅 '+FD(hoje)+'\n';
 msg+='🧑 Entregador: '+entregador.nome+'\n';
 msg+='📦 '+entregas.length+' entrega(s)\n\n';
-entregas.forEach((p,i)=>{msg+='*'+(i+1)+'. '+p.cliente+'*\n';msg+='📍 '+(p.endereco||'Sem endereço')+'\n';if(p.itens)msg+='🍪 '+p.itens+'\n';msg+='\n';});
+entregas.forEach((p,i)=>{msg+='*'+(i+1)+'. '+p.cliente+'*\n';const endP=enderecoDoP(p);msg+='📍 '+(endP||'Sem endereço')+'\n';if(p.itens)msg+='🍪 '+p.itens+'\n';msg+='\n';});
 msg+='🗺 *Rota no Google Maps:*\n'+linkRota;
 const fone=entregador.telefone.replace(/\D/g,'');
 const foneCompleto=fone.startsWith('55')?fone:'55'+fone;
