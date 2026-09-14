@@ -228,13 +228,14 @@ return()=>{map.remove();mapInstRef.current=null;};
 const geocode=async addr=>{try{const r=await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1&countrycodes=br');const d=await r.json();if(d&&d[0])return[parseFloat(d[0].lat),parseFloat(d[0].lon)];}catch{}return null;};
 
 // Gera link funcional no celular e desktop
-const gerarLink=enderecos=>{
-// Formato saddr/daddr: funciona no celular (abre o app) e no browser sem precisar de API key
-if(enderecos.length===0)return'';
-if(enderecos.length===1)return'https://maps.google.com/?saddr='+encodeURIComponent(baseAddr)+'&daddr='+encodeURIComponent(enderecos[0]);
-// Para múltiplos destinos: daddr=A+to:B+to:C
-const daddr=enderecos.map((e,i)=>i===0?encodeURIComponent(e):'to:'+encodeURIComponent(e)).join('+');
-return'https://maps.google.com/?saddr='+encodeURIComponent(baseAddr)+'&daddr='+daddr;};
+const gerarLink=peds=>{
+// Usa coordenadas GPS quando disponíveis (muito mais preciso que texto)
+if(!peds||peds.length===0)return'';
+const coordsOuEnd=peds.map(p=>{const a=p.raw&&p.raw.delivery_address||{};const lat=parseFloat(a.latitude);const lon=parseFloat(a.longitude);return(lat&&!isNaN(lat))?(lat+','+lon):encodeURIComponent([a.street,a.number,a.neighborhood,a.city].filter(Boolean).join(', '));});
+const origin=BASE_LAT+','+BASE_LON;
+if(coordsOuEnd.length===1)return'https://maps.google.com/?saddr='+origin+'&daddr='+coordsOuEnd[0];
+const daddr=coordsOuEnd.map((c,i)=>i===0?c:'to:'+c).join('+');
+return'https://maps.google.com/?saddr='+origin+'&daddr='+daddr;};
 
 React.useEffect(()=>{
 if(!mapInstRef.current)return;
@@ -271,7 +272,7 @@ catch{
 const line=L.polyline(pontos,{color:'#dc2626',weight:4,dashArray:'10,6'}).addTo(map);
 rotaLayerRef.current.push(line);
 map.fitBounds(L.latLngBounds(pontos),{padding:[40,40]});}
-setLinkGerado(gerarLink(enderecos));
+setLinkGerado(gerarLink(peds));
 })();
 },[selecionados]);
 
