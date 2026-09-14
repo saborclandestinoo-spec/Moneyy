@@ -207,55 +207,58 @@ const mapRef=React.useRef(null);
 const mapInstRef=React.useRef(null);
 const rotaLayerRef=React.useRef([]);
 const[selecionados,setSelecionados]=React.useState(new Set());
+const[assignMap,setAssignMap]=React.useState({});// {pedidoId: entregadorId}
 const[copiado,setCopiado]=React.useState(false);
 const[linkGerado,setLinkGerado]=React.useState('');
 
 const enderecoDoP=p=>{const a=p.raw&&p.raw.delivery_address||{};return[a.street,a.number,a.neighborhood,a.city].filter(Boolean).join(', ');};
+const toggleSel=id=>setSelecionados(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;});
+const assignEntregador=(pedId,entId)=>setAssignMap(prev=>({...prev,[pedId]:entId}));
 
 React.useEffect(()=>{
 if(!mapRef.current||mapInstRef.current)return;
 const map=L.map(mapRef.current,{zoomControl:true}).setView([BASE_LAT,BASE_LON],13);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(map);
-// Base marker
 const baseIcon=L.divIcon({html:'<div style="background:#111;color:#fff;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:15px;box-shadow:0 2px 8px rgba(0,0,0,0.4)">🏠</div>',iconSize:[32,32],iconAnchor:[16,16],className:''});
 L.marker([BASE_LAT,BASE_LON],{icon:baseIcon}).addTo(map).bindPopup('<b>Confeitaria</b>');
 mapInstRef.current=map;
 return()=>{map.remove();mapInstRef.current=null;};
 },[]);
 
-const toggleSel=id=>setSelecionados(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;});
+const geocode=async addr=>{try{const r=await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1&countrycodes=br');const d=await r.json();if(d&&d[0])return[parseFloat(d[0].lat),parseFloat(d[0].lon)];}catch{}return null;};
 
-const geocode=async addr=>{
-try{const r=await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1&countrycodes=br');
-const d=await r.json();if(d&&d[0])return[parseFloat(d[0].lat),parseFloat(d[0].lon)];}
-catch{}return null;};
+// Gera link funcional no celular e desktop
+const gerarLink=enderecos=>{
+const dest=enderecos[enderecos.length-1];
+const waypts=enderecos.slice(0,-1);
+// Formato que abre o Google Maps app no celular e browser no desktop
+if(waypts.length===0)return'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(dest);
+const origin=encodeURIComponent(baseAddr);
+const destination=encodeURIComponent(dest);
+const waypoints=waypts.map(e=>encodeURIComponent(e)).join('|');
+return'https://www.google.com/maps/dir/?api=1&origin='+origin+'&destination='+destination+(waypoints?'&waypoints='+waypoints:'')+'&travelmode=driving';};
 
 React.useEffect(()=>{
 if(!mapInstRef.current)return;
 const map=mapInstRef.current;
-// Clear previous route layers
 rotaLayerRef.current.forEach(l=>map.removeLayer(l));rotaLayerRef.current=[];
 setLinkGerado('');
 if(selecionados.size===0)return;
 const peds=pedidosEntrega.filter(p=>selecionados.has(p.id));
-// Desenha rota de forma assíncrona
 (async()=>{
 const pontos=[[BASE_LAT,BASE_LON]];
-const enderecos=[baseAddr];
+const enderecos=[];
 for(const p of peds){
 const a=p.raw&&p.raw.delivery_address||{};
 let lat=parseFloat(a.latitude),lon=parseFloat(a.longitude);
 if(!lat||isNaN(lat)){const c=await geocode(enderecoDoP(p));if(c){[lat,lon]=c;}else continue;}
 pontos.push([lat,lon]);
 enderecos.push(enderecoDoP(p));
-// Marcador numerado
 const num=pontos.length-1;
 const icon=L.divIcon({html:'<div style="background:#dc2626;color:#fff;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;box-shadow:0 2px 6px rgba(0,0,0,0.3)">'+num+'</div>',iconSize:[30,30],iconAnchor:[15,15],className:''});
 const m=L.marker([lat,lon],{icon}).addTo(map).bindPopup('<b>#'+p.pedido_id+' — '+p.cliente+'</b><br>'+enderecoDoP(p));
 rotaLayerRef.current.push(m);}
 if(pontos.length<2)return;
-// Tenta rota pelas ruas via OSRM
-let rotaDesenhada=false;
 try{
 const waypts=pontos.map(([lt,ln])=>ln+','+lt).join(';');
 const r=await fetch('https://router.project-osrm.org/route/v1/driving/'+waypts+'?overview=full&geometries=geojson');
@@ -265,43 +268,58 @@ const coords=d.routes[0].geometry.coordinates.map(([ln,lt])=>[lt,ln]);
 const line=L.polyline(coords,{color:'#dc2626',weight:5,opacity:0.9}).addTo(map);
 rotaLayerRef.current.push(line);
 map.fitBounds(L.polyline(coords).getBounds(),{padding:[40,40]});
-rotaDesenhada=true;}}
-catch{}
-if(!rotaDesenhada){
-const line=L.polyline(pontos,{color:'#dc2626',weight:4,dashArray:'10,6',opacity:0.8}).addTo(map);
+}else throw new Error();}
+catch{
+const line=L.polyline(pontos,{color:'#dc2626',weight:4,dashArray:'10,6'}).addTo(map);
 rotaLayerRef.current.push(line);
 map.fitBounds(L.latLngBounds(pontos),{padding:[40,40]});}
-// Gera link do Google Maps
-const dest=encodeURIComponent(enderecos[enderecos.length-1]);
-const wpts=enderecos.slice(1,-1).map(e=>encodeURIComponent(e)).join('|');
-const link='https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(baseAddr)+'&destination='+dest+(wpts?'&waypoints='+wpts:'')+'&travelmode=driving';
-setLinkGerado(link);
+setLinkGerado(gerarLink(enderecos));
 })();
 },[selecionados]);
 
 const copiarLink=()=>{
 if(!linkGerado)return;
-navigator.clipboard.writeText(linkGerado).then(()=>{setCopiado(true);setTimeout(()=>setCopiado(false),2500);}).catch(()=>toast('Erro ao copiar',true));};
+navigator.clipboard.writeText(linkGerado).then(()=>{setCopiado(true);setTimeout(()=>setCopiado(false),2500);}).catch(()=>{
+// Fallback para dispositivos que não suportam clipboard API
+const el=document.createElement('textarea');
+el.value=linkGerado;document.body.appendChild(el);el.select();
+try{document.execCommand('copy');setCopiado(true);setTimeout(()=>setCopiado(false),2500);}catch{}
+document.body.removeChild(el);});};
+
+const CORES_ENT=['#dc2626','#2563eb','#16a34a','#f59e0b','#7c3aed','#0891b2'];
 
 return React.createElement('div',null,
-// Lista de seleção
+// Lista de seleção com entregador
 React.createElement('div',{style:{background:'#fff',borderRadius:12,border:'1px solid #f0f0f0',marginBottom:10,overflow:'hidden'}},
 React.createElement('div',{style:{padding:'10px 14px',background:'#f9f9fb',borderBottom:'1px solid #f0f0f0',fontWeight:700,fontSize:12,color:'#555',display:'flex',justifyContent:'space-between',alignItems:'center'}},
-React.createElement('span',null,'Selecione as entregas para traçar a rota'),
+React.createElement('span',null,'Selecione as entregas'),
 selecionados.size>0&&React.createElement('span',{style:{color:'#dc2626',fontWeight:700}},selecionados.size+' selecionada(s)')),
 pedidosEntrega.length===0
 ?React.createElement('div',{style:{padding:20,textAlign:'center',color:'#bbb',fontSize:12}},'Nenhuma entrega aguardando')
-:pedidosEntrega.map(p=>React.createElement('div',{key:p.id,onClick:()=>toggleSel(p.id),style:{display:'flex',alignItems:'center',gap:10,padding:'9px 14px',borderBottom:'1px solid #f7f7f7',cursor:'pointer',background:selecionados.has(p.id)?'#fef2f2':'#fff'}},
-React.createElement('input',{type:'checkbox',checked:selecionados.has(p.id),readOnly:true,style:{width:15,height:15,accentColor:'#dc2626',cursor:'pointer'}}),
+:pedidosEntrega.map(p=>{
+const sel=selecionados.has(p.id);
+const entId=assignMap[p.id]||'';
+const entIdx=entregadores.findIndex(e=>e.id===entId);
+const entCor=entIdx>=0?CORES_ENT[entIdx%CORES_ENT.length]:'#e5e7eb';
+return React.createElement('div',{key:p.id,style:{borderBottom:'1px solid #f7f7f7',background:sel?'#fef2f2':'#fff'}},
+React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',cursor:'pointer'},onClick:()=>toggleSel(p.id)},
+React.createElement('input',{type:'checkbox',checked:sel,readOnly:true,style:{width:15,height:15,accentColor:'#dc2626',cursor:'pointer'}}),
 React.createElement('div',{style:{flex:1,minWidth:0}},
 React.createElement('div',{style:{fontWeight:700,fontSize:12,color:'#dc2626'}},'#'+p.pedido_id+' — '+p.cliente),
-React.createElement('div',{style:{fontSize:11,color:'#aaa',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},enderecoDoP(p)||'Sem endereço'))))),
+React.createElement('div',{style:{fontSize:11,color:'#aaa',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},enderecoDoP(p)||'Sem endereço'))),
+// Seleção de entregador (sempre visível)
+React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6,padding:'0 14px 10px',flexWrap:'wrap'}},
+React.createElement('span',{style:{fontSize:11,color:'#aaa'}},entregadores.length===0?'Sem entregadores cadastrados':'Entregador:'),
+entregadores.map((e,i)=>React.createElement('button',{key:e.id,onClick:ev=>{ev.stopPropagation();assignEntregador(p.id,entId===e.id?'':e.id);},style:{padding:'3px 10px',borderRadius:20,border:'2px solid '+(entId===e.id?CORES_ENT[i%CORES_ENT.length]:'#e5e7eb'),background:entId===e.id?CORES_ENT[i%CORES_ENT.length]:'#fff',color:entId===e.id?'#fff':'#555',fontSize:11,fontWeight:700,cursor:'pointer'}},e.nome))))
+;})),
 // Mapa
-React.createElement('div',{ref:mapRef,style:{width:'100%',height:320,borderRadius:12,overflow:'hidden',border:'1px solid #f0f0f0',marginBottom:10}}),
+React.createElement('div',{ref:mapRef,style:{width:'100%',height:300,borderRadius:12,overflow:'hidden',border:'1px solid #f0f0f0',marginBottom:10}}),
 // Link gerado
-linkGerado&&React.createElement('div',{style:{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'10px 14px',display:'flex',gap:8,alignItems:'center'}},
-React.createElement('div',{style:{flex:1,fontSize:11,color:'#166534',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},linkGerado),
-React.createElement('button',{onClick:copiarLink,style:{background:copiado?'#16a34a':'#dc2626',color:'#fff',border:'none',borderRadius:8,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}},copiado?'✓ Copiado!':'📋 Copiar link')));}
+linkGerado&&React.createElement('div',{style:{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'10px 14px',display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}},
+React.createElement('div',{style:{flex:1,fontSize:11,color:'#166534',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',minWidth:0}},linkGerado),
+React.createElement('button',{onClick:()=>window.open(linkGerado,'_blank'),style:{background:'#4285f4',color:'#fff',border:'none',borderRadius:8,padding:'7px 12px',fontSize:11,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}},'🗺 Abrir'),
+React.createElement('button',{onClick:copiarLink,style:{background:copiado?'#16a34a':'#dc2626',color:'#fff',border:'none',borderRadius:8,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}},copiado?'✓ Copiado!':'📋 Copiar')));}
+
 
 function MapaEntregas({pedidosEntrega,pedidosEntregues,entregadores,rotas,BASE_LAT,BASE_LON,COR,uid,setBaseLat,setBaseLon}){React.useEffect(()=>{window._setBaseLat=setBaseLat;window._setBaseLon=setBaseLon;return()=>{window._setBaseLat=null;window._setBaseLon=null;};},[setBaseLat,setBaseLon]);const mapRef=React.useRef(null);const mapObjRef=React.useRef(null);const markersRef=React.useRef([]);const[rotasReais,setRotasReais]=React.useState({});const[carregandoRotas,setCarregandoRotas]=React.useState(false);React.useEffect(()=>{if(!mapRef.current||mapObjRef.current)return;const map=L.map(mapRef.current,{zoomControl:true,scrollWheelZoom:true}).setView([BASE_LAT,BASE_LON],13);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(map);mapObjRef.current=map;return()=>{if(mapObjRef.current){mapObjRef.current.remove();mapObjRef.current=null;}};},[]);// Busca a geometria real da rota pelas ruas via OSRM (gratuito, sem API key)
 React.useEffect(()=>{const entregadoresAtivos=(entregadores||[]).filter(e=>e.ativo);if(entregadoresAtivos.length===0){setRotasReais({});return;}let cancelado=false;setCarregandoRotas(true);const buscarTodas=async()=>{const novasRotas={};for(const e of entregadoresAtivos){const rota=rotas[e.id]||[];if(rota.length===0)continue;const pontos=[[BASE_LON,BASE_LAT],...rota.map(p=>{const addr=p.raw&&p.raw.delivery_address||{};const lat=parseFloat(addr.latitude);const lon=parseFloat(addr.longitude);return lat&&lon?[lon,lat]:null;}).filter(Boolean)];if(pontos.length<2)continue;try{const coordsStr=pontos.map(p=>p[0]+','+p[1]).join(';');const url='https://router.project-osrm.org/route/v1/driving/'+coordsStr+'?overview=full&geometries=geojson';const res=await fetch(url);const data=await res.json();if(data.routes&&data.routes[0]){const coords=data.routes[0].geometry.coordinates.map(c=>[c[1],c[0]]);// [lon,lat]->[lat,lon]
