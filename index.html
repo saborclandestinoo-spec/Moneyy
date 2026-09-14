@@ -378,9 +378,123 @@ React.createElement('div',{style:{flex:1}},React.createElement('div',{style:{fon
 React.createElement('button',{onClick:()=>removerEntregador(e.id),style:{background:'none',border:'none',color:'#ccc',fontSize:18,cursor:'pointer'}},'✕')))),
 
 // ===== ABA HISTÓRICO DESPACHOS =====
-abaDesp==='historico'&&React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:10,maxHeight:'calc(100vh - 300px)',overflowY:'auto'}},
-// Vinculos de entregador (persistidos)
-React.createElement((()=>{
+abaDesp==='historico'&&React.createElement('div',{style:{maxHeight:'calc(100vh - 300px)',overflowY:'auto'}},
+React.createElement(HistoricoEntregas,{todosEntregas,entregadores,BASE_LAT}))),
+
+// ===== COLUNA DIREITA: MAPA =====
+React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:10,position:'sticky',top:16}},
+React.createElement('div',{ref:mapRef,style:{width:'100%',height:'calc(100vh - 230px)',minHeight:400,borderRadius:12,overflow:'hidden',border:'1px solid #f0f0f0'}}),
+linkGerado&&React.createElement('div',{style:{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'10px 14px',display:'flex',gap:8,alignItems:'center'}},
+React.createElement('div',{style:{flex:1,fontSize:11,color:'#166534',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',minWidth:0}},linkGerado),
+React.createElement('button',{onClick:()=>window.open(linkGerado,'_blank'),style:{background:'#4285f4',color:'#fff',border:'none',borderRadius:8,padding:'7px 12px',fontSize:11,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}},'🗺 Abrir'),
+React.createElement('button',{onClick:copiarLink,style:{background:copiado?'#16a34a':'#dc2626',color:'#fff',border:'none',borderRadius:8,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}},copiado?'✓ Copiado!':'📋 Copiar'))));}
+
+
+
+
+function MapaEntregas({pedidosEntrega,pedidosEntregues,entregadores,rotas,BASE_LAT,BASE_LON,COR,uid,setBaseLat,setBaseLon}){React.useEffect(()=>{window._setBaseLat=setBaseLat;window._setBaseLon=setBaseLon;return()=>{window._setBaseLat=null;window._setBaseLon=null;};},[setBaseLat,setBaseLon]);const mapRef=React.useRef(null);const mapObjRef=React.useRef(null);const markersRef=React.useRef([]);const[rotasReais,setRotasReais]=React.useState({});const[carregandoRotas,setCarregandoRotas]=React.useState(false);React.useEffect(()=>{if(!mapRef.current||mapObjRef.current)return;const map=L.map(mapRef.current,{zoomControl:true,scrollWheelZoom:true}).setView([BASE_LAT,BASE_LON],13);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(map);mapObjRef.current=map;return()=>{if(mapObjRef.current){mapObjRef.current.remove();mapObjRef.current=null;}};},[]);// Busca a geometria real da rota pelas ruas via OSRM (gratuito, sem API key)
+React.useEffect(()=>{const entregadoresAtivos=(entregadores||[]).filter(e=>e.ativo);if(entregadoresAtivos.length===0){setRotasReais({});return;}let cancelado=false;setCarregandoRotas(true);const buscarTodas=async()=>{const novasRotas={};for(const e of entregadoresAtivos){const rota=rotas[e.id]||[];if(rota.length===0)continue;const pontos=[[BASE_LON,BASE_LAT],...rota.map(p=>{const addr=p.raw&&p.raw.delivery_address||{};const lat=parseFloat(addr.latitude);const lon=parseFloat(addr.longitude);return lat&&lon?[lon,lat]:null;}).filter(Boolean)];if(pontos.length<2)continue;try{const coordsStr=pontos.map(p=>p[0]+','+p[1]).join(';');const url='https://router.project-osrm.org/route/v1/driving/'+coordsStr+'?overview=full&geometries=geojson';const res=await fetch(url);const data=await res.json();if(data.routes&&data.routes[0]){const coords=data.routes[0].geometry.coordinates.map(c=>[c[1],c[0]]);// [lon,lat]->[lat,lon]
+novasRotas[e.id]={path:coords,distanciaKm:data.routes[0].distance/1000,duracaoMin:data.routes[0].duration/60};}}catch(err){/* sem rota */}}if(!cancelado)setRotasReais(novasRotas);setCarregandoRotas(false);};buscarTodas();return()=>{cancelado=true;};},[rotas,entregadores,BASE_LAT,BASE_LON]);React.useEffect(()=>{const map=mapObjRef.current;if(!map)return;markersRef.current.forEach(m=>m.remove());markersRef.current=[];const baseIcon=L.divIcon({className:'',html:'<div style="background:#111;color:#fff;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 3px 12px rgba(0,0,0,0.4);border:3px solid #fff;cursor:move" title="Arraste para mover">🏠</div>',iconSize:[36,36],iconAnchor:[18,18]});const baseM=L.marker([BASE_LAT,BASE_LON],{icon:baseIcon,draggable:true}).addTo(map);baseM.bindPopup('<b>🏠 Confeitaria</b><br>Ponto de saída<br><small>Arraste para reposicionar</small>');baseM.on('dragend',function(e){const pos=e.target.getLatLng();localStorage.setItem('base_lat_'+uid,String(pos.lat));localStorage.setItem('base_lon_'+uid,String(pos.lng));if(window._setBaseLat)window._setBaseLat(pos.lat);if(window._setBaseLon)window._setBaseLon(pos.lng);});markersRef.current.push(baseM);const entregadoresAtivos=(entregadores||[]).filter(e=>e.ativo);const pedParaEnt={};entregadoresAtivos.forEach(e=>{(rotas[e.id]||[]).forEach(p=>{pedParaEnt[p.id]=e;});});const allPed=[...pedidosEntrega,...pedidosEntregues];allPed.forEach(p=>{const addr=p.raw&&p.raw.delivery_address||{};const lat=parseFloat(addr.latitude);const lon=parseFloat(addr.longitude);if(!lat||!lon)return;const ent=pedParaEnt[p.id];const cor=ent?COR[entregadoresAtivos.indexOf(ent)%COR.length]:'#6b7280';const isEntregue=p.status==='delivered'||p.status==='closed';const bgCor=isEntregue?'#16a34a':cor;const icon=L.divIcon({className:'',html:'<div style="background:'+bgCor+';color:#fff;border-radius:8px;padding:3px 7px;font-size:11px;font-weight:800;box-shadow:0 2px 8px rgba(0,0,0,0.25);border:2px solid #fff;white-space:nowrap">'+(isEntregue?'✓ ':'')+'#'+p.pedido_id+'</div>',iconSize:[null,null],iconAnchor:[0,0]});const m=L.marker([lat,lon],{icon}).addTo(map);const itens=(p.raw&&p.raw.items||p.itens||[]).slice(0,3).map(it=>(it.quantity||1)+'x '+(it.name||it.nome||'?')).join('<br>');m.bindPopup('<b>#'+p.pedido_id+' — '+(p.cliente||'—')+'</b><br>'+(addr.street||'')+' '+(addr.number||'')+'<br>'+itens+'<br><b>'+F(p.total)+'</b>'+(ent?'<br>🛵 '+ent.nome:''));markersRef.current.push(m);});// Linhas de rota por entregador — usa geometria real das ruas (OSRM) quando disponível
+entregadoresAtivos.forEach((e,i)=>{const rota=rotas[e.id]||[];const cor=COR[i%COR.length];if(rota.length===0)return;const real=rotasReais[e.id];if(real&&real.path&&real.path.length>1){const line=L.polyline(real.path,{color:cor,weight:4,opacity:0.85}).addTo(map);markersRef.current.push(line);}else{// Fallback: linha reta enquanto a rota real não carregou ou falhou
+const pontos=[[BASE_LAT,BASE_LON],...rota.map(p=>{const addr=p.raw&&p.raw.delivery_address||{};const lat=parseFloat(addr.latitude);const lon=parseFloat(addr.longitude);return lat&&lon?[lat,lon]:null;}).filter(Boolean)];if(pontos.length>1){const line=L.polyline(pontos,{color:cor,weight:3,opacity:0.5,dashArray:'8,4'}).addTo(map);markersRef.current.push(line);}}});},[pedidosEntrega,pedidosEntregues,entregadores,rotas,rotasReais]);return React.createElement('div',{style:{position:'relative'}},carregandoRotas&&React.createElement('div',{style:{position:'absolute',top:10,right:10,zIndex:500,background:'#fff',borderRadius:9,padding:'6px 12px',fontSize:11,fontWeight:600,color:'#7c3aed',boxShadow:'0 2px 8px rgba(0,0,0,0.15)',display:'flex',alignItems:'center',gap:6}},React.createElement('div',{style:{width:10,height:10,border:'2px solid #ede9fe',borderTopColor:'#7c3aed',borderRadius:'50%',animation:'spin 0.7s linear infinite'}}),'Calculando rotas pelas ruas...'),React.createElement('div',{ref:mapRef,style:{width:'100%',height:'calc(100vh - 220px)',minHeight:480,borderRadius:14,overflow:'hidden',boxShadow:'0 2px 12px rgba(0,0,0,0.12)',zIndex:1}}));}
+
+
+function EntregasConfig({uid,baseAddr,setBaseAddr,baseLat,baseLon,setBaseLat,setBaseLon,salvarBase,close}){const[addr,setAddr]=React.useState(baseAddr||'');const[loading,setLoading]=React.useState(false);const salvar=async()=>{if(!addr.trim()){toast('Informe o endereço',true);return;}setLoading(true);setBaseAddr(addr);localStorage.setItem('base_addr_'+uid,addr);const r=await salvarBase(addr);setLoading(false);if(r)close();};return React.createElement('div',null,React.createElement('div',{style:{background:'#eff6ff',borderRadius:10,padding:'12px 14px',fontSize:12,color:'#2563eb',marginBottom:16,lineHeight:1.7}},'📍 Configure o endereço completo da sua confeitaria. Será usado como ponto de saída nas rotas e no mapa.'),React.createElement(FloatInput,{label:'Endereço completo *',acent:'#dc2626',value:addr,onChange:e=>setAddr(e.target.value)}),React.createElement('div',{style:{fontSize:11,color:'#aaa',marginBottom:16,marginTop:-8}},'Ex: Rua das Flores, 123, Centro, Fernandópolis, SP'),baseLat&&baseLon&&React.createElement('div',{style:{background:'#f0fdf4',borderRadius:10,padding:'8px 14px',fontSize:12,color:'#16a34a',marginBottom:16}},'✓ Coords: '+baseLat.toFixed(5)+', '+baseLon.toFixed(5)),React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},React.createElement('button',{onClick:close,style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'}},'Cancelar'),React.createElement('button',{onClick:salvar,disabled:loading,style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},loading?'Buscando...':'Salvar e localizar')));}function PainelEntregadores({BASE_LAT,entregadores,pedidosEmRota,pedidosEntrega,pedidosEntregues}){
+const VKEY='entrega_vinculo_'+BASE_LAT;
+const DKEY='despachados_'+BASE_LAT;
+const[vinculos,setVinculos]=React.useState(()=>{try{return JSON.parse(localStorage.getItem(VKEY)||'{}');}catch{return{};}});
+const[selecionados,setSelecionados]=React.useState(new Set());
+const[entSel,setEntSel]=React.useState('');
+const salvarVinculo=(pedId,entNome)=>{const n={...vinculos,[pedId]:entNome};setVinculos(n);try{localStorage.setItem(VKEY,JSON.stringify(n));}catch{}};
+const vincularSelecionados=()=>{if(!entSel||selecionados.size===0)return;const n={...vinculos};selecionados.forEach(id=>n[id]=entSel);setVinculos(n);try{localStorage.setItem(VKEY,JSON.stringify(n));}catch{}setSelecionados(new Set());setEntSel('');};
+const toggleSel=id=>setSelecionados(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;});
+const selTodos=()=>setSelecionados(prev=>prev.size===todos.length?new Set():new Set(todos.map(p=>p.id)));
+const STATUS_LABEL={waiting_confirmation:'Aguardando',confirmed:'Em prep.',ready:'Pronto',released:'Em rota',delivered:'Entregue',completed:'Entregue',cancelled:'Cancelado'};
+const STATUS_COR={released:'#2563eb',delivered:'#16a34a',completed:'#16a34a',confirmed:'#f59e0b',ready:'#f59e0b'};
+const todos=[...pedidosEntrega,...pedidosEmRota,...pedidosEntregues];
+// Agrupa por entregador (vinculados + despachados pelo sistema)
+const desp=React.useMemo(()=>{try{return JSON.parse(localStorage.getItem(DKEY)||'[]');}catch{return[];}});
+const hoje=TODAY();
+const porEnt={};
+// Do sistema de despacho
+desp.filter(d=>d.data===hoje).forEach(d=>{
+if(!porEnt[d.entregador])porEnt[d.entregador]={nome:d.entregador,pedidos:[],total:0,formas:{PIX:0,Dinheiro:0,Cartão:0,iFood:0,Outros:0}};
+d.entregas.forEach(e=>{porEnt[d.entregador].pedidos.push(e.pedido_id);porEnt[d.entregador].total+=Number(e.total||0);});
+Object.entries(d.totais||{}).forEach(([k,v])=>{if(porEnt[d.entregador].formas[k]!==undefined)porEnt[d.entregador].formas[k]+=v;});
+});
+// Dos vínculos manuais
+todos.forEach(p=>{const ent=vinculos[p.id];if(!ent)return;if(!porEnt[ent])porEnt[ent]={nome:ent,pedidos:[],total:0,formas:{PIX:0,Dinheiro:0,Cartão:0,iFood:0,Outros:0}};if(!porEnt[ent].pedidos.includes(p.pedido_id))porEnt[ent].pedidos.push(p.pedido_id);porEnt[ent].total+=Number(p.total||0);const pags=p.pagamentos||[];if(pags.length>0){pags.forEach(pg=>{const k=(pg.payment_method||'').toLowerCase();const v=Number(pg.value||pg.amount||p.total||0);if(k==='pix'||k==='pix_auto')porEnt[ent].formas.PIX+=v;else if(k==='money'||k==='cash')porEnt[ent].formas.Dinheiro+=v;else if(k==='online_credit_card')porEnt[ent].formas.iFood+=v;else if(k.includes('card')||k.includes('credit')||k.includes('debit'))porEnt[ent].formas['Cartão']+=v;else porEnt[ent].formas.Outros+=v;});}else porEnt[ent].formas.Outros+=Number(p.total||0);});
+const listaEnt=Object.values(porEnt);
+return React.createElement('div',null,
+// Resumo por entregador
+listaEnt.length>0&&React.createElement('div',{style:{background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden',marginBottom:16}},
+React.createElement('div',{style:{padding:'14px 16px',borderBottom:'1px solid #f0f0f0',fontWeight:700,fontSize:14}},'Resumo por Entregador'),
+React.createElement('table',{style:{width:'100%',borderCollapse:'collapse'}},
+React.createElement('thead',null,React.createElement('tr',{style:{background:'#f9f9fb'}},
+['Entregador','Pedidos','Total','PIX','Dinheiro','Cartão','iFood','Outros'].map(h=>React.createElement('th',{key:h,style:{padding:'10px 14px',fontSize:11,fontWeight:700,color:'#888',textAlign:'left',borderBottom:'1px solid #f0f0f0'}},h)))),
+React.createElement('tbody',null,listaEnt.map((e,i)=>React.createElement('tr',{key:i,style:{borderBottom:'1px solid #f7f7f7'}},
+React.createElement('td',{style:{padding:'12px 14px',fontWeight:700,fontSize:13}},e.nome),
+React.createElement('td',{style:{padding:'12px 14px',fontWeight:600}},e.pedidos.length),
+React.createElement('td',{style:{padding:'12px 14px',fontWeight:800,color:'#dc2626'}},F(e.total)),
+React.createElement('td',{style:{padding:'12px 14px',color:e.formas.PIX>0?'#111':'#ddd'}},e.formas.PIX>0?F(e.formas.PIX):'—'),
+React.createElement('td',{style:{padding:'12px 14px',color:e.formas.Dinheiro>0?'#111':'#ddd'}},e.formas.Dinheiro>0?F(e.formas.Dinheiro):'—'),
+React.createElement('td',{style:{padding:'12px 14px',color:e.formas['Cartão']>0?'#111':'#ddd'}},e.formas['Cartão']>0?F(e.formas['Cartão']):'—'),
+React.createElement('td',{style:{padding:'12px 14px',color:e.formas.iFood>0?'#111':'#ddd'}},e.formas.iFood>0?F(e.formas.iFood):'—'),
+React.createElement('td',{style:{padding:'12px 14px',color:e.formas.Outros>0?'#111':'#ddd'}},e.formas.Outros>0?F(e.formas.Outros):'—')))))),
+// Todas as entregas com seleção múltipla
+React.createElement('div',{style:{background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden'}},
+React.createElement('div',{style:{padding:'12px 16px',borderBottom:'1px solid #f0f0f0',display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}},
+React.createElement('button',{onClick:selTodos,style:{background:'#f5f5f5',color:'#555',border:'none',borderRadius:8,padding:'6px 12px',fontSize:11,fontWeight:700,cursor:'pointer'}},selecionados.size===todos.length&&todos.length>0?'Desmarcar tudo':'Selecionar tudo'),
+selecionados.size>0&&React.createElement(React.Fragment,null,
+React.createElement('select',{value:entSel,onChange:e=>setEntSel(e.target.value),style:{border:'1px solid #e5e7eb',borderRadius:8,padding:'6px 10px',fontSize:12,outline:'none'}},
+React.createElement('option',{value:''},'— Vincular entregador'),
+entregadores.map(e=>React.createElement('option',{key:e.id,value:e.nome},e.nome))),
+React.createElement('button',{onClick:vincularSelecionados,disabled:!entSel,style:{background:'#dc2626',color:'#fff',border:'none',borderRadius:8,padding:'6px 14px',fontSize:12,fontWeight:700,cursor:'pointer'}},'Vincular '+selecionados.size+' entrega(s)')),
+selecionados.size===0&&React.createElement('span',{style:{fontSize:11,color:'#aaa'}},'Selecione entregas para vincular em lote')),
+todos.length===0
+?React.createElement('div',{style:{padding:40,textAlign:'center',color:'#ccc',fontSize:13}},'Nenhuma entrega hoje')
+:todos.map(p=>{
+const addr=p.raw&&p.raw.delivery_address||{};
+const addrStr=[addr.street,addr.number,addr.neighborhood].filter(Boolean).join(', ');
+const st=p.status||'';
+const cor=STATUS_COR[st]||'#888';
+const label=STATUS_LABEL[st]||st;
+const entAtrib=vinculos[p.id]||'';
+const sel=selecionados.has(p.id);
+return React.createElement('div',{key:p.id,onClick:()=>toggleSel(p.id),style:{padding:'10px 16px',borderBottom:'1px solid #f7f7f7',display:'flex',alignItems:'center',gap:10,cursor:'pointer',background:sel?'#fef2f2':'#fff',borderLeft:sel?'3px solid #dc2626':'3px solid transparent'}},
+React.createElement('input',{type:'checkbox',checked:sel,readOnly:true,onClick:e=>e.stopPropagation(),style:{width:15,height:15,accentColor:'#dc2626',cursor:'pointer',flexShrink:0}}),
+React.createElement('div',{style:{flex:1,minWidth:0}},
+React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:2}},
+React.createElement('span',{style:{fontWeight:700,color:'#dc2626',fontSize:13}},'#'+p.pedido_id+' — '+p.cliente),
+React.createElement('span',{style:{fontWeight:700,color:'#16a34a',fontSize:13}},F(p.total))),
+React.createElement('div',{style:{fontSize:11,color:'#888',marginBottom:3}},addrStr||'—'),
+React.createElement('div',{style:{display:'flex',gap:8,alignItems:'center'}},
+React.createElement('span',{style:{fontSize:10,fontWeight:700,color:cor,background:cor+'15',padding:'2px 7px',borderRadius:20}},label),
+entAtrib&&React.createElement('span',{style:{fontSize:10,fontWeight:700,color:'#7c3aed',background:'#f5f3ff',padding:'2px 7px',borderRadius:20}},'🛵 '+entAtrib))),
+React.createElement('select',{value:entAtrib,onChange:e=>{e.stopPropagation();salvarVinculo(p.id,e.target.value);},onClick:e=>e.stopPropagation(),style:{border:'1px solid #e5e7eb',borderRadius:8,padding:'4px 8px',fontSize:11,outline:'none',cursor:'pointer',minWidth:90,flexShrink:0}},
+React.createElement('option',{value:''},'— Ent.'),
+entregadores.map(e=>React.createElement('option',{key:e.id,value:e.nome},e.nome))));})));}
+
+function PainelHistorico({BASE_LAT}){
+const[desp,setDesp]=React.useState([]);
+React.useEffect(()=>{try{const d=JSON.parse(localStorage.getItem('despachados_'+BASE_LAT)||'[]');setDesp(d);}catch{setDesp([]);};},[BASE_LAT]);
+const limpar=()=>{if(confirm('Limpar histórico de despachos?')){localStorage.removeItem('despachados_'+BASE_LAT);setDesp([]);}};
+const todasEntregas=[].concat(...desp.map(d=>d.entregas.map(e=>({...e,data:d.data,hora:d.hora,entregador:d.entregador}))));
+if(desp.length===0)return null;
+return React.createElement('div',{style:{background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden'}},
+React.createElement('div',{style:{padding:'14px 16px',borderBottom:'1px solid #f0f0f0',display:'flex',justifyContent:'space-between',alignItems:'center'}},
+React.createElement('span',{style:{fontWeight:700,fontSize:14}},'Despachos via sistema ('+todasEntregas.length+')'),
+React.createElement('button',{onClick:limpar,style:{background:'#fef2f2',color:'#dc2626',border:'none',borderRadius:8,padding:'5px 12px',fontSize:11,cursor:'pointer'}},'Limpar')),
+React.createElement(Tbl,{cols:['Data','Hora','Entregador','Pedido','Cliente','Total'],rows:todasEntregas.map((e,i)=>React.createElement(TR,{key:i,cells:[
+React.createElement('span',null,FD(e.data)),
+React.createElement('span',null,e.hora),
+React.createElement('span',{style:{fontWeight:700}},e.entregador),
+React.createElement('span',{style:{color:'#dc2626',fontWeight:700}},'#'+e.pedido_id),
+React.createElement('span',null,e.cliente),
+React.createElement('span',{style:{fontWeight:700,color:'#16a34a'}},F(e.total))]})),empty:'Nenhum despacho.'}));}
+
+
+function HistoricoEntregas({todosEntregas,entregadores,BASE_LAT}){
 const VKEY='entrega_vinculo_'+BASE_LAT;
 const[vinculos,setVinculos]=React.useState(()=>{try{return JSON.parse(localStorage.getItem(VKEY)||'{}');}catch{return{};}});
 const salvar=(pedId,entNome)=>{const n={...vinculos,[pedId]:entNome};setVinculos(n);try{localStorage.setItem(VKEY,JSON.stringify(n));}catch{}};
@@ -409,83 +523,7 @@ React.createElement('div',{style:{fontSize:11,color:'#888',marginBottom:3}},addr
 React.createElement('span',{style:{fontSize:10,fontWeight:700,color:cor,background:cor+'15',padding:'2px 7px',borderRadius:20}},label)),
 entregadores.length>0&&React.createElement('select',{value:entAtrib,onChange:e=>salvar(p.id,e.target.value),style:{border:'1px solid #e5e7eb',borderRadius:8,padding:'4px 8px',fontSize:11,outline:'none',cursor:'pointer',minWidth:90}},
 React.createElement('option',{value:''},'— Ent.'),
-entregadores.map(e=>React.createElement('option',{key:e.id,value:e.nome},e.nome))));}));})())))
-,
-
-// ===== COLUNA DIREITA: MAPA =====
-React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:10,position:'sticky',top:16}},
-React.createElement('div',{ref:mapRef,style:{width:'100%',height:'calc(100vh - 230px)',minHeight:400,borderRadius:12,overflow:'hidden',border:'1px solid #f0f0f0'}}),
-linkGerado&&React.createElement('div',{style:{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'10px 14px',display:'flex',gap:8,alignItems:'center'}},
-React.createElement('div',{style:{flex:1,fontSize:11,color:'#166534',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',minWidth:0}},linkGerado),
-React.createElement('button',{onClick:()=>window.open(linkGerado,'_blank'),style:{background:'#4285f4',color:'#fff',border:'none',borderRadius:8,padding:'7px 12px',fontSize:11,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}},'🗺 Abrir'),
-React.createElement('button',{onClick:copiarLink,style:{background:copiado?'#16a34a':'#dc2626',color:'#fff',border:'none',borderRadius:8,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}},copiado?'✓ Copiado!':'📋 Copiar'))));}
-
-
-
-
-function MapaEntregas({pedidosEntrega,pedidosEntregues,entregadores,rotas,BASE_LAT,BASE_LON,COR,uid,setBaseLat,setBaseLon}){React.useEffect(()=>{window._setBaseLat=setBaseLat;window._setBaseLon=setBaseLon;return()=>{window._setBaseLat=null;window._setBaseLon=null;};},[setBaseLat,setBaseLon]);const mapRef=React.useRef(null);const mapObjRef=React.useRef(null);const markersRef=React.useRef([]);const[rotasReais,setRotasReais]=React.useState({});const[carregandoRotas,setCarregandoRotas]=React.useState(false);React.useEffect(()=>{if(!mapRef.current||mapObjRef.current)return;const map=L.map(mapRef.current,{zoomControl:true,scrollWheelZoom:true}).setView([BASE_LAT,BASE_LON],13);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(map);mapObjRef.current=map;return()=>{if(mapObjRef.current){mapObjRef.current.remove();mapObjRef.current=null;}};},[]);// Busca a geometria real da rota pelas ruas via OSRM (gratuito, sem API key)
-React.useEffect(()=>{const entregadoresAtivos=(entregadores||[]).filter(e=>e.ativo);if(entregadoresAtivos.length===0){setRotasReais({});return;}let cancelado=false;setCarregandoRotas(true);const buscarTodas=async()=>{const novasRotas={};for(const e of entregadoresAtivos){const rota=rotas[e.id]||[];if(rota.length===0)continue;const pontos=[[BASE_LON,BASE_LAT],...rota.map(p=>{const addr=p.raw&&p.raw.delivery_address||{};const lat=parseFloat(addr.latitude);const lon=parseFloat(addr.longitude);return lat&&lon?[lon,lat]:null;}).filter(Boolean)];if(pontos.length<2)continue;try{const coordsStr=pontos.map(p=>p[0]+','+p[1]).join(';');const url='https://router.project-osrm.org/route/v1/driving/'+coordsStr+'?overview=full&geometries=geojson';const res=await fetch(url);const data=await res.json();if(data.routes&&data.routes[0]){const coords=data.routes[0].geometry.coordinates.map(c=>[c[1],c[0]]);// [lon,lat]->[lat,lon]
-novasRotas[e.id]={path:coords,distanciaKm:data.routes[0].distance/1000,duracaoMin:data.routes[0].duration/60};}}catch(err){/* sem rota */}}if(!cancelado)setRotasReais(novasRotas);setCarregandoRotas(false);};buscarTodas();return()=>{cancelado=true;};},[rotas,entregadores,BASE_LAT,BASE_LON]);React.useEffect(()=>{const map=mapObjRef.current;if(!map)return;markersRef.current.forEach(m=>m.remove());markersRef.current=[];const baseIcon=L.divIcon({className:'',html:'<div style="background:#111;color:#fff;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 3px 12px rgba(0,0,0,0.4);border:3px solid #fff;cursor:move" title="Arraste para mover">🏠</div>',iconSize:[36,36],iconAnchor:[18,18]});const baseM=L.marker([BASE_LAT,BASE_LON],{icon:baseIcon,draggable:true}).addTo(map);baseM.bindPopup('<b>🏠 Confeitaria</b><br>Ponto de saída<br><small>Arraste para reposicionar</small>');baseM.on('dragend',function(e){const pos=e.target.getLatLng();localStorage.setItem('base_lat_'+uid,String(pos.lat));localStorage.setItem('base_lon_'+uid,String(pos.lng));if(window._setBaseLat)window._setBaseLat(pos.lat);if(window._setBaseLon)window._setBaseLon(pos.lng);});markersRef.current.push(baseM);const entregadoresAtivos=(entregadores||[]).filter(e=>e.ativo);const pedParaEnt={};entregadoresAtivos.forEach(e=>{(rotas[e.id]||[]).forEach(p=>{pedParaEnt[p.id]=e;});});const allPed=[...pedidosEntrega,...pedidosEntregues];allPed.forEach(p=>{const addr=p.raw&&p.raw.delivery_address||{};const lat=parseFloat(addr.latitude);const lon=parseFloat(addr.longitude);if(!lat||!lon)return;const ent=pedParaEnt[p.id];const cor=ent?COR[entregadoresAtivos.indexOf(ent)%COR.length]:'#6b7280';const isEntregue=p.status==='delivered'||p.status==='closed';const bgCor=isEntregue?'#16a34a':cor;const icon=L.divIcon({className:'',html:'<div style="background:'+bgCor+';color:#fff;border-radius:8px;padding:3px 7px;font-size:11px;font-weight:800;box-shadow:0 2px 8px rgba(0,0,0,0.25);border:2px solid #fff;white-space:nowrap">'+(isEntregue?'✓ ':'')+'#'+p.pedido_id+'</div>',iconSize:[null,null],iconAnchor:[0,0]});const m=L.marker([lat,lon],{icon}).addTo(map);const itens=(p.raw&&p.raw.items||p.itens||[]).slice(0,3).map(it=>(it.quantity||1)+'x '+(it.name||it.nome||'?')).join('<br>');m.bindPopup('<b>#'+p.pedido_id+' — '+(p.cliente||'—')+'</b><br>'+(addr.street||'')+' '+(addr.number||'')+'<br>'+itens+'<br><b>'+F(p.total)+'</b>'+(ent?'<br>🛵 '+ent.nome:''));markersRef.current.push(m);});// Linhas de rota por entregador — usa geometria real das ruas (OSRM) quando disponível
-entregadoresAtivos.forEach((e,i)=>{const rota=rotas[e.id]||[];const cor=COR[i%COR.length];if(rota.length===0)return;const real=rotasReais[e.id];if(real&&real.path&&real.path.length>1){const line=L.polyline(real.path,{color:cor,weight:4,opacity:0.85}).addTo(map);markersRef.current.push(line);}else{// Fallback: linha reta enquanto a rota real não carregou ou falhou
-const pontos=[[BASE_LAT,BASE_LON],...rota.map(p=>{const addr=p.raw&&p.raw.delivery_address||{};const lat=parseFloat(addr.latitude);const lon=parseFloat(addr.longitude);return lat&&lon?[lat,lon]:null;}).filter(Boolean)];if(pontos.length>1){const line=L.polyline(pontos,{color:cor,weight:3,opacity:0.5,dashArray:'8,4'}).addTo(map);markersRef.current.push(line);}}});},[pedidosEntrega,pedidosEntregues,entregadores,rotas,rotasReais]);return React.createElement('div',{style:{position:'relative'}},carregandoRotas&&React.createElement('div',{style:{position:'absolute',top:10,right:10,zIndex:500,background:'#fff',borderRadius:9,padding:'6px 12px',fontSize:11,fontWeight:600,color:'#7c3aed',boxShadow:'0 2px 8px rgba(0,0,0,0.15)',display:'flex',alignItems:'center',gap:6}},React.createElement('div',{style:{width:10,height:10,border:'2px solid #ede9fe',borderTopColor:'#7c3aed',borderRadius:'50%',animation:'spin 0.7s linear infinite'}}),'Calculando rotas pelas ruas...'),React.createElement('div',{ref:mapRef,style:{width:'100%',height:'calc(100vh - 220px)',minHeight:480,borderRadius:14,overflow:'hidden',boxShadow:'0 2px 12px rgba(0,0,0,0.12)',zIndex:1}}));}
-
-
-function EntregasConfig({uid,baseAddr,setBaseAddr,baseLat,baseLon,setBaseLat,setBaseLon,salvarBase,close}){const[addr,setAddr]=React.useState(baseAddr||'');const[loading,setLoading]=React.useState(false);const salvar=async()=>{if(!addr.trim()){toast('Informe o endereço',true);return;}setLoading(true);setBaseAddr(addr);localStorage.setItem('base_addr_'+uid,addr);const r=await salvarBase(addr);setLoading(false);if(r)close();};return React.createElement('div',null,React.createElement('div',{style:{background:'#eff6ff',borderRadius:10,padding:'12px 14px',fontSize:12,color:'#2563eb',marginBottom:16,lineHeight:1.7}},'📍 Configure o endereço completo da sua confeitaria. Será usado como ponto de saída nas rotas e no mapa.'),React.createElement(FloatInput,{label:'Endereço completo *',acent:'#dc2626',value:addr,onChange:e=>setAddr(e.target.value)}),React.createElement('div',{style:{fontSize:11,color:'#aaa',marginBottom:16,marginTop:-8}},'Ex: Rua das Flores, 123, Centro, Fernandópolis, SP'),baseLat&&baseLon&&React.createElement('div',{style:{background:'#f0fdf4',borderRadius:10,padding:'8px 14px',fontSize:12,color:'#16a34a',marginBottom:16}},'✓ Coords: '+baseLat.toFixed(5)+', '+baseLon.toFixed(5)),React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},React.createElement('button',{onClick:close,style:{background:'#f5f5f5',color:'#555',padding:'9px 16px',borderRadius:10,fontSize:13,border:'none',cursor:'pointer'}},'Cancelar'),React.createElement('button',{onClick:salvar,disabled:loading,style:{background:'#dc2626',color:'#fff',padding:'9px 20px',borderRadius:10,fontSize:13,fontWeight:700,border:'none',cursor:'pointer'}},loading?'Buscando...':'Salvar e localizar')));}function PainelEntregadores({BASE_LAT,entregadores,pedidosEmRota,pedidosEntrega,pedidosEntregues}){
-const STORAGE_KEY='entrega_vinculo_'+BASE_LAT;
-const[vinculos,setVinculos]=React.useState(()=>{try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');}catch{return{};}});
-const salvarVinculo=(pedId,entNome)=>{const n={...vinculos,[pedId]:entNome};setVinculos(n);try{localStorage.setItem(STORAGE_KEY,JSON.stringify(n));}catch{}};
-// Todos os pedidos de entrega do dia
-const todos=[...pedidosEntrega,...pedidosEmRota,...pedidosEntregues];
-const hoje=TODAY();
-const STATUS_LABEL={waiting_confirmation:'Aguardando',scheduled_confirmed:'Agendado',confirmed:'Em prep.',ready:'Pronto',released:'Em rota',delivered:'Entregue',completed:'Entregue',cancelled:'Cancelado'};
-const STATUS_COR={released:'#2563eb',delivered:'#16a34a',completed:'#16a34a',confirmed:'#f59e0b',ready:'#f59e0b',waiting_confirmation:'#888'};
-return React.createElement('div',{style:{background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden',marginBottom:16}},
-React.createElement('div',{style:{padding:'14px 16px',borderBottom:'1px solid #f0f0f0',display:'flex',justifyContent:'space-between',alignItems:'center'}},
-React.createElement('span',{style:{fontWeight:700,fontSize:14}},'Entregas do Dia ('+todos.length+')'),
-React.createElement('span',{style:{fontSize:11,color:'#aaa'}},'Vincule o entregador clicando no pedido')),
-todos.length===0
-?React.createElement('div',{style:{padding:40,textAlign:'center',color:'#ccc',fontSize:13}},'Nenhuma entrega hoje')
-:React.createElement('table',{style:{width:'100%',borderCollapse:'collapse'}},
-React.createElement('thead',null,React.createElement('tr',{style:{background:'#f9f9fb'}},
-['#','Cliente','Endereço','Total','Status','Entregador'].map(h=>React.createElement('th',{key:h,style:{padding:'10px 14px',fontSize:11,fontWeight:700,color:'#888',textAlign:'left',borderBottom:'1px solid #f0f0f0'}},h)))),
-React.createElement('tbody',null,todos.map((p,i)=>{
-const addr=p.raw&&p.raw.delivery_address||{};
-const addrStr=[addr.street,addr.number,addr.neighborhood].filter(Boolean).join(', ');
-const status=p.status||'';
-const cor=STATUS_COR[status]||'#888';
-const label=STATUS_LABEL[status]||status;
-const entAtrib=vinculos[p.id]||'';
-return React.createElement('tr',{key:p.id,style:{borderBottom:'1px solid #f7f7f7'}},
-React.createElement('td',{style:{padding:'10px 14px',fontWeight:700,color:'#dc2626',fontSize:13}},'#'+p.pedido_id),
-React.createElement('td',{style:{padding:'10px 14px',fontWeight:600,fontSize:13}},p.cliente||'—'),
-React.createElement('td',{style:{padding:'10px 14px',fontSize:11,color:'#888'}},addrStr||'—'),
-React.createElement('td',{style:{padding:'10px 14px',fontWeight:700,color:'#16a34a'}},F(p.total)),
-React.createElement('td',{style:{padding:'10px 14px'}},React.createElement('span',{style:{fontSize:11,fontWeight:700,color:cor,background:cor+'15',padding:'3px 8px',borderRadius:20}},label)),
-React.createElement('td',{style:{padding:'10px 14px'}},
-entregadores.length===0
-?React.createElement('span',{style:{fontSize:11,color:'#ccc'}},'Sem entregadores')
-:React.createElement('select',{value:entAtrib,onChange:e=>{e.stopPropagation();salvarVinculo(p.id,e.target.value);},style:{border:'1px solid #e5e7eb',borderRadius:8,padding:'4px 8px',fontSize:12,outline:'none',cursor:'pointer'}},
-React.createElement('option',{value:''},'— Vincular'),
-entregadores.map(e=>React.createElement('option',{key:e.id,value:e.nome},e.nome)))));}))));}
-
-function PainelHistorico({BASE_LAT}){
-const[desp,setDesp]=React.useState([]);
-React.useEffect(()=>{try{const d=JSON.parse(localStorage.getItem('despachados_'+BASE_LAT)||'[]');setDesp(d);}catch{setDesp([]);};},[BASE_LAT]);
-const limpar=()=>{if(confirm('Limpar histórico de despachos?')){localStorage.removeItem('despachados_'+BASE_LAT);setDesp([]);}};
-const todasEntregas=[].concat(...desp.map(d=>d.entregas.map(e=>({...e,data:d.data,hora:d.hora,entregador:d.entregador}))));
-if(desp.length===0)return null;
-return React.createElement('div',{style:{background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden'}},
-React.createElement('div',{style:{padding:'14px 16px',borderBottom:'1px solid #f0f0f0',display:'flex',justifyContent:'space-between',alignItems:'center'}},
-React.createElement('span',{style:{fontWeight:700,fontSize:14}},'Despachos via sistema ('+todasEntregas.length+')'),
-React.createElement('button',{onClick:limpar,style:{background:'#fef2f2',color:'#dc2626',border:'none',borderRadius:8,padding:'5px 12px',fontSize:11,cursor:'pointer'}},'Limpar')),
-React.createElement(Tbl,{cols:['Data','Hora','Entregador','Pedido','Cliente','Total'],rows:todasEntregas.map((e,i)=>React.createElement(TR,{key:i,cells:[
-React.createElement('span',null,FD(e.data)),
-React.createElement('span',null,e.hora),
-React.createElement('span',{style:{fontWeight:700}},e.entregador),
-React.createElement('span',{style:{color:'#dc2626',fontWeight:700}},'#'+e.pedido_id),
-React.createElement('span',null,e.cliente),
-React.createElement('span',{style:{fontWeight:700,color:'#16a34a'}},F(e.total))]})),empty:'Nenhum despacho.'}));}
-
+entregadores.map(e=>React.createElement('option',{key:e.id,value:e.nome},e.nome))));}));}
 
 function PedEntregas({uid,db,reload,setM}){const{pedidos_cw}=db;const hoje=TODAY();const[aba,setAba]=React.useState('mapa');const[entregadores,setEntregadores]=React.useState(()=>{try{return JSON.parse(localStorage.getItem('motoboys_'+uid)||'[]');}catch{return[];}});const[novoNome,setNovoNome]=React.useState('');const[novoFone,setNovoFone]=React.useState('');const[selEntregas,setSelEntregas]=React.useState(new Set());const[selEntregador,setSelEntregador]=React.useState('');const[statusEntregas,setStatusEntregas]=React.useState(()=>{try{return JSON.parse(localStorage.getItem('status_entregas_'+uid)||'{}');}catch{return{};}});const[baseAddr,setBaseAddr]=React.useState(localStorage.getItem('base_addr_'+uid)||'Fernandópolis, SP');const[baseLat,setBaseLat]=React.useState(()=>parseFloat(localStorage.getItem('base_lat_'+uid)||'-20.2838'));const[baseLon,setBaseLon]=React.useState(()=>parseFloat(localStorage.getItem('base_lon_'+uid)||'-50.2468'));const BASE_LAT=baseLat,BASE_LON=baseLon;const salvarBase=async addr=>{try{const res=await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1');const data=await res.json();if(data&&data[0]){const lat=parseFloat(data[0].lat);const lon=parseFloat(data[0].lon);setBaseLat(lat);setBaseLon(lon);localStorage.setItem('base_lat_'+uid,String(lat));localStorage.setItem('base_lon_'+uid,String(lon));toast('Localização atualizada!',false,true);return{lat,lon};}else{toast('Endereço não encontrado',true);}}catch(e){toast('Erro ao buscar endereço',true);}return null;};const saveEntregadores=list=>{setEntregadores(list);try{localStorage.setItem('motoboys_'+uid,JSON.stringify(list));}catch{}};
 const salvarStatus=(pedId,st)=>{const novo={...statusEntregas,[pedId]:st};setStatusEntregas(novo);try{localStorage.setItem('status_entregas_'+uid,JSON.stringify(novo));}catch{}};
