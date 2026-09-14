@@ -207,7 +207,8 @@ const mapRef=React.useRef(null);
 const mapInstRef=React.useRef(null);
 const rotaLayerRef=React.useRef([]);
 const[selecionados,setSelecionados]=React.useState(new Set());
-const[modalDespacho,setModalDespacho]=React.useState(null);// {peds, assignMap}
+const[modalDespacho,setModalDespacho]=React.useState(null);// {peds}
+const[modalAssign,setModalAssign]=React.useState({});
 const[copiado,setCopiado]=React.useState(false);
 const[linkGerado,setLinkGerado]=React.useState('');
 const[novoNome,setNovoNome]=React.useState('');
@@ -223,7 +224,7 @@ const PM_LABEL={pix:'PIX',pix_auto:'PIX',money:'Dinheiro',cash:'Dinheiro',online
 const saveEntregadores=list=>{setEntregadores(list);try{localStorage.setItem('motoboys_'+BASE_LAT,JSON.stringify(list));}catch{}};
 const addEntregador=()=>{if(!novoNome.trim())return;saveEntregadores([...entregadores,{id:Date.now()+'',nome:novoNome.trim(),telefone:novoFone.trim(),status:'disponivel'}]);setNovoNome('');setNovoFone('');};
 const removerEntregador=id=>saveEntregadores(entregadores.filter(e=>e.id!==id));
-const assignEntregadorModal=(pedId,entId)=>setModalDespacho(prev=>({...prev,assignMap:{...prev.assignMap,[pedId]:entId===prev.assignMap[pedId]?'':entId}}));
+const assignEntregadorModal=(pedId,entId)=>setModalAssign(prev=>({...prev,[pedId]:entId===prev[pedId]?'':entId}));
 const toggleSel=id=>setSelecionados(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;});
 
 const enderecoDoP=p=>{const a=p.raw&&p.raw.delivery_address||{};return[a.street,a.number,a.neighborhood,a.city].filter(Boolean).join(', ');};
@@ -233,26 +234,38 @@ const gerarLink=peds=>{if(!peds||!peds.length)return'';const c=peds.map(p=>{cons
 const despachar=()=>{
 const pedsSel=pedidosEntrega.filter(p=>selecionados.has(p.id));
 if(!pedsSel.length){toast('Selecione ao menos uma entrega',true);return;}
-setModalDespacho({peds:pedsSel,assignMap:{}});};
+setModalDespacho({peds:pedsSel});setModalAssign({});};
 const confirmarDespacho=()=>{
-const{peds,assignMap}=modalDespacho;
+const{peds}=modalDespacho;const assignMap=modalAssign;
 const semEntregador=peds.filter(p=>!assignMap[p.id]);
 if(semEntregador.length){toast('Atribua um entregador para cada entrega',true);return;}
 setDespachando(true);
 const agrupado={};
-pedsSel.forEach(p=>{
+peds.forEach(p=>{
 const entId=assignMap[p.id];
-if(!agrupado[entId])agrupado[entId]={entId,entregas:[],totais:{PIX:0,Dinheiro:0,Cartão:0,iFood:0,Outros:0}};
-const pags=p.pagamentos||[];
-pags.forEach(pg=>{const k=(pg.payment_method||'').toLowerCase();const v=Number(pg.value||pg.total||p.total||0);if(k==='pix'||k==='pix_auto')agrupado[entId].totais.PIX+=v;else if(k==='money'||k==='cash')agrupado[entId].totais.Dinheiro+=v;else if(k==='online_credit_card')agrupado[entId].totais.iFood+=v;else if(k.includes('card')||k.includes('credit')||k.includes('debit'))agrupado[entId].totais.Cartão+=v;else{if(!pags.length)agrupado[entId].totais.Outros+=Number(p.total||0);}});
-if(!pags.length)agrupado[entId].totais.Outros+=Number(p.total||0);
-agrupado[entId].entregas.push({id:p.id,pedido_id:p.pedido_id,cliente:p.cliente,endereco:enderecoDoP(p),total:p.total,link:gerarLink([p])});
+if(!agrupado[entId])agrupado[entId]={entId,entregas:[],totais:{PIX:0,Dinheiro:0,Cartão:0,iFood:0,Outros:0},totalGeral:0};
+const pags=p.raw&&p.raw.payments||p.pagamentos||[];
+const totalPed=Number(p.total||0);
+if(pags.length>0){
+pags.forEach(pg=>{
+const k=(pg.payment_method||pg.method||'').toLowerCase();
+const v=Number(pg.value||pg.amount||0);
+if(k==='pix'||k==='pix_auto')agrupado[entId].totais.PIX+=v;
+else if(k==='money'||k==='cash')agrupado[entId].totais.Dinheiro+=v;
+else if(k==='online_credit_card')agrupado[entId].totais.iFood+=v;
+else if(k.includes('card')||k.includes('credit')||k.includes('debit'))agrupado[entId].totais.Cartão+=v;
+else agrupado[entId].totais.Outros+=v;
+});}else{
+// sem info de pagamento — coloca no total geral
+agrupado[entId].totais.Outros+=totalPed;}
+agrupado[entId].totalGeral+=totalPed;
+agrupado[entId].entregas.push({id:p.id,pedido_id:p.pedido_id,cliente:p.cliente,endereco:enderecoDoP(p),total:totalPed,link:gerarLink([p])});
 });
 const novosDespachados=[...despachados,...Object.values(agrupado).map(g=>{const ent=entregadores.find(e=>e.id===g.entId);return{id:Date.now()+'_'+g.entId,data:hoje,hora:new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),entregador:ent?.nome||'—',telefone:ent?.telefone||'',entregas:g.entregas,totais:g.totais};})];
 setDespachados(novosDespachados);
 try{localStorage.setItem('despachados_'+BASE_LAT,JSON.stringify(novosDespachados));}catch{}
 setSelecionados(new Set());
-setModalDespacho(null);
+setModalDespacho(null);setModalAssign({});
 toast('✓ Despacho registrado! '+peds.length+' entrega(s) saíram.',false,true);
 setDespachando(false);};
 
@@ -370,6 +383,7 @@ React.createElement('div',{style:{background:'#f9f9fb',padding:'10px 14px',borde
 React.createElement('div',null,
 React.createElement('div',{style:{fontWeight:800,fontSize:13}},d.entregador),
 React.createElement('div',{style:{fontSize:11,color:'#aaa'}},d.hora+' · '+d.entregas.length+' entrega(s)')),
+React.createElement('div',{style:{fontWeight:800,fontSize:15,color:'#dc2626'}},F(d.totalGeral||d.entregas.reduce((sum,e)=>sum+Number(e.total||0),0))),
 d.telefone&&React.createElement('a',{href:'https://wa.me/55'+d.telefone.replace(/\D/g,''),target:'_blank',style:{background:'#25d366',color:'#fff',border:'none',borderRadius:8,padding:'5px 10px',fontSize:11,fontWeight:700,textDecoration:'none'}},'📱 WhatsApp')),
 // Totais por forma
 React.createElement('div',{style:{display:'flex',gap:0,borderBottom:'1px solid #f0f0f0'}},
@@ -389,14 +403,14 @@ React.createElement('div',{style:{padding:'16px 20px',borderBottom:'1px solid #f
 '🚀 Atribuir Entregadores'),
 React.createElement('div',{style:{padding:16}},
 modalDespacho.peds.map(p=>{
-const entId=modalDespacho.assignMap[p.id]||'';
+const entId=modalAssign[p.id]||'';
 return React.createElement('div',{key:p.id,style:{marginBottom:16,paddingBottom:16,borderBottom:'1px solid #f5f5f5'}},
 React.createElement('div',{style:{fontWeight:700,color:'#dc2626',fontSize:13,marginBottom:4}},'#'+p.pedido_id+' — '+p.cliente),
 React.createElement('div',{style:{fontSize:11,color:'#888',marginBottom:8}},enderecoDoP(p)),
 React.createElement('div',{style:{display:'flex',gap:6,flexWrap:'wrap'}},
 entregadores.map((e,i)=>React.createElement('button',{key:e.id,onClick:()=>assignEntregadorModal(p.id,e.id),style:{padding:'6px 14px',borderRadius:20,border:'2px solid '+(entId===e.id?CORES_ENT[i%CORES_ENT.length]:'#e5e7eb'),background:entId===e.id?CORES_ENT[i%CORES_ENT.length]:'#fff',color:entId===e.id?'#fff':'#555',fontSize:12,fontWeight:700,cursor:'pointer'}},e.nome))));})),
 React.createElement('div',{style:{padding:'12px 20px',borderTop:'1px solid #f0f0f0',display:'flex',gap:8,justifyContent:'flex-end'}},
-React.createElement('button',{onClick:()=>setModalDespacho(null),style:{background:'#f5f5f5',color:'#555',border:'none',borderRadius:10,padding:'10px 20px',fontSize:13,cursor:'pointer'}},'Cancelar'),
+React.createElement('button',{onClick:()=>{setModalDespacho(null);setModalAssign({});},style:{background:'#f5f5f5',color:'#555',border:'none',borderRadius:10,padding:'10px 20px',fontSize:13,cursor:'pointer'}},'Cancelar'),
 React.createElement('button',{onClick:confirmarDespacho,disabled:despachando,style:{background:'#dc2626',color:'#fff',border:'none',borderRadius:10,padding:'10px 24px',fontSize:13,fontWeight:800,cursor:'pointer'}},despachando?'Despachando...':'✓ Confirmar Despacho')))),
 
 // ===== COLUNA DIREITA: MAPA =====
