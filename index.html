@@ -202,18 +202,35 @@ const posAtual={};entregadores.forEach(e=>{posAtual[e.id]={lat:baseLat,lon:baseL
 let melhorE=entregadores[0].id;let melhorScore=Infinity;entregadores.forEach(e=>{const pos=posAtual[e.id];const dist=haversine(pos.lat,pos.lon,pLat,pLon);const carga=grupos[e.id].length;const score=dist+carga*2;// penaliza quem já tem mais pedidos
 if(score<melhorScore){melhorScore=score;melhorE=e.id;}});grupos[melhorE].push(p);posAtual[melhorE]={lat:pLat,lon:pLon};});}// Distribui sem coord em round-robin
 semCoord.forEach((p,i)=>{const e=entregadores[i%entregadores.length];grupos[e.id].push(p);});// Otimiza rota de cada entregador
-const resultado={};entregadores.forEach(e=>{resultado[e.id]=otimizarRota(grupos[e.id],baseLat,baseLon);});return resultado;}function MapaDespacho({pedidosEntrega,BASE_LAT,BASE_LON,baseAddr,entregadores}){
+const resultado={};entregadores.forEach(e=>{resultado[e.id]=otimizarRota(grupos[e.id],baseLat,baseLon);});return resultado;}function MapaDespacho({pedidosEntrega,BASE_LAT,BASE_LON,baseAddr,entregadores,setEntregadores}){
 const mapRef=React.useRef(null);
 const mapInstRef=React.useRef(null);
 const rotaLayerRef=React.useRef([]);
 const[selecionados,setSelecionados]=React.useState(new Set());
-const[assignMap,setAssignMap]=React.useState({});// {pedidoId: entregadorId}
+const[assignMap,setAssignMap]=React.useState({});
 const[copiado,setCopiado]=React.useState(false);
 const[linkGerado,setLinkGerado]=React.useState('');
+const[novoNome,setNovoNome]=React.useState('');
+const[novoFone,setNovoFone]=React.useState('');
+const[abaDesp,setAbaDesp]=React.useState('entregas');// 'entregas' | 'entregadores'
+
+const CORES_ENT=['#dc2626','#2563eb','#16a34a','#f59e0b','#7c3aed','#0891b2'];
+
+const saveEntregadores=list=>{setEntregadores(list);try{localStorage.setItem('motoboys_'+BASE_LAT,JSON.stringify(list));}catch{}};
+const addEntregador=()=>{if(!novoNome.trim())return;saveEntregadores([...entregadores,{id:Date.now()+'',nome:novoNome.trim(),telefone:novoFone.trim(),status:'disponivel'}]);setNovoNome('');setNovoFone('');};
+const removerEntregador=id=>saveEntregadores(entregadores.filter(e=>e.id!==id));
+const assignEntregador=(pedId,entId)=>setAssignMap(prev=>({...prev,[pedId]:entId===prev[pedId]?'':entId}));
+const toggleSel=id=>setSelecionados(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;});
 
 const enderecoDoP=p=>{const a=p.raw&&p.raw.delivery_address||{};return[a.street,a.number,a.neighborhood,a.city].filter(Boolean).join(', ');};
-const toggleSel=id=>setSelecionados(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;});
-const assignEntregador=(pedId,entId)=>setAssignMap(prev=>({...prev,[pedId]:entId}));
+const geocode=async addr=>{try{const r=await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1&countrycodes=br');const d=await r.json();if(d&&d[0])return[parseFloat(d[0].lat),parseFloat(d[0].lon)];}catch{}return null;};
+
+const gerarLink=peds=>{
+if(!peds||peds.length===0)return'';
+const coordsOuEnd=peds.map(p=>{const a=p.raw&&p.raw.delivery_address||{};const lat=parseFloat(a.latitude);const lon=parseFloat(a.longitude);return(lat&&!isNaN(lat))?(lat+','+lon):encodeURIComponent(enderecoDoP(p));});
+const origin=BASE_LAT+','+BASE_LON;
+if(coordsOuEnd.length===1)return'https://maps.google.com/?saddr='+origin+'&daddr='+coordsOuEnd[0];
+return'https://maps.google.com/?saddr='+origin+'&daddr='+coordsOuEnd.map((c,i)=>i===0?c:'to:'+c).join('+');};
 
 React.useEffect(()=>{
 if(!mapRef.current||mapInstRef.current)return;
@@ -225,18 +242,6 @@ mapInstRef.current=map;
 return()=>{map.remove();mapInstRef.current=null;};
 },[]);
 
-const geocode=async addr=>{try{const r=await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1&countrycodes=br');const d=await r.json();if(d&&d[0])return[parseFloat(d[0].lat),parseFloat(d[0].lon)];}catch{}return null;};
-
-// Gera link funcional no celular e desktop
-const gerarLink=peds=>{
-// Usa coordenadas GPS quando disponíveis (muito mais preciso que texto)
-if(!peds||peds.length===0)return'';
-const coordsOuEnd=peds.map(p=>{const a=p.raw&&p.raw.delivery_address||{};const lat=parseFloat(a.latitude);const lon=parseFloat(a.longitude);return(lat&&!isNaN(lat))?(lat+','+lon):encodeURIComponent([a.street,a.number,a.neighborhood,a.city].filter(Boolean).join(', '));});
-const origin=BASE_LAT+','+BASE_LON;
-if(coordsOuEnd.length===1)return'https://maps.google.com/?saddr='+origin+'&daddr='+coordsOuEnd[0];
-const daddr=coordsOuEnd.map((c,i)=>i===0?c:'to:'+c).join('+');
-return'https://maps.google.com/?saddr='+origin+'&daddr='+daddr;};
-
 React.useEffect(()=>{
 if(!mapInstRef.current)return;
 const map=mapInstRef.current;
@@ -246,72 +251,110 @@ if(selecionados.size===0)return;
 const peds=pedidosEntrega.filter(p=>selecionados.has(p.id));
 (async()=>{
 const pontos=[[BASE_LAT,BASE_LON]];
-const enderecos=[];
 for(const p of peds){
 const a=p.raw&&p.raw.delivery_address||{};
 let lat=parseFloat(a.latitude),lon=parseFloat(a.longitude);
 if(!lat||isNaN(lat)){const c=await geocode(enderecoDoP(p));if(c){[lat,lon]=c;}else continue;}
 pontos.push([lat,lon]);
-enderecos.push(enderecoDoP(p));
 const num=pontos.length-1;
 const icon=L.divIcon({html:'<div style="background:#dc2626;color:#fff;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;box-shadow:0 2px 6px rgba(0,0,0,0.3)">'+num+'</div>',iconSize:[30,30],iconAnchor:[15,15],className:''});
 const m=L.marker([lat,lon],{icon}).addTo(map).bindPopup('<b>#'+p.pedido_id+' — '+p.cliente+'</b><br>'+enderecoDoP(p));
 rotaLayerRef.current.push(m);}
 if(pontos.length<2)return;
 try{
-const waypts=pontos.map(([lt,ln])=>ln+','+lt).join(';');
-const r=await fetch('https://router.project-osrm.org/route/v1/driving/'+waypts+'?overview=full&geometries=geojson');
+const r=await fetch('https://router.project-osrm.org/route/v1/driving/'+pontos.map(([lt,ln])=>ln+','+lt).join(';')+'?overview=full&geometries=geojson');
 const d=await r.json();
 if(d.code==='Ok'&&d.routes[0]){
 const coords=d.routes[0].geometry.coordinates.map(([ln,lt])=>[lt,ln]);
 const line=L.polyline(coords,{color:'#dc2626',weight:5,opacity:0.9}).addTo(map);
 rotaLayerRef.current.push(line);
-map.fitBounds(L.polyline(coords).getBounds(),{padding:[40,40]});
-}else throw new Error();}
+map.fitBounds(L.polyline(coords).getBounds(),{padding:[30,30]});}
+else throw 0;}
 catch{
 const line=L.polyline(pontos,{color:'#dc2626',weight:4,dashArray:'10,6'}).addTo(map);
 rotaLayerRef.current.push(line);
-map.fitBounds(L.latLngBounds(pontos),{padding:[40,40]});}
+map.fitBounds(L.latLngBounds(pontos),{padding:[30,30]});}
 setLinkGerado(gerarLink(peds));
 })();
 },[selecionados]);
 
 const copiarLink=()=>{
 if(!linkGerado)return;
-navigator.clipboard.writeText(linkGerado).then(()=>{setCopiado(true);setTimeout(()=>setCopiado(false),2500);}).catch(()=>{
-// Fallback para dispositivos que não suportam clipboard API
-const el=document.createElement('textarea');
-el.value=linkGerado;document.body.appendChild(el);el.select();
-try{document.execCommand('copy');setCopiado(true);setTimeout(()=>setCopiado(false),2500);}catch{}
-document.body.removeChild(el);});};
+const copy=t=>{try{navigator.clipboard.writeText(t).then(()=>{setCopiado(true);setTimeout(()=>setCopiado(false),2500);}).catch(()=>{throw 0;});}catch{const el=document.createElement('textarea');el.value=t;document.body.appendChild(el);el.select();document.execCommand('copy');document.body.removeChild(el);setCopiado(true);setTimeout(()=>setCopiado(false),2500);}};
+copy(linkGerado);};
 
-const CORES_ENT=['#dc2626','#2563eb','#16a34a','#f59e0b','#7c3aed','#0891b2'];
+return React.createElement('div',{style:{display:'grid',gridTemplateColumns:'360px 1fr',gap:12,alignItems:'start'}},
 
-return React.createElement('div',{style:{display:'grid',gridTemplateColumns:'280px 1fr',gap:12,alignItems:'start'}},
-React.createElement('div',{style:{background:'#fff',borderRadius:12,border:'1px solid #f0f0f0',overflow:'hidden'}},
-React.createElement('div',{style:{padding:'10px 14px',background:'#f9f9fb',borderBottom:'1px solid #f0f0f0',fontWeight:700,fontSize:12,color:'#555',display:'flex',justifyContent:'space-between',alignItems:'center'}},
-React.createElement('span',null,'Selecione as entregas'),
+// COLUNA ESQUERDA
+React.createElement('div',null,
+// Abas
+React.createElement('div',{style:{display:'flex',gap:4,marginBottom:10}},
+React.createElement('button',{onClick:()=>setAbaDesp('entregas'),style:{flex:1,padding:'8px',borderRadius:8,border:'none',fontWeight:700,fontSize:12,cursor:'pointer',background:abaDesp==='entregas'?'#dc2626':'#f5f5f5',color:abaDesp==='entregas'?'#fff':'#888'}},'📦 Entregas ('+pedidosEntrega.length+')'),
+React.createElement('button',{onClick:()=>setAbaDesp('entregadores'),style:{flex:1,padding:'8px',borderRadius:8,border:'none',fontWeight:700,fontSize:12,cursor:'pointer',background:abaDesp==='entregadores'?'#dc2626':'#f5f5f5',color:abaDesp==='entregadores'?'#fff':'#888'}},'🛵 Entregadores ('+entregadores.length+')')),
+
+// ABA ENTREGAS
+abaDesp==='entregas'&&React.createElement('div',{style:{background:'#fff',borderRadius:12,border:'1px solid #f0f0f0',overflow:'hidden',maxHeight:520,overflowY:'auto'}},
+React.createElement('div',{style:{padding:'10px 14px',background:'#f9f9fb',borderBottom:'1px solid #f0f0f0',fontWeight:700,fontSize:12,color:'#555',display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:1}},
+React.createElement('span',null,'Selecione para traçar rota'),
 selecionados.size>0&&React.createElement('span',{style:{color:'#dc2626',fontWeight:700}},selecionados.size+' selecionada(s)')),
 pedidosEntrega.length===0
-?React.createElement('div',{style:{padding:20,textAlign:'center',color:'#bbb',fontSize:12}},'Nenhuma entrega aguardando')
+?React.createElement('div',{style:{padding:24,textAlign:'center',color:'#bbb',fontSize:12}},'Nenhuma entrega em preparação')
 :pedidosEntrega.map(p=>{
 const sel=selecionados.has(p.id);
 const entId=assignMap[p.id]||'';
 const entIdx=entregadores.findIndex(e=>e.id===entId);
-const entCor=entIdx>=0?CORES_ENT[entIdx%CORES_ENT.length]:'#e5e7eb';
-return React.createElement('div',{key:p.id,style:{borderBottom:'1px solid #f7f7f7',background:sel?'#fef2f2':'#fff'}},
-React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',cursor:'pointer'},onClick:()=>toggleSel(p.id)},
-React.createElement('input',{type:'checkbox',checked:sel,readOnly:true,style:{width:15,height:15,accentColor:'#dc2626',cursor:'pointer'}}),
+const entCor=entIdx>=0?CORES_ENT[entIdx%CORES_ENT.length]:'transparent';
+const ent=entregadores.find(e=>e.id===entId);
+const addr=p.raw&&p.raw.delivery_address||{};
+const itens=p.raw&&p.raw.items||p.itens||[];
+const pags=p.pagamentos||[];
+const pagNome=pags.length?({pix:'PIX',pix_auto:'PIX',money:'Dinheiro',cash:'Dinheiro',online_credit_card:'iFood',credit:'Cartão',debit:'Cartão Déb'}[(pags[0].payment_method||'').toLowerCase()])||pags[0].payment_method:'—';
+return React.createElement('div',{key:p.id,style:{borderBottom:'1px solid #f0f0f0',background:sel?'#fef2f2':'#fff',borderLeft:'3px solid '+(sel?'#dc2626':'transparent')}},
+// Header clicável
+React.createElement('div',{onClick:()=>toggleSel(p.id),style:{display:'flex',alignItems:'flex-start',gap:10,padding:'12px 14px 8px',cursor:'pointer'}},
+React.createElement('input',{type:'checkbox',checked:sel,readOnly:true,style:{marginTop:2,width:15,height:15,accentColor:'#dc2626',cursor:'pointer',flexShrink:0}}),
 React.createElement('div',{style:{flex:1,minWidth:0}},
-React.createElement('div',{style:{fontWeight:700,fontSize:12,color:'#dc2626'}},'#'+p.pedido_id+' — '+p.cliente),
-React.createElement('div',{style:{fontSize:11,color:'#aaa',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},enderecoDoP(p)||'Sem endereço'))))
-;})),
+React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}},
+React.createElement('span',{style:{fontWeight:800,color:'#dc2626',fontSize:13}},'#'+p.pedido_id+' — '+p.cliente),
+React.createElement('span',{style:{fontWeight:700,fontSize:13,color:'#16a34a'}},F(p.total))),
+React.createElement('div',{style:{fontSize:11,color:'#888',marginBottom:4}},[addr.street,addr.number,addr.neighborhood].filter(Boolean).join(', ')),
+// Itens do pedido
+itens.length>0&&React.createElement('div',{style:{fontSize:11,color:'#555',marginBottom:4}},itens.slice(0,3).map(it=>'• '+(it.name||it.nome||'')+(it.quantity||it.qtd?' x'+(it.quantity||it.qtd):'')).join(' | ')+(itens.length>3?' +mais...':'')),
+React.createElement('div',{style:{fontSize:11,color:'#aaa'}},pagNome))),
+// Atribuição de entregador
+React.createElement('div',{style:{padding:'0 14px 10px 38px',display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}},
+entregadores.length===0
+?React.createElement('span',{style:{fontSize:11,color:'#ccc'}},'Cadastre entregadores na aba 🛵')
+:React.createElement(React.Fragment,null,
+React.createElement('span',{style:{fontSize:11,color:'#aaa',marginRight:2}},'Entregador:'),
+entregadores.map((e,i)=>React.createElement('button',{key:e.id,onClick:ev=>{ev.stopPropagation();assignEntregador(p.id,e.id);},style:{padding:'3px 10px',borderRadius:20,border:'2px solid '+(entId===e.id?CORES_ENT[i%CORES_ENT.length]:'#e5e7eb'),background:entId===e.id?CORES_ENT[i%CORES_ENT.length]:'#fff',color:entId===e.id?'#fff':'#555',fontSize:11,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}},e.nome))),
+ent&&React.createElement('span',{style:{fontSize:11,color:entCor,fontWeight:700,marginLeft:'auto'}},ent.nome+' ✓')));
+})),
+
+// ABA ENTREGADORES
+abaDesp==='entregadores'&&React.createElement('div',{style:{background:'#fff',borderRadius:12,border:'1px solid #f0f0f0',overflow:'hidden'}},
+React.createElement('div',{style:{padding:'10px 14px',background:'#f9f9fb',borderBottom:'1px solid #f0f0f0',fontWeight:700,fontSize:12,color:'#555'}},'Cadastro de Entregadores'),
+React.createElement('div',{style:{padding:14}},
+React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}},
+React.createElement('input',{placeholder:'Nome',value:novoNome,onChange:e=>setNovoNome(e.target.value),onKeyDown:e=>e.key==='Enter'&&addEntregador(),style:{border:'1px solid #e5e7eb',borderRadius:8,padding:'8px 10px',fontSize:12,outline:'none'}}),
+React.createElement('input',{placeholder:'Telefone (WhatsApp)',value:novoFone,onChange:e=>setNovoFone(e.target.value),onKeyDown:e=>e.key==='Enter'&&addEntregador(),style:{border:'1px solid #e5e7eb',borderRadius:8,padding:'8px 10px',fontSize:12,outline:'none'}})),
+React.createElement('button',{onClick:addEntregador,style:{background:'#dc2626',color:'#fff',border:'none',borderRadius:8,padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',width:'100%'}},'+ Adicionar')),
+entregadores.length===0?React.createElement('div',{style:{padding:'20px',textAlign:'center',color:'#ccc',fontSize:12}},'Nenhum entregador cadastrado'):
+entregadores.map((e,i)=>React.createElement('div',{key:e.id,style:{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',borderTop:'1px solid #f0f0f0'}},
+React.createElement('div',{style:{width:32,height:32,borderRadius:'50%',background:CORES_ENT[i%CORES_ENT.length],display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,color:'#fff',fontWeight:800,flexShrink:0}},'🛵'),
+React.createElement('div',{style:{flex:1}},
+React.createElement('div',{style:{fontWeight:700,fontSize:13}},e.nome),
+e.telefone&&React.createElement('div',{style:{fontSize:11,color:'#888'}},e.telefone)),
+React.createElement('button',{onClick:()=>removerEntregador(e.id),style:{background:'none',border:'none',color:'#ccc',fontSize:18,cursor:'pointer'}},'✕'))))),
+
+// COLUNA DIREITA: mapa + link
 React.createElement('div',null,
-React.createElement('div',{ref:mapRef,style:{width:'100%',height:420,borderRadius:12,overflow:'hidden',border:'1px solid #f0f0f0',marginBottom:10}}),
-linkGerado&&React.createElement('div',{style:{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'10px 14px',display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}},
+React.createElement('div',{ref:mapRef,style:{width:'100%',height:460,borderRadius:12,overflow:'hidden',border:'1px solid #f0f0f0',marginBottom:10}}),
+linkGerado&&React.createElement('div',{style:{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'10px 14px',display:'flex',gap:8,alignItems:'center'}},
 React.createElement('div',{style:{flex:1,fontSize:11,color:'#166534',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',minWidth:0}},linkGerado),
 React.createElement('button',{onClick:()=>window.open(linkGerado,'_blank'),style:{background:'#4285f4',color:'#fff',border:'none',borderRadius:8,padding:'7px 12px',fontSize:11,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}},'🗺 Abrir'),
 React.createElement('button',{onClick:copiarLink,style:{background:copiado?'#16a34a':'#dc2626',color:'#fff',border:'none',borderRadius:8,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}},copiado?'✓ Copiado!':'📋 Copiar'))));}
+
 
 
 function MapaEntregas({pedidosEntrega,pedidosEntregues,entregadores,rotas,BASE_LAT,BASE_LON,COR,uid,setBaseLat,setBaseLon}){React.useEffect(()=>{window._setBaseLat=setBaseLat;window._setBaseLon=setBaseLon;return()=>{window._setBaseLat=null;window._setBaseLon=null;};},[setBaseLat,setBaseLon]);const mapRef=React.useRef(null);const mapObjRef=React.useRef(null);const markersRef=React.useRef([]);const[rotasReais,setRotasReais]=React.useState({});const[carregandoRotas,setCarregandoRotas]=React.useState(false);React.useEffect(()=>{if(!mapRef.current||mapObjRef.current)return;const map=L.map(mapRef.current,{zoomControl:true,scrollWheelZoom:true}).setView([BASE_LAT,BASE_LON],13);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(map);mapObjRef.current=map;return()=>{if(mapObjRef.current){mapObjRef.current.remove();mapObjRef.current=null;}};},[]);// Busca a geometria real da rota pelas ruas via OSRM (gratuito, sem API key)
@@ -356,7 +399,7 @@ toast('Rota enviada pelo WhatsApp!',false,true);
 const pedidosEntrega=React.useMemo(()=>(pedidos_cw||[]).filter(p=>{const isHoje=p.data_pedido===hoje||p.raw&&p.raw.created_at&&new Date(p.raw.created_at).toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'})===hoje;return isHoje&&p.raw&&p.raw.order_type==='delivery'&&['waiting_confirmation','scheduled_confirmed','confirmed','ready'].includes(p.status);}),[pedidos_cw,hoje]);// Pedidos em rota (released)
 const pedidosEmRota=React.useMemo(()=>(pedidos_cw||[]).filter(p=>{const isHoje=p.data_pedido===hoje||p.raw&&p.raw.created_at&&new Date(p.raw.created_at).toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'})===hoje;return isHoje&&p.raw&&p.raw.order_type==='delivery'&&p.status==='released';}),[pedidos_cw,hoje]);const pedidosEntregues=React.useMemo(()=>(pedidos_cw||[]).filter(p=>{const isHoje=p.data_pedido===hoje||p.raw&&p.raw.created_at&&new Date(p.raw.created_at).toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'})===hoje;return isHoje&&(p.status==='delivered'||p.status==='closed')&&p.raw&&p.raw.order_type==='delivery';}),[pedidos_cw,hoje]);const entregadoresAtivos=entregadores.filter(e=>e.status!=='pausado');const rotas=React.useMemo(()=>entregadoresAtivos.length?distribuirPedidos(pedidosEntrega,entregadoresAtivos,BASE_LAT,BASE_LON):{},[pedidosEntrega,entregadoresAtivos]);const urlMaps=rota=>{if(!rota.length)return'';const paradas=rota.map(p=>{const a=p.raw&&p.raw.delivery_address||{};return encodeURIComponent([a.street,a.number,a.neighborhood,a.city].filter(Boolean).join(', '));}).filter(Boolean);if(!paradas.length)return'';const dest=paradas[paradas.length-1];const wp=paradas.slice(0,-1).join('|');return'https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(baseAddr)+'&destination='+dest+(wp?'&waypoints='+encodeURIComponent(wp.replace(/%20/g,'+')):'')+'&travelmode=driving';};const COR=['#dc2626','#2563eb','#16a34a','#f59e0b','#7c3aed','#0891b2'];const STATUS_BADGE={disponivel:{l:'Disponível',bg:'#f0fdf4',c:'#16a34a'},em_rota:{l:'Em rota',bg:'#dbeafe',c:'#2563eb'},pausado:{l:'Pausado',bg:'#f5f5f5',c:'#9ca3af'}};const ABA_TABS=[{id:'mapa',l:'🗺 Mapa'},{id:'despacho',l:'📦 Despacho'},{id:'painel',l:'🛵 Painel'},{id:'financeiro',l:'💰 Financeiro'},{id:'metricas',l:'📊 Métricas'}];return React.createElement('div',{style:{padding:'24px',animation:'fadeUp 0.2s ease'}},// Header
 React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20,flexWrap:'wrap',gap:12}},React.createElement('div',null,React.createElement('h1',{style:{fontSize:22,fontWeight:800,color:'#111',letterSpacing:'-0.5px'}},'Gestão de Entregas'),React.createElement('p',{style:{fontSize:12,color:'#aaa',marginTop:4}},pedidosEntrega.length+' aguardando · '+pedidosEmRota.length+' em rota · '+pedidosEntregues.length+' entregues')),React.createElement('div',{style:{display:'flex',gap:8,alignItems:'center'}},React.createElement('button',{onClick:()=>setM({title:'⚙ Configurar Loja',body:React.createElement(EntregasConfig,{uid,baseAddr,setBaseAddr,baseLat,baseLon,setBaseLat,setBaseLon,salvarBase,close:()=>setM(null)})}),style:{background:'#f5f5f5',color:'#555',padding:'8px 14px',borderRadius:9,fontSize:12,fontWeight:600,border:'none',cursor:'pointer'}},'⚙ Configurar'),React.createElement('div',{style:{display:'flex',gap:4,background:'#f5f5f5',borderRadius:12,padding:4}},ABA_TABS.map(t=>React.createElement('button',{key:t.id,onClick:()=>setAba(t.id),style:{padding:'7px 14px',borderRadius:9,fontSize:12,fontWeight:600,border:'none',cursor:'pointer',background:aba===t.id?'#fff':'transparent',color:aba===t.id?'#111':'#888',boxShadow:aba===t.id?'0 1px 4px rgba(0,0,0,0.1)':'none',whiteSpace:'nowrap'}},t.l))))),aba==='mapa'&&React.createElement('div',null,// Legenda
-React.createElement('div',{style:{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12,alignItems:'center'}},entregadores.map((e,i)=>React.createElement('div',{key:e.id,style:{display:'flex',alignItems:'center',gap:6,padding:'5px 12px',borderRadius:20,background:'#fff',boxShadow:'0 1px 4px rgba(0,0,0,0.08)',opacity:e.status==='pausado'?0.5:1}},React.createElement('div',{style:{width:10,height:10,borderRadius:3,background:COR[i%COR.length]}}),React.createElement('span',{style:{fontSize:12,fontWeight:600}},e.nome),React.createElement('span',{style:{fontSize:10,color:'#aaa'}},'('+(rotas[e.id]||[]).length+' pedidos)'))),React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6,padding:'5px 12px',borderRadius:20,background:'#fff',boxShadow:'0 1px 4px rgba(0,0,0,0.08)'}},React.createElement('div',{style:{width:10,height:10,borderRadius:3,background:'#16a34a'}}),React.createElement('span',{style:{fontSize:12,fontWeight:600}},'Entregues')),React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6,padding:'5px 12px',borderRadius:20,background:'#fff',boxShadow:'0 1px 4px rgba(0,0,0,0.08)'}},React.createElement('div',{style:{width:10,height:10,borderRadius:'50%',background:'#111'}}),React.createElement('span',{style:{fontSize:12,fontWeight:600}},'🏠 '+baseAddr.split(',')[0]))),typeof L!=='undefined'?React.createElement(MapaEntregas,{pedidosEntrega:[...pedidosEntrega,...pedidosEmRota],pedidosEntregues,entregadores,rotas,BASE_LAT,BASE_LON,COR,uid,setBaseLat,setBaseLon}):React.createElement('div',{style:{background:'#f8f9fc',borderRadius:14,padding:'40px',textAlign:'center',color:'#aaa'}},'Carregando mapa...')),aba==='despacho'&&React.createElement(MapaDespacho,{pedidosEntrega:pedidosEntrega.filter(p=>['confirmed','ready'].includes(p.status)),BASE_LAT,BASE_LON,baseAddr,entregadores}),
+React.createElement('div',{style:{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12,alignItems:'center'}},entregadores.map((e,i)=>React.createElement('div',{key:e.id,style:{display:'flex',alignItems:'center',gap:6,padding:'5px 12px',borderRadius:20,background:'#fff',boxShadow:'0 1px 4px rgba(0,0,0,0.08)',opacity:e.status==='pausado'?0.5:1}},React.createElement('div',{style:{width:10,height:10,borderRadius:3,background:COR[i%COR.length]}}),React.createElement('span',{style:{fontSize:12,fontWeight:600}},e.nome),React.createElement('span',{style:{fontSize:10,color:'#aaa'}},'('+(rotas[e.id]||[]).length+' pedidos)'))),React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6,padding:'5px 12px',borderRadius:20,background:'#fff',boxShadow:'0 1px 4px rgba(0,0,0,0.08)'}},React.createElement('div',{style:{width:10,height:10,borderRadius:3,background:'#16a34a'}}),React.createElement('span',{style:{fontSize:12,fontWeight:600}},'Entregues')),React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6,padding:'5px 12px',borderRadius:20,background:'#fff',boxShadow:'0 1px 4px rgba(0,0,0,0.08)'}},React.createElement('div',{style:{width:10,height:10,borderRadius:'50%',background:'#111'}}),React.createElement('span',{style:{fontSize:12,fontWeight:600}},'🏠 '+baseAddr.split(',')[0]))),typeof L!=='undefined'?React.createElement(MapaEntregas,{pedidosEntrega:[...pedidosEntrega,...pedidosEmRota],pedidosEntregues,entregadores,rotas,BASE_LAT,BASE_LON,COR,uid,setBaseLat,setBaseLon}):React.createElement('div',{style:{background:'#f8f9fc',borderRadius:14,padding:'40px',textAlign:'center',color:'#aaa'}},'Carregando mapa...')),aba==='despacho'&&React.createElement(MapaDespacho,{pedidosEntrega:pedidosEntrega.filter(p=>['confirmed','ready'].includes(p.status)),BASE_LAT,BASE_LON,baseAddr,entregadores,setEntregadores:saveEntregadores}),
 aba==='painel'&&React.createElement('div',null,React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}},React.createElement(SC,{label:'Aguardando',val:pedidosEntrega.length,color:'#f59e0b'}),React.createElement(SC,{label:'Em rota',val:pedidosEmRota.length,color:'#2563eb'}),React.createElement(SC,{label:'Entregues',val:pedidosEntregues.length,color:'#16a34a'}),React.createElement(SC,{label:'Faturamento',val:F(pedidosEntregues.reduce((s,p)=>s+Number(p.total||0),0)),color:'#dc2626'})),React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))',gap:14,marginBottom:20}},entregadores.map((e,i)=>{const cor=COR[i%COR.length];const meusPedidos=rotas[e.id]||[];const dist=meusPedidos.reduce((s,p)=>s+(p.distancia||0),0);const sb2=STATUS_BADGE[e.status]||STATUS_BADGE.disponivel;const formasPed={PIX:0,Dinheiro:0,Cartão:0,iFood:0};meusPedidos.forEach(p=>{(p.pagamentos||[]).forEach(pg=>{const k=(pg.payment_method||'').toLowerCase();const v=Number(pg.value||pg.total||0);if(k==='pix'||k==='pix_auto')formasPed.PIX+=v;else if(k==='money'||k==='cash')formasPed.Dinheiro+=v;else if(k==='ifood'||k==='online_credit_card')formasPed.iFood+=v;else if(k.includes('card'))formasPed.Cartão+=v;});});const totalFormas=Object.values(formasPed).reduce((s,v)=>s+v,0);const FCOR={PIX:'#16a34a',Dinheiro:'#6b7280',Cartão:'#f59e0b',iFood:'#dc2626'};return React.createElement('div',{key:e.id,style:{background:'#fff',borderRadius:14,boxShadow:'0 1px 8px rgba(0,0,0,0.07)',overflow:'hidden'}},React.createElement('div',{style:{background:cor,padding:'14px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}},React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10}},React.createElement('div',{style:{width:36,height:36,borderRadius:'50%',background:'rgba(255,255,255,0.25)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}},'🛵'),React.createElement('div',null,React.createElement('div',{style:{fontWeight:800,fontSize:14,color:'#fff'}},e.nome),React.createElement('div',{style:{fontSize:11,color:'rgba(255,255,255,0.8)',marginTop:2}},sb2.l))),React.createElement('div',{style:{display:'flex',gap:5}},['disponivel','em_rota','pausado'].map(st=>React.createElement('button',{key:st,onClick:()=>setStatus(e.id,st),style:{padding:'4px 8px',borderRadius:7,border:'none',cursor:'pointer',fontSize:10,fontWeight:600,background:e.status===st?'rgba(255,255,255,0.3)':'rgba(0,0,0,0.15)',color:'#fff'}},st==='disponivel'?'✓':st==='em_rota'?'🛵':'⏸')))),React.createElement('div',{style:{padding:'14px 16px'}},React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:12}},[['Pendentes',meusPedidos.length,cor],['Km','~'+dist.toFixed(1),'#555'],['Total',F(totalFormas),'#16a34a']].map(([l,v,c])=>React.createElement('div',{key:l,style:{textAlign:'center',background:'#f8f9fc',borderRadius:8,padding:'8px 4px'}},React.createElement('div',{style:{fontSize:14,fontWeight:800,color:c}},String(v)),React.createElement('div',{style:{fontSize:10,color:'#aaa',marginTop:2}},l)))),// Formas de pagamento
 totalFormas>0&&React.createElement('div',{style:{marginBottom:12}},Object.entries(formasPed).filter(([,v])=>v>0).map(([f,v])=>{const pct=totalFormas>0?Math.round(v/totalFormas*100):0;return React.createElement('div',{key:f,style:{marginBottom:6}},React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:2}},React.createElement('div',{style:{display:'flex',alignItems:'center',gap:5}},React.createElement('div',{style:{width:6,height:6,borderRadius:'50%',background:FCOR[f]||'#555'}}),React.createElement('span',{style:{fontSize:11,color:'#555'}},f)),React.createElement('span',{style:{fontSize:11,fontWeight:700}},F(v))),React.createElement('div',{style:{height:3,background:'#f5f5f5',borderRadius:4,overflow:'hidden'}},React.createElement('div',{style:{height:'100%',width:pct+'%',background:FCOR[f]||'#555',borderRadius:4}})));})),// Próxima entrega
 meusPedidos.length>0&&React.createElement('div',{style:{background:'#f8f9fc',borderRadius:9,padding:'9px 12px',marginBottom:10}},React.createElement('div',{style:{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',letterSpacing:'1px',marginBottom:5}},'Próxima entrega'),React.createElement('div',{style:{fontWeight:600,fontSize:13,color:'#111',marginBottom:2}},'#'+meusPedidos[0].pedido_id+' · '+(meusPedidos[0].cliente||'—')),React.createElement('div',{style:{fontSize:11,color:'#888',marginBottom:4}},(meusPedidos[0].raw&&meusPedidos[0].raw.delivery_address||{}).street||'—'),React.createElement('div',{style:{display:'flex',justifyContent:'space-between'}},React.createElement('span',{style:{fontSize:11,color:'#aaa'}},(meusPedidos[0].distancia||0).toFixed(1)+' km'),React.createElement('span',{style:{fontWeight:700,fontSize:12,color:'#16a34a'}},F(meusPedidos[0].total)))),meusPedidos.length>0&&React.createElement('a',{href:urlMaps(meusPedidos),target:'_blank',style:{display:'block',background:cor,color:'#fff',borderRadius:9,padding:'9px',textAlign:'center',fontSize:12,fontWeight:700,textDecoration:'none'}},'📍 Abrir rota no Maps')));}))),aba==='financeiro'&&React.createElement('div',null,React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:20}},React.createElement(SC,{label:'Total em entregas',val:F(pedidosEntregues.reduce((s,p)=>s+Number(p.total||0),0)),color:'#dc2626'}),React.createElement(SC,{label:'Taxas de entrega',val:F(pedidosEntregues.reduce((s,p)=>s+Number(p.raw&&p.raw.delivery_fee||0),0)),color:'#2563eb'}),React.createElement(SC,{label:'Entregas concluídas',val:pedidosEntregues.length,color:'#16a34a'})),entregadores.map((e,i)=>{const cor=COR[i%COR.length];const FCOR={PIX:'#16a34a',Dinheiro:'#6b7280','Cartão Crédito':'#f59e0b','Cartão Débito':'#3b82f6',iFood:'#dc2626'};// Calcula totais do motoboy (baseado nos pedidos atribuídos)
