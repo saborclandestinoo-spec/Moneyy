@@ -212,9 +212,13 @@ const[copiado,setCopiado]=React.useState(false);
 const[linkGerado,setLinkGerado]=React.useState('');
 const[novoNome,setNovoNome]=React.useState('');
 const[novoFone,setNovoFone]=React.useState('');
-const[abaDesp,setAbaDesp]=React.useState('entregas');// 'entregas' | 'entregadores'
+const[abaDesp,setAbaDesp]=React.useState('entregas');
+const[despachados,setDespachados]=React.useState(()=>{try{return JSON.parse(localStorage.getItem('despachados_'+BASE_LAT)||'[]');}catch{return[];}});
+const[despachando,setDespachando]=React.useState(false);
+const hoje=TODAY();
 
 const CORES_ENT=['#dc2626','#2563eb','#16a34a','#f59e0b','#7c3aed','#0891b2'];
+const PM_LABEL={pix:'PIX',pix_auto:'PIX',money:'Dinheiro',cash:'Dinheiro',online_credit_card:'iFood',credit:'Cartão Cré.',debit:'Cartão Déb.',credit_card:'Cartão Cré.'};
 
 const saveEntregadores=list=>{setEntregadores(list);try{localStorage.setItem('motoboys_'+BASE_LAT,JSON.stringify(list));}catch{}};
 const addEntregador=()=>{if(!novoNome.trim())return;saveEntregadores([...entregadores,{id:Date.now()+'',nome:novoNome.trim(),telefone:novoFone.trim(),status:'disponivel'}]);setNovoNome('');setNovoFone('');};
@@ -224,20 +228,37 @@ const toggleSel=id=>setSelecionados(prev=>{const n=new Set(prev);n.has(id)?n.del
 
 const enderecoDoP=p=>{const a=p.raw&&p.raw.delivery_address||{};return[a.street,a.number,a.neighborhood,a.city].filter(Boolean).join(', ');};
 const geocode=async addr=>{try{const r=await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1&countrycodes=br');const d=await r.json();if(d&&d[0])return[parseFloat(d[0].lat),parseFloat(d[0].lon)];}catch{}return null;};
+const gerarLink=peds=>{if(!peds||!peds.length)return'';const c=peds.map(p=>{const a=p.raw&&p.raw.delivery_address||{};const lat=parseFloat(a.latitude);const lon=parseFloat(a.longitude);return(lat&&!isNaN(lat))?(lat+','+lon):encodeURIComponent(enderecoDoP(p));});const o=BASE_LAT+','+BASE_LON;return c.length===1?'https://maps.google.com/?saddr='+o+'&daddr='+c[0]:'https://maps.google.com/?saddr='+o+'&daddr='+c.map((v,i)=>i===0?v:'to:'+v).join('+');};
 
-const gerarLink=peds=>{
-if(!peds||peds.length===0)return'';
-const coordsOuEnd=peds.map(p=>{const a=p.raw&&p.raw.delivery_address||{};const lat=parseFloat(a.latitude);const lon=parseFloat(a.longitude);return(lat&&!isNaN(lat))?(lat+','+lon):encodeURIComponent(enderecoDoP(p));});
-const origin=BASE_LAT+','+BASE_LON;
-if(coordsOuEnd.length===1)return'https://maps.google.com/?saddr='+origin+'&daddr='+coordsOuEnd[0];
-return'https://maps.google.com/?saddr='+origin+'&daddr='+coordsOuEnd.map((c,i)=>i===0?c:'to:'+c).join('+');};
+const despachar=()=>{
+const pedsSel=pedidosEntrega.filter(p=>selecionados.has(p.id));
+if(!pedsSel.length){toast('Selecione ao menos uma entrega',true);return;}
+const semEntregador=pedsSel.filter(p=>!assignMap[p.id]);
+if(semEntregador.length){toast('Atribua um entregador para cada entrega selecionada',true);return;}
+setDespachando(true);
+const agrupado={};
+pedsSel.forEach(p=>{
+const entId=assignMap[p.id];
+if(!agrupado[entId])agrupado[entId]={entId,entregas:[],totais:{PIX:0,Dinheiro:0,Cartão:0,iFood:0,Outros:0}};
+const pags=p.pagamentos||[];
+pags.forEach(pg=>{const k=(pg.payment_method||'').toLowerCase();const v=Number(pg.value||pg.total||p.total||0);if(k==='pix'||k==='pix_auto')agrupado[entId].totais.PIX+=v;else if(k==='money'||k==='cash')agrupado[entId].totais.Dinheiro+=v;else if(k==='online_credit_card')agrupado[entId].totais.iFood+=v;else if(k.includes('card')||k.includes('credit')||k.includes('debit'))agrupado[entId].totais.Cartão+=v;else{if(!pags.length)agrupado[entId].totais.Outros+=Number(p.total||0);}});
+if(!pags.length)agrupado[entId].totais.Outros+=Number(p.total||0);
+agrupado[entId].entregas.push({id:p.id,pedido_id:p.pedido_id,cliente:p.cliente,endereco:enderecoDoP(p),total:p.total,link:gerarLink([p])});
+});
+const novosDespachados=[...despachados,...Object.values(agrupado).map(g=>{const ent=entregadores.find(e=>e.id===g.entId);return{id:Date.now()+'_'+g.entId,data:hoje,hora:new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),entregador:ent?.nome||'—',telefone:ent?.telefone||'',entregas:g.entregas,totais:g.totais};})];
+setDespachados(novosDespachados);
+try{localStorage.setItem('despachados_'+BASE_LAT,JSON.stringify(novosDespachados));}catch{}
+setSelecionados(new Set());
+setAssignMap({});
+toast('✓ Despacho registrado! '+pedsSel.length+' entrega(s) saíram.',false,true);
+setDespachando(false);};
 
 React.useEffect(()=>{
 if(!mapRef.current||mapInstRef.current)return;
 const map=L.map(mapRef.current,{zoomControl:true}).setView([BASE_LAT,BASE_LON],13);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(map);
 const baseIcon=L.divIcon({html:'<div style="background:#111;color:#fff;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:15px;box-shadow:0 2px 8px rgba(0,0,0,0.4)">🏠</div>',iconSize:[32,32],iconAnchor:[16,16],className:''});
-L.marker([BASE_LAT,BASE_LON],{icon:baseIcon}).addTo(map).bindPopup('<b>Confeitaria</b>');
+L.marker([BASE_LAT,BASE_LON],{icon:baseIcon}).addTo(map);
 mapInstRef.current=map;
 return()=>{map.remove();mapInstRef.current=null;};
 },[]);
@@ -247,14 +268,14 @@ if(!mapInstRef.current)return;
 const map=mapInstRef.current;
 rotaLayerRef.current.forEach(l=>map.removeLayer(l));rotaLayerRef.current=[];
 setLinkGerado('');
-if(selecionados.size===0)return;
+if(!selecionados.size)return;
 const peds=pedidosEntrega.filter(p=>selecionados.has(p.id));
 (async()=>{
 const pontos=[[BASE_LAT,BASE_LON]];
 for(const p of peds){
 const a=p.raw&&p.raw.delivery_address||{};
 let lat=parseFloat(a.latitude),lon=parseFloat(a.longitude);
-if(!lat||isNaN(lat)){const c=await geocode(enderecoDoP(p));if(c){[lat,lon]=c;}else continue;}
+if(!lat||isNaN(lat)){const c=await geocode(enderecoDoP(p));if(c)[lat,lon]=c;else continue;}
 pontos.push([lat,lon]);
 const num=pontos.length-1;
 const icon=L.divIcon({html:'<div style="background:#dc2626;color:#fff;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;box-shadow:0 2px 6px rgba(0,0,0,0.3)">'+num+'</div>',iconSize:[30,30],iconAnchor:[15,15],className:''});
@@ -268,9 +289,9 @@ if(d.code==='Ok'&&d.routes[0]){
 const coords=d.routes[0].geometry.coordinates.map(([ln,lt])=>[lt,ln]);
 const line=L.polyline(coords,{color:'#dc2626',weight:5,opacity:0.9}).addTo(map);
 rotaLayerRef.current.push(line);
-map.fitBounds(L.polyline(coords).getBounds(),{padding:[30,30]});}
-else throw 0;}
-catch{
+map.fitBounds(L.polyline(coords).getBounds(),{padding:[30,30]});
+}else throw 0;
+}catch{
 const line=L.polyline(pontos,{color:'#dc2626',weight:4,dashArray:'10,6'}).addTo(map);
 rotaLayerRef.current.push(line);
 map.fitBounds(L.latLngBounds(pontos),{padding:[30,30]});}
@@ -279,21 +300,24 @@ setLinkGerado(gerarLink(peds));
 },[selecionados]);
 
 const copiarLink=()=>{
-if(!linkGerado)return;
-const copy=t=>{try{navigator.clipboard.writeText(t).then(()=>{setCopiado(true);setTimeout(()=>setCopiado(false),2500);}).catch(()=>{throw 0;});}catch{const el=document.createElement('textarea');el.value=t;document.body.appendChild(el);el.select();document.execCommand('copy');document.body.removeChild(el);setCopiado(true);setTimeout(()=>setCopiado(false),2500);}};
+const copy=t=>{try{navigator.clipboard.writeText(t).catch(()=>{throw 0;});}catch{const el=document.createElement('textarea');el.value=t;document.body.appendChild(el);el.select();document.execCommand('copy');document.body.removeChild(el);}setCopiado(true);setTimeout(()=>setCopiado(false),2500);};
 copy(linkGerado);};
 
-return React.createElement('div',{style:{display:'grid',gridTemplateColumns:'360px 1fr',gap:12,alignItems:'start'}},
+const hoje_despachados=despachados.filter(d=>d.data===hoje);
 
-// COLUNA ESQUERDA
-React.createElement('div',null,
+return React.createElement('div',{style:{display:'grid',gridTemplateColumns:'380px 1fr',gap:12,alignItems:'start',minHeight:'calc(100vh - 180px)'}},
+
+// ===== COLUNA ESQUERDA =====
+React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:10}},
+
 // Abas
-React.createElement('div',{style:{display:'flex',gap:4,marginBottom:10}},
-React.createElement('button',{onClick:()=>setAbaDesp('entregas'),style:{flex:1,padding:'8px',borderRadius:8,border:'none',fontWeight:700,fontSize:12,cursor:'pointer',background:abaDesp==='entregas'?'#dc2626':'#f5f5f5',color:abaDesp==='entregas'?'#fff':'#888'}},'📦 Entregas ('+pedidosEntrega.length+')'),
-React.createElement('button',{onClick:()=>setAbaDesp('entregadores'),style:{flex:1,padding:'8px',borderRadius:8,border:'none',fontWeight:700,fontSize:12,cursor:'pointer',background:abaDesp==='entregadores'?'#dc2626':'#f5f5f5',color:abaDesp==='entregadores'?'#fff':'#888'}},'🛵 Entregadores ('+entregadores.length+')')),
+React.createElement('div',{style:{display:'flex',gap:4}},
+[{id:'entregas',l:'📦 Entregas ('+pedidosEntrega.length+')'},{id:'entregadores',l:'🛵 Entregadores ('+entregadores.length+')'},{id:'historico',l:'📋 Despachos ('+hoje_despachados.length+')'}].map(t=>
+React.createElement('button',{key:t.id,onClick:()=>setAbaDesp(t.id),style:{flex:1,padding:'7px 4px',borderRadius:8,border:'none',fontWeight:700,fontSize:11,cursor:'pointer',background:abaDesp===t.id?'#dc2626':'#f5f5f5',color:abaDesp===t.id?'#fff':'#888'}},t.l))),
 
-// ABA ENTREGAS
-abaDesp==='entregas'&&React.createElement('div',{style:{background:'#fff',borderRadius:12,border:'1px solid #f0f0f0',overflow:'hidden',maxHeight:520,overflowY:'auto'}},
+// ===== ABA ENTREGAS =====
+abaDesp==='entregas'&&React.createElement('div',null,
+React.createElement('div',{style:{background:'#fff',borderRadius:12,border:'1px solid #f0f0f0',overflow:'hidden',maxHeight:'calc(100vh - 340px)',overflowY:'auto'}},
 React.createElement('div',{style:{padding:'10px 14px',background:'#f9f9fb',borderBottom:'1px solid #f0f0f0',fontWeight:700,fontSize:12,color:'#555',display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:1}},
 React.createElement('span',null,'Selecione para traçar rota'),
 selecionados.size>0&&React.createElement('span',{style:{color:'#dc2626',fontWeight:700}},selecionados.size+' selecionada(s)')),
@@ -303,35 +327,32 @@ pedidosEntrega.length===0
 const sel=selecionados.has(p.id);
 const entId=assignMap[p.id]||'';
 const entIdx=entregadores.findIndex(e=>e.id===entId);
-const entCor=entIdx>=0?CORES_ENT[entIdx%CORES_ENT.length]:'transparent';
 const ent=entregadores.find(e=>e.id===entId);
 const addr=p.raw&&p.raw.delivery_address||{};
 const itens=p.raw&&p.raw.items||p.itens||[];
 const pags=p.pagamentos||[];
-const pagNome=pags.length?({pix:'PIX',pix_auto:'PIX',money:'Dinheiro',cash:'Dinheiro',online_credit_card:'iFood',credit:'Cartão',debit:'Cartão Déb'}[(pags[0].payment_method||'').toLowerCase()])||pags[0].payment_method:'—';
+const pagStr=pags.length?pags.map(pg=>PM_LABEL[(pg.payment_method||'').toLowerCase()]||pg.payment_method||'?').join(' + '):'—';
 return React.createElement('div',{key:p.id,style:{borderBottom:'1px solid #f0f0f0',background:sel?'#fef2f2':'#fff',borderLeft:'3px solid '+(sel?'#dc2626':'transparent')}},
-// Header clicável
-React.createElement('div',{onClick:()=>toggleSel(p.id),style:{display:'flex',alignItems:'flex-start',gap:10,padding:'12px 14px 8px',cursor:'pointer'}},
-React.createElement('input',{type:'checkbox',checked:sel,readOnly:true,style:{marginTop:2,width:15,height:15,accentColor:'#dc2626',cursor:'pointer',flexShrink:0}}),
+React.createElement('div',{onClick:()=>toggleSel(p.id),style:{display:'flex',alignItems:'flex-start',gap:10,padding:'12px 14px 6px',cursor:'pointer'}},
+React.createElement('input',{type:'checkbox',checked:sel,readOnly:true,style:{marginTop:3,width:15,height:15,accentColor:'#dc2626',cursor:'pointer',flexShrink:0}}),
 React.createElement('div',{style:{flex:1,minWidth:0}},
-React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}},
+React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:3}},
 React.createElement('span',{style:{fontWeight:800,color:'#dc2626',fontSize:13}},'#'+p.pedido_id+' — '+p.cliente),
-React.createElement('span',{style:{fontWeight:700,fontSize:13,color:'#16a34a'}},F(p.total))),
-React.createElement('div',{style:{fontSize:11,color:'#888',marginBottom:4}},[addr.street,addr.number,addr.neighborhood].filter(Boolean).join(', ')),
-// Itens do pedido
-itens.length>0&&React.createElement('div',{style:{fontSize:11,color:'#555',marginBottom:4}},itens.slice(0,3).map(it=>'• '+(it.name||it.nome||'')+(it.quantity||it.qtd?' x'+(it.quantity||it.qtd):'')).join(' | ')+(itens.length>3?' +mais...':'')),
-React.createElement('div',{style:{fontSize:11,color:'#aaa'}},pagNome))),
-// Atribuição de entregador
-React.createElement('div',{style:{padding:'0 14px 10px 38px',display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}},
+React.createElement('span',{style:{fontWeight:800,fontSize:13,color:'#16a34a'}},F(p.total))),
+React.createElement('div',{style:{fontSize:11,color:'#888',marginBottom:3}},[addr.street,addr.number,addr.neighborhood].filter(Boolean).join(', ')),
+itens.length>0&&React.createElement('div',{style:{fontSize:11,color:'#555',marginBottom:3}},itens.slice(0,3).map(it=>'• '+(it.name||it.nome||'Item')+(it.quantity||it.qtd?' ×'+(it.quantity||it.qtd):'')).join(' | ')+(itens.length>3?' +mais...':'')),
+React.createElement('div',{style:{fontSize:11,color:'#aaa'}},pagStr))),
+React.createElement('div',{style:{padding:'4px 14px 10px 38px',display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}},
 entregadores.length===0
-?React.createElement('span',{style:{fontSize:11,color:'#ccc'}},'Cadastre entregadores na aba 🛵')
+?React.createElement('span',{style:{fontSize:11,color:'#ccc'}},'Cadastre entregadores →')
 :React.createElement(React.Fragment,null,
-React.createElement('span',{style:{fontSize:11,color:'#aaa',marginRight:2}},'Entregador:'),
-entregadores.map((e,i)=>React.createElement('button',{key:e.id,onClick:ev=>{ev.stopPropagation();assignEntregador(p.id,e.id);},style:{padding:'3px 10px',borderRadius:20,border:'2px solid '+(entId===e.id?CORES_ENT[i%CORES_ENT.length]:'#e5e7eb'),background:entId===e.id?CORES_ENT[i%CORES_ENT.length]:'#fff',color:entId===e.id?'#fff':'#555',fontSize:11,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}},e.nome))),
-ent&&React.createElement('span',{style:{fontSize:11,color:entCor,fontWeight:700,marginLeft:'auto'}},ent.nome+' ✓')));
+React.createElement('span',{style:{fontSize:11,color:'#aaa'}},'Entregador:'),
+entregadores.map((e,i)=>React.createElement('button',{key:e.id,onClick:ev=>{ev.stopPropagation();assignEntregador(p.id,e.id);},style:{padding:'3px 10px',borderRadius:20,border:'2px solid '+(entId===e.id?CORES_ENT[i%CORES_ENT.length]:'#e5e7eb'),background:entId===e.id?CORES_ENT[i%CORES_ENT.length]:'#fff',color:entId===e.id?'#fff':'#555',fontSize:11,fontWeight:700,cursor:'pointer'}},e.nome)))));
 })),
+// Botão despachar
+selecionados.size>0&&React.createElement('button',{onClick:despachar,disabled:despachando,style:{background:'#dc2626',color:'#fff',border:'none',borderRadius:10,padding:'12px',fontSize:14,fontWeight:800,cursor:'pointer',width:'100%',marginTop:4}},despachando?'Despachando...':'🚀 Despachar '+selecionados.size+' entrega(s)')),
 
-// ABA ENTREGADORES
+// ===== ABA ENTREGADORES =====
 abaDesp==='entregadores'&&React.createElement('div',{style:{background:'#fff',borderRadius:12,border:'1px solid #f0f0f0',overflow:'hidden'}},
 React.createElement('div',{style:{padding:'10px 14px',background:'#f9f9fb',borderBottom:'1px solid #f0f0f0',fontWeight:700,fontSize:12,color:'#555'}},'Cadastro de Entregadores'),
 React.createElement('div',{style:{padding:14}},
@@ -342,18 +363,37 @@ React.createElement('button',{onClick:addEntregador,style:{background:'#dc2626',
 entregadores.length===0?React.createElement('div',{style:{padding:'20px',textAlign:'center',color:'#ccc',fontSize:12}},'Nenhum entregador cadastrado'):
 entregadores.map((e,i)=>React.createElement('div',{key:e.id,style:{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',borderTop:'1px solid #f0f0f0'}},
 React.createElement('div',{style:{width:32,height:32,borderRadius:'50%',background:CORES_ENT[i%CORES_ENT.length],display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,color:'#fff',fontWeight:800,flexShrink:0}},'🛵'),
-React.createElement('div',{style:{flex:1}},
-React.createElement('div',{style:{fontWeight:700,fontSize:13}},e.nome),
-e.telefone&&React.createElement('div',{style:{fontSize:11,color:'#888'}},e.telefone)),
-React.createElement('button',{onClick:()=>removerEntregador(e.id),style:{background:'none',border:'none',color:'#ccc',fontSize:18,cursor:'pointer'}},'✕'))))),
+React.createElement('div',{style:{flex:1}},React.createElement('div',{style:{fontWeight:700,fontSize:13}},e.nome),e.telefone&&React.createElement('div',{style:{fontSize:11,color:'#888'}},e.telefone)),
+React.createElement('button',{onClick:()=>removerEntregador(e.id),style:{background:'none',border:'none',color:'#ccc',fontSize:18,cursor:'pointer'}},'✕')))),
 
-// COLUNA DIREITA: mapa + link
+// ===== ABA HISTÓRICO DESPACHOS =====
+abaDesp==='historico'&&React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:10,maxHeight:'calc(100vh - 300px)',overflowY:'auto'}},
+hoje_despachados.length===0?React.createElement('div',{style:{background:'#fff',borderRadius:12,border:'1px solid #f0f0f0',padding:24,textAlign:'center',color:'#bbb',fontSize:12}},'Nenhum despacho hoje'):
+hoje_despachados.map(d=>React.createElement('div',{key:d.id,style:{background:'#fff',borderRadius:12,border:'1px solid #f0f0f0',overflow:'hidden'}},
+React.createElement('div',{style:{background:'#f9f9fb',padding:'10px 14px',borderBottom:'1px solid #f0f0f0',display:'flex',justifyContent:'space-between',alignItems:'center'}},
 React.createElement('div',null,
-React.createElement('div',{ref:mapRef,style:{width:'100%',height:460,borderRadius:12,overflow:'hidden',border:'1px solid #f0f0f0',marginBottom:10}}),
+React.createElement('div',{style:{fontWeight:800,fontSize:13}},d.entregador),
+React.createElement('div',{style:{fontSize:11,color:'#aaa'}},d.hora+' · '+d.entregas.length+' entrega(s)')),
+d.telefone&&React.createElement('a',{href:'https://wa.me/55'+d.telefone.replace(/\D/g,''),target:'_blank',style:{background:'#25d366',color:'#fff',border:'none',borderRadius:8,padding:'5px 10px',fontSize:11,fontWeight:700,textDecoration:'none'}},'📱 WhatsApp')),
+// Totais por forma
+React.createElement('div',{style:{display:'flex',gap:0,borderBottom:'1px solid #f0f0f0'}},
+Object.entries(d.totais).filter(([,v])=>v>0).map(([k,v])=>React.createElement('div',{key:k,style:{flex:1,padding:'8px 10px',textAlign:'center',borderRight:'1px solid #f0f0f0'}},
+React.createElement('div',{style:{fontSize:11,color:'#888'}}),
+React.createElement('div',{style:{fontWeight:700,fontSize:11,color:'#888'}},k),
+React.createElement('div',{style:{fontWeight:800,fontSize:13,color:'#111'}},F(v))))),
+// Entregas
+d.entregas.map((e,i)=>React.createElement('div',{key:i,style:{padding:'8px 14px',borderBottom:'1px solid #f7f7f7',fontSize:12}},
+React.createElement('div',{style:{fontWeight:600,color:'#dc2626'}},'#'+e.pedido_id+' — '+e.cliente),
+React.createElement('div',{style:{color:'#888',fontSize:11}},e.endereco))))))),
+
+// ===== COLUNA DIREITA: MAPA =====
+React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:10,position:'sticky',top:16}},
+React.createElement('div',{ref:mapRef,style:{width:'100%',height:'calc(100vh - 230px)',minHeight:400,borderRadius:12,overflow:'hidden',border:'1px solid #f0f0f0'}}),
 linkGerado&&React.createElement('div',{style:{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'10px 14px',display:'flex',gap:8,alignItems:'center'}},
 React.createElement('div',{style:{flex:1,fontSize:11,color:'#166534',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',minWidth:0}},linkGerado),
 React.createElement('button',{onClick:()=>window.open(linkGerado,'_blank'),style:{background:'#4285f4',color:'#fff',border:'none',borderRadius:8,padding:'7px 12px',fontSize:11,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}},'🗺 Abrir'),
 React.createElement('button',{onClick:copiarLink,style:{background:copiado?'#16a34a':'#dc2626',color:'#fff',border:'none',borderRadius:8,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}},copiado?'✓ Copiado!':'📋 Copiar'))));}
+
 
 
 
