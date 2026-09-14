@@ -229,14 +229,12 @@ const geocode=async addr=>{try{const r=await fetch('https://nominatim.openstreet
 
 // Gera link funcional no celular e desktop
 const gerarLink=enderecos=>{
-const dest=enderecos[enderecos.length-1];
-const waypts=enderecos.slice(0,-1);
-// Formato que abre o Google Maps app no celular e browser no desktop
-if(waypts.length===0)return'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(dest);
-const origin=encodeURIComponent(baseAddr);
-const destination=encodeURIComponent(dest);
-const waypoints=waypts.map(e=>encodeURIComponent(e)).join('|');
-return'https://www.google.com/maps/dir/?api=1&origin='+origin+'&destination='+destination+(waypoints?'&waypoints='+waypoints:'')+'&travelmode=driving';};
+// Formato saddr/daddr: funciona no celular (abre o app) e no browser sem precisar de API key
+if(enderecos.length===0)return'';
+if(enderecos.length===1)return'https://maps.google.com/?saddr='+encodeURIComponent(baseAddr)+'&daddr='+encodeURIComponent(enderecos[0]);
+// Para múltiplos destinos: daddr=A+to:B+to:C
+const daddr=enderecos.map((e,i)=>i===0?encodeURIComponent(e):'to:'+encodeURIComponent(e)).join('+');
+return'https://maps.google.com/?saddr='+encodeURIComponent(baseAddr)+'&daddr='+daddr;};
 
 React.useEffect(()=>{
 if(!mapInstRef.current)return;
