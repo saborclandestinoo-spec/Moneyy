@@ -1269,6 +1269,11 @@ if(ingsOriginais&&ingsOriginais.length>0){
 const novosIngs=ingsOriginais.map(i=>({ficha_id:novaFicha.id,estoque_id:i.estoque_id,nome:i.nome,quantidade:i.quantidade,unidade:i.unidade,custo_unit:i.custo_unit,tipo:i.tipo,user_id:uid}));
 await sb.from('ficha_ingredientes').insert(novosIngs);
 }
+// 3. Clona o item de estoque (cookie) se existir
+const{data:estOriginal}=await sb.from('estoque').select('*').eq('user_id',uid).eq('nome',f.nome).eq('categoria',f.categoria==='Recheio'?'Recheio':'Cookie').maybeSingle();
+if(estOriginal){
+await sb.from('estoque').insert({user_id:uid,nome:novoNome,categoria:estOriginal.categoria,unidade:estOriginal.unidade,qtd:0,qtd_embalagem:estOriginal.qtd_embalagem,qtd_estoque:0,minimo:estOriginal.minimo||0,custo:estOriginal.custo||0,preco_venda:estOriginal.preco_venda||0,fornecedor:estOriginal.fornecedor||'',ativo:true});
+}
 toast('Ficha duplicada como "'+novoNome+'"!',false,true);
 await reload();
 // Abre a cópia pra edição imediata
