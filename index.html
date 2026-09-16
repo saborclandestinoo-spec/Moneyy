@@ -1266,8 +1266,9 @@ if(error||!novaFicha){toast('Erro ao duplicar: '+(error?.message||'erro desconhe
 // 2. Clona os ingredientes da ficha original
 const{data:ingsOriginais}=await sb.from('ficha_ingredientes').select('*').eq('ficha_id',f.id);
 if(ingsOriginais&&ingsOriginais.length>0){
-const novosIngs=ingsOriginais.map(i=>({ficha_id:novaFicha.id,estoque_id:i.estoque_id,nome:i.nome,quantidade:i.quantidade,unidade:i.unidade,custo_unit:i.custo_unit,tipo:i.tipo,user_id:uid}));
-await sb.from('ficha_ingredientes').insert(novosIngs);
+const novosIngs=ingsOriginais.map(i=>({ficha_id:novaFicha.id,estoque_id:i.estoque_id,nome:i.nome,quantidade:i.quantidade,unidade:i.unidade,custo_unit:i.custo_unit,tipo:i.tipo}));
+const{error:errIngs}=await sb.from('ficha_ingredientes').insert(novosIngs);
+if(errIngs)toast('Aviso: ingredientes não copiados: '+errIngs.message,true);
 }
 // 3. Clona o item de estoque (cookie) se existir
 const{data:estOriginal}=await sb.from('estoque').select('*').eq('user_id',uid).eq('nome',f.nome).eq('categoria',f.categoria==='Recheio'?'Recheio':'Cookie').maybeSingle();
