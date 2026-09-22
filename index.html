@@ -714,7 +714,7 @@ toast('Produção registrada! +'+pesoTotal+unidRend+' de '+ficha.nome,false,true
 };
 
 return React.createElement('div',{style:{minWidth:480}},
-!fichaInicial&&React.createElement('div',{style:{marginBottom:14}},React.createElement(CustomSelect,{label:'Recheio *',value:fichaId,onChange:setFichaId,options:[{v:'',l:'— Selecione —'},...(fichas||[]).filter(f=>f.categoria==='Recheio').map(f=>({v:f.id,l:f.nome}))],placeholder:'— Selecione a ficha técnica —',acent:'#7c3aed'})),
+!fichaInicial&&React.createElement('div',{style:{marginBottom:14}},React.createElement(CustomSelect,{label:'Recheio *',value:fichaId,onChange:setFichaId,options:[{v:'',l:'— Selecione —'},...(fichas||[]).filter(f=>f.categoria==='Recheio').map(f=>({v:f.id,l:f.nome}))],placeholder:'— Selecione a ficha técnica —',acent:'#7c3aed'})),!fichaInicial&&!ficha&&React.createElement('div',{style:{height:340}}),
 ficha&&React.createElement('div',{style:{background:'#f5f3ff',borderRadius:10,padding:'12px 14px',marginBottom:14}},React.createElement('div',{style:{fontWeight:800,fontSize:15,color:'#7c3aed'}},ficha.nome),rendTeoricoLote>0&&React.createElement('div',{style:{fontSize:12,color:'#aaa',marginTop:4}},'Receita cadastrada: '+rendTeoricoLote+' '+unidRend+' • Estoque atual: '+(estoqueItem?.qtd||0)+' '+unidRend)),
 
 ficha&&React.createElement('div',null,
