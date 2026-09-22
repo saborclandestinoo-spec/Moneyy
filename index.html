@@ -714,7 +714,7 @@ toast('Produção registrada! +'+pesoTotal+unidRend+' de '+ficha.nome,false,true
 };
 
 return React.createElement('div',{style:{minWidth:480}},
-!fichaInicial&&React.createElement('div',{style:{marginBottom:16}},React.createElement('div',{style:{fontWeight:700,fontSize:13,marginBottom:8}},'Selecione o recheio'),React.createElement('div',{style:{display:'flex',flexWrap:'wrap',gap:8}},(fichas||[]).filter(f=>f.categoria==='Recheio').map(f=>React.createElement('button',{key:f.id,onClick:()=>setFichaId(f.id),style:{background:fichaId===f.id?'#7c3aed':'#f5f5f5',color:fichaId===f.id?'#fff':'#555',border:'none',borderRadius:10,padding:'9px 16px',fontSize:13,fontWeight:700,cursor:'pointer'}},f.nome)),(fichas||[]).filter(f=>f.categoria==='Recheio').length===0&&React.createElement('div',{style:{color:'#ccc',fontSize:12,padding:8}},'Nenhum recheio cadastrado. Crie uma ficha de recheio primeiro.'))),
+!fichaInicial&&React.createElement('div',{style:{marginBottom:14}},React.createElement(CustomSelect,{label:'Recheio *',value:fichaId,onChange:setFichaId,options:[{v:'',l:'— Selecione —'},...(fichas||[]).filter(f=>f.categoria==='Recheio').map(f=>({v:f.id,l:f.nome}))],placeholder:'— Selecione a ficha técnica —',acent:'#7c3aed'})),
 ficha&&React.createElement('div',{style:{background:'#f5f3ff',borderRadius:10,padding:'12px 14px',marginBottom:14}},React.createElement('div',{style:{fontWeight:800,fontSize:15,color:'#7c3aed'}},ficha.nome),rendTeoricoLote>0&&React.createElement('div',{style:{fontSize:12,color:'#aaa',marginTop:4}},'Receita cadastrada: '+rendTeoricoLote+' '+unidRend+' • Estoque atual: '+(estoqueItem?.qtd||0)+' '+unidRend)),
 
 ficha&&React.createElement('div',null,
