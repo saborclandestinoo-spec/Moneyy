@@ -2697,9 +2697,13 @@ const[movs,setMovs]=React.useState([]);
 const[loadingMovs,setLoadingMovs]=React.useState(true);
 const[verMovs,setVerMovs]=React.useState(false);
 const[filtroTipoMov,setFiltroTipoMov]=React.useState('');
+const dtIniAutoRef=React.useRef(false);
 
 React.useEffect(()=>{ let mounted=true;
-  sb.from('estoque_snapshots').select('*').eq('user_id',uid).order('data',{ascending:true}).then(({data})=>{ if(mounted){setSnapshots(data||[]);setLoadingSnap(false);} });
+  sb.from('estoque_snapshots').select('*').eq('user_id',uid).order('data',{ascending:true}).then(({data})=>{ if(mounted){setSnapshots(data||[]);setLoadingSnap(false);
+    // Na primeira carga, se existe snapshot de hoje (contagem física feita), usa ele como início do CMV automaticamente
+    if(!dtIniAutoRef.current&&data&&data.length){const maisRecente=data.reduce((m,s)=>s.data>m.data?s:m,data[0]);if(maisRecente.data===TODAY())setDtIni(maisRecente.data);dtIniAutoRef.current=true;}
+  } });
   sb.from('cmv_diario').select('*').eq('user_id',uid).order('data',{ascending:false}).limit(60).then(({data})=>{ if(mounted)setCmvHistorico(data||[]); });
   return()=>{mounted=false;};
 },[uid]);
