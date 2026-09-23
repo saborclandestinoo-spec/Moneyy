@@ -2693,12 +2693,30 @@ const[verBalanco,setVerBalanco]=React.useState(false);
 const[filtroCategoria,setFiltroCategoria]=React.useState('');
 const[verHistorico,setVerHistorico]=React.useState(false);
 const[cmvHistorico,setCmvHistorico]=React.useState([]);
+const[movs,setMovs]=React.useState([]);
+const[loadingMovs,setLoadingMovs]=React.useState(true);
+const[verMovs,setVerMovs]=React.useState(false);
+const[filtroTipoMov,setFiltroTipoMov]=React.useState('');
 
 React.useEffect(()=>{ let mounted=true;
   sb.from('estoque_snapshots').select('*').eq('user_id',uid).order('data',{ascending:true}).then(({data})=>{ if(mounted){setSnapshots(data||[]);setLoadingSnap(false);} });
   sb.from('cmv_diario').select('*').eq('user_id',uid).order('data',{ascending:false}).limit(60).then(({data})=>{ if(mounted)setCmvHistorico(data||[]); });
   return()=>{mounted=false;};
 },[uid]);
+
+// Kardex — todo movimento de estoque (entrada/saída) do período, item a item
+React.useEffect(()=>{ let mounted=true; setLoadingMovs(true);
+  sb.from('estoque_movimentos').select('*').eq('user_id',uid).gte('criado_em',dtIni+'T00:00:00').lte('criado_em',dtFim+'T23:59:59').order('criado_em',{ascending:false}).then(({data})=>{ if(mounted){setMovs(data||[]);setLoadingMovs(false);} });
+  return()=>{mounted=false;};
+},[uid,dtIni,dtFim]);
+
+const MOTIVO_L={estoque_inicial:'Estoque Inicial',ajuste_manual:'Ajuste Manual',compra:'Compra',producao_recheio:'Produção (Recheio)',producao:'Produção (Cookie)',saida_venda:'Venda',estorno_producao:'Estorno de Produção',estorno:'Estorno',ajuste:'Ajuste'};
+const movsComValor=movs.map(m=>({...m,valor:Number(m.quantidade||0)*Number(m.custo_unit||0)}));
+const movsFiltrados=filtroTipoMov?movsComValor.filter(m=>m.tipo===filtroTipoMov):movsComValor;
+const totalEntradasMov=movsComValor.filter(m=>m.tipo==='entrada').reduce((s,m)=>s+m.valor,0);
+const totalSaidasMov=movsComValor.filter(m=>m.tipo==='saida'||m.tipo==='consumo').reduce((s,m)=>s+m.valor,0);
+const porMotivo={};movsComValor.forEach(m=>{const k=m.motivo||'outro';const g=porMotivo[k]=porMotivo[k]||{entradas:0,saidas:0};if(m.tipo==='entrada')g.entradas+=m.valor;else if(m.tipo==='saida'||m.tipo==='consumo')g.saidas+=m.valor;});
+const motivosOrdenados=Object.entries(porMotivo).sort((a,b)=>(b[1].entradas+b[1].saidas)-(a[1].entradas+a[1].saidas));
 
 const valorEstoqueHoje=(estoque||[]).reduce((s,e)=>s+Number(e.qtd||0)*Number(e.custo||0),0);
 
@@ -2786,6 +2804,52 @@ React.createElement('div',{style:{display:'flex',justifyContent:'space-between',
 React.createElement('span',{style:{fontSize:15,fontWeight:800}},'= CMV'),
 React.createElement('span',{style:{fontSize:18,fontWeight:800,color:cor}},cmv!=null?F(cmv):'—')
 )
+),
+
+// Movimentações do Período (Kardex) — detalha item a item quanto entrou e quanto saiu
+React.createElement('div',{style:{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'20px',marginBottom:20}},
+React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:verMovs?16:0}},
+React.createElement('div',null,
+React.createElement('div',{style:{fontWeight:700,fontSize:14}},'Movimentações do Período (Kardex)'),
+React.createElement('div',{style:{fontSize:11,color:'#aaa'}},movs.length+' movimento(s) entre '+FD(dtIni)+' e '+FD(dtFim))
+),
+React.createElement('button',{onClick:()=>setVerMovs(p=>!p),style:{background:'#f5f5f5',color:cor,border:'none',borderRadius:9,padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer'}},verMovs?'Ocultar':'Ver movimentações')
+),
+verMovs&&React.createElement('div',null,
+loadingMovs?React.createElement('div',{style:{textAlign:'center',padding:20,color:'#aaa',fontSize:13}},'Carregando...'):React.createElement(React.Fragment,null,
+React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:16}},
+React.createElement('div',{style:{background:'#f0fdf4',borderRadius:10,padding:'12px 14px'}},React.createElement('div',{style:{fontSize:10,color:'#16a34a',fontWeight:700,marginBottom:2}},'TOTAL ENTRADAS'),React.createElement('div',{style:{fontSize:17,fontWeight:800,color:'#16a34a'}},F(totalEntradasMov))),
+React.createElement('div',{style:{background:'#fef2f2',borderRadius:10,padding:'12px 14px'}},React.createElement('div',{style:{fontSize:10,color:'#dc2626',fontWeight:700,marginBottom:2}},'TOTAL SAÍDAS'),React.createElement('div',{style:{fontSize:17,fontWeight:800,color:'#dc2626'}},F(totalSaidasMov)))
+),
+motivosOrdenados.length>0&&React.createElement('div',{style:{marginBottom:16}},
+React.createElement('div',{style:{fontSize:11,fontWeight:800,color:'#111',letterSpacing:'0.5px',textTransform:'uppercase',marginBottom:8}},'Por motivo'),
+motivosOrdenados.map(([motivo,g])=>React.createElement('div',{key:motivo,style:{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid #f7f7f7',fontSize:12}},
+React.createElement('span',{style:{color:'#555'}},MOTIVO_L[motivo]||motivo),
+React.createElement('span',null,g.entradas>0&&React.createElement('span',{style:{color:'#16a34a',fontWeight:700,marginRight:10}},'+'+F(g.entradas)),g.saidas>0&&React.createElement('span',{style:{color:'#dc2626',fontWeight:700}},'−'+F(g.saidas)))
+))
+),
+React.createElement('div',{style:{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}},
+React.createElement('button',{onClick:()=>setFiltroTipoMov(''),style:{padding:'6px 12px',borderRadius:8,border:'none',cursor:'pointer',fontSize:11,fontWeight:700,background:!filtroTipoMov?cor:'#f5f5f5',color:!filtroTipoMov?'#fff':'#666'}},'Todos'),
+React.createElement('button',{onClick:()=>setFiltroTipoMov('entrada'),style:{padding:'6px 12px',borderRadius:8,border:'none',cursor:'pointer',fontSize:11,fontWeight:700,background:filtroTipoMov==='entrada'?'#16a34a':'#f5f5f5',color:filtroTipoMov==='entrada'?'#fff':'#666'}},'Entradas'),
+React.createElement('button',{onClick:()=>setFiltroTipoMov('saida'),style:{padding:'6px 12px',borderRadius:8,border:'none',cursor:'pointer',fontSize:11,fontWeight:700,background:filtroTipoMov==='saida'?'#dc2626':'#f5f5f5',color:filtroTipoMov==='saida'?'#fff':'#666'}},'Saídas')
+),
+movsFiltrados.length===0?React.createElement('div',{style:{textAlign:'center',padding:20,color:'#bbb',fontSize:13}},'Nenhuma movimentação no período.'):
+React.createElement('div',{style:{overflowX:'auto'}},React.createElement('table',{style:{width:'100%',borderCollapse:'collapse'}},
+React.createElement('thead',null,React.createElement('tr',null,
+['Data','Item','Tipo','Motivo','Qtd','Custo Unit.','Valor'].map((h,i)=>React.createElement('th',{key:i,style:{padding:'8px',fontSize:10,fontWeight:700,color:'#aaa',textAlign:i<4?'left':'right',borderBottom:'1px solid #f0f0f0',whiteSpace:'nowrap'}},h))
+)),
+React.createElement('tbody',null,movsFiltrados.slice(0,200).map(m=>{const isEntrada=m.tipo==='entrada';const dt=new Date(m.criado_em);return React.createElement('tr',{key:m.id,style:{borderBottom:'1px solid #f7f7f7'}},
+React.createElement('td',{style:{padding:'8px',fontSize:11,color:'#888',whiteSpace:'nowrap'}},dt.toLocaleDateString('pt-BR')),
+React.createElement('td',{style:{padding:'8px',fontSize:12,fontWeight:600}},m.nome_item||'—'),
+React.createElement('td',{style:{padding:'8px'}},React.createElement('span',{style:{fontSize:10,fontWeight:700,padding:'2px 8px',borderRadius:20,background:isEntrada?'#f0fdf4':'#fef2f2',color:isEntrada?'#16a34a':'#dc2626'}},isEntrada?'↑ Entrada':'↓ Saída')),
+React.createElement('td',{style:{padding:'8px',fontSize:11,color:'#888'}},MOTIVO_L[m.motivo]||m.motivo||'—'),
+React.createElement('td',{style:{padding:'8px',fontSize:12,textAlign:'right',color:'#555'}},Number(m.quantidade||0).toFixed(1)),
+React.createElement('td',{style:{padding:'8px',fontSize:12,textAlign:'right',color:'#888'}},m.custo_unit?F(m.custo_unit):'—'),
+React.createElement('td',{style:{padding:'8px',fontSize:12,textAlign:'right',fontWeight:700,color:isEntrada?'#16a34a':'#dc2626'}},(isEntrada?'+':'−')+F(m.valor))
+);}))
+)),
+movsFiltrados.length>200&&React.createElement('div',{style:{textAlign:'center',fontSize:11,color:'#bbb',marginTop:10}},'Mostrando 200 de '+movsFiltrados.length+' movimentações. Estreite o período pra ver tudo.')
+))
 ),
 
 // Histórico Diário de CMV
