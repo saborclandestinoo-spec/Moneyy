@@ -1890,8 +1890,9 @@ const SAIS=[
 {l:'Despesas Financeiras',p:'4.4',k:'s44',subs:[{l:'Juros/Tarifas',p:'4.4'}]}];
 
 const FZ=v=>v===0?'—':F(v);
-const entColor='#059669';const entBg='#ecfdf5';const entBgL='#f5fdf9';
-const saiColor='#dc2626';const saiBg='#fef2f2';const saiBgL='#fefafa';
+const entColor='#059669';const entBg='#DCFCE7';const entBgL='#F0FDF4';
+const saiColor='#dc2626';const saiBg='#FFE4E4';const saiBgL='#FFF8F8';
+const accent='#6C63FF';
 
 const thS={padding:'8px 10px',fontSize:10,fontWeight:700,textAlign:'center',color:'#fff',background:'#374151',borderRight:'1px solid #4b5563',whiteSpace:'nowrap'};
 const tdS={padding:'6px 10px',fontSize:11,textAlign:'right',borderRight:'1px solid #f0f0f0',borderBottom:'1px solid #f0f0f0',color:'#111'};
@@ -1899,13 +1900,13 @@ const sticky={position:'sticky',left:0,zIndex:1};
 const stickyH={position:'sticky',left:0,zIndex:2,background:'#374151'};
 
 const mkRow=(label,fn,opts)=>{
-const{bg,labelColor,fw,indent,click,expKey,valColor,fmt}=opts||{};
+const{bg,labelColor,fw,indent,click,expKey,valColor,fmt,colorFn}=opts||{};
 const bgc=bg||'#fff';
 const format=fmt||FZ;
 return React.createElement('tr',{onClick:click||undefined,style:{background:bgc,cursor:click?'pointer':'default'}},
 React.createElement('td',{style:{...tdS,textAlign:'left',fontWeight:fw||400,color:labelColor||'#333',paddingLeft:10+(indent||0)*14,...sticky,background:bgc,whiteSpace:'nowrap',borderRight:'1px solid #e5e7eb'}},
 label,click&&React.createElement('span',{style:{fontSize:8,marginLeft:5,opacity:0.5}},exp[expKey]?'▼':'▶')),
-colH.map((c,i)=>{const v=fn(c);return React.createElement('td',{key:i,style:{...tdS,fontWeight:fw||400,color:v<0?'#dc2626':(v===0?'#d1d5db':(valColor||'#111'))}},format(v));}));};
+colH.map((c,i)=>{const v=fn(c);const clr=colorFn?colorFn(v):(v<0?'#dc2626':(v===0?'#d1d5db':(valColor||'#111')));return React.createElement('td',{key:i,style:{...tdS,fontWeight:fw||400,color:clr}},format(v));}));};
 const FZPct=v=>v===0?'—':v.toFixed(1)+'%';
 
 return React.createElement('div',{style:{padding:'24px',animation:'fadeUp 0.2s ease'}},
@@ -1921,7 +1922,7 @@ React.createElement('tr',null,
 React.createElement('th',{style:{...thS,textAlign:'left',minWidth:170,...stickyH}},'Fluxo de Caixa'),
 colH.map(c=>React.createElement('th',{key:c.l,style:{...thS,minWidth:isMensal?68:40}},c.l)))),
 React.createElement('tbody',null,
-mkRow('Saldo Inicial',c=>gsi(c),{bg:'#f9fafb',fw:700,labelColor:'#374151'}),
+mkRow('Saldo Inicial',c=>gsi(c),{bg:'#F0F4FF',fw:700,labelColor:accent,valColor:accent}),
 mkRow('Entradas',c=>gt('receita',c),{bg:entBg,fw:700,labelColor:entColor,valColor:entColor,click:()=>toggleExp('ent'),expKey:'ent'}),
 exp.ent&&ENTS.map(g=>[
 mkRow(g.l,c=>gv('receita',g.p,c),{bg:entBgL,fw:600,labelColor:entColor,indent:1,click:g.subs.length?()=>toggleExp(g.k):null,expKey:g.k}),
@@ -1930,10 +1931,10 @@ mkRow('Saídas',c=>gt('despesa',c),{bg:saiBg,fw:700,labelColor:saiColor,valColor
 exp.sai&&SAIS.map(g=>[
 mkRow(g.l,c=>gv('despesa',g.p,c),{bg:saiBgL,fw:600,labelColor:saiColor,indent:1,click:g.subs.length?()=>toggleExp(g.k):null,expKey:g.k}),
 exp[g.k]&&g.subs.map(sub=>mkRow(sub.l,c=>gv('despesa',sub.p,c),{bg:'#fff',indent:2}))]),
-mkRow('Geração de Caixa',c=>{const v=gt('receita',c)-gt('despesa',c);return v;},{bg:'#f0fdf4',fw:700,labelColor:'#065f46'}),
-mkRow('Saldo Acumulado',(()=>{let acc=0;const vals={};colH.forEach(c=>{acc+=gt('receita',c)-gt('despesa',c);vals[c.ms]=acc;});return c=>vals[c.ms];})(),{bg:'#eef2ff',fw:700,labelColor:'#4338ca'}),
-mkRow('Taxa de Poupança',c=>{const rec=gt('receita',c);const ger=gt('receita',c)-gt('despesa',c);return rec>0?Math.round(ger/rec*1000)/10:0;},{bg:'#fff7ed',fw:600,labelColor:'#c2410c',fmt:FZPct}),
-mkRow('Disponibilidade',c=>gsi(c)+gt('receita',c)-gt('despesa',c),{bg:'#374151',fw:800,labelColor:'#fff',valColor:'#4ade80'})
+mkRow('Geração de Caixa',c=>{const v=gt('receita',c)-gt('despesa',c);return v;},{bg:'#EEF2FF',fw:700,labelColor:'#374151',valColor:entColor}),
+mkRow('Saldo Acumulado',(()=>{let acc=0;const vals={};colH.forEach(c=>{acc+=gt('receita',c)-gt('despesa',c);vals[c.ms]=acc;});return c=>vals[c.ms];})(),{bg:'#EEF2FF',fw:700,labelColor:'#374151',valColor:entColor}),
+mkRow('Taxa de Poupança',c=>{const rec=gt('receita',c);const ger=gt('receita',c)-gt('despesa',c);return rec>0?Math.round(ger/rec*1000)/10:0;},{bg:'#EEF2FF',fw:600,labelColor:'#374151',fmt:FZPct,colorFn:v=>v>=20?'#059669':v>=0?'#D97706':'#dc2626'}),
+mkRow('Disponibilidade',c=>gsi(c)+gt('receita',c)-gt('despesa',c),{bg:'#EDE9FE',fw:800,labelColor:'#7C3AED',valColor:'#7C3AED'})
 ))));}
 
 
