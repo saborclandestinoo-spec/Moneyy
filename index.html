@@ -1873,7 +1873,7 @@ const ontem=fmtYMD(new Date(new Date().setDate(new Date().getDate()-1)));
 
 // Saldo inicial ancorado no saldo REAL somado das contas bancárias, a partir de ontem
 // (evita projeção pra trás sobre o mês inteiro, que dava valor negativo por lançamentos não-conciliados)
-const saldoBancosHoje=(contas||[]).reduce((s,c)=>s+Number(c.saldo||0),0);
+const saldoBancosHoje=(contas||[]).reduce((s,c)=>s+saldoRealConta(c,lancamentos),0);
 const fluxoHoje=getT('receita',hoje,hoje)-getT('despesa',hoje,hoje);
 const saldoOntem=saldoBancosHoje-fluxoHoje;
 const getSI=start=>{
@@ -1955,7 +1955,7 @@ colH.map((c,i)=>React.createElement('td',{key:i,style:{...tdS,background:BG_SECT
 return React.createElement('div',{style:{padding:'24px',animation:'fadeUp 0.2s ease'}},
 React.createElement('h2',{style:{margin:'0 0 16px',fontWeight:800,fontSize:18,color:'#111'}},'Fluxo de Caixa'),
 React.createElement('div',{style:{display:'flex',gap:10,alignItems:'center',marginBottom:16,flexWrap:'wrap'}},
-React.createElement(DateRangePicker,{dtIni,dtFim,onChangeDtIni:setDtIni,onChangeDtFim:setDtFim}),
+React.createElement(DateRangePicker,{dtIni,dtFim,onChangeDtIni:setDtIni,onChangeDtFim:setDtFim,openRight:true}),
 React.createElement('span',{style:{fontSize:12,color:'#999'}},nStr+' · '+(granularity==='day'?'dia a dia':granularity==='week'?'semanal':'mensal')+' · saldo bancário hoje: '+F(saldoBancosHoje))),
 React.createElement('div',{style:{overflowX:'auto',borderRadius:10,border:'1px solid #e2e8f0',boxShadow:'0 1px 6px rgba(0,0,0,0.06)'}},
 React.createElement('table',{style:{width:'100%',borderCollapse:'collapse',minWidth:170+colH.length*(granularity==='month'?68:64)}},
