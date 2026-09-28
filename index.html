@@ -1858,7 +1858,7 @@ const{lancamentos,contas}=db;
 const hoje=TODAY();
 const[dtIni,setDtIni]=React.useState(()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),1).toISOString().split('T')[0];});
 const[dtFim,setDtFim]=React.useState(()=>hoje);
-const[exp,setExp]=React.useState({ent:true,sai:true});
+const[exp,setExp]=React.useState({ent:true,sai:true,e31:true});
 const toggleExp=k=>setExp(p=>({...p,[k]:!p[k]}));
 const MS_S=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
@@ -1934,7 +1934,7 @@ const BG_DESP='#FFF8F8';const BG_DESP_TOT='#FFE4E4';const BG_SALDO='#EEF2FF';
 const BG_SECTION='#F1F5F9';const BG_SINICIAL='#F0F4FF';const BG_DISP='#EDE9FE';
 
 const thS={padding:'5px 6px',fontSize:10,fontWeight:600,textAlign:'right',color:'#475569',background:BG_HEADER,borderBottom:'2px solid #e2e8f0',borderRight:'1px solid #e2e8f0',whiteSpace:'nowrap'};
-const tdS={padding:'4px 6px',fontSize:11,textAlign:'right',borderRight:'1px solid #e2e8f0',borderBottom:'1px solid #e2e8f0',color:'#111',fontVariantNumeric:'tabular-nums'};
+const tdS={padding:'4px 6px',fontSize:11,textAlign:'right',borderRight:'1px solid #e2e8f0',borderBottom:'1px solid #e2e8f0',color:'#111',fontVariantNumeric:'tabular-nums',whiteSpace:'nowrap'};
 const sticky={position:'sticky',left:0,zIndex:1};
 const stickyH={position:'sticky',left:0,zIndex:2,background:BG_HEADER};
 
@@ -1958,11 +1958,11 @@ React.createElement('div',{style:{display:'flex',gap:10,alignItems:'center',marg
 React.createElement(DateRangePicker,{dtIni,dtFim,onChangeDtIni:setDtIni,onChangeDtFim:setDtFim,openRight:true}),
 React.createElement('span',{style:{fontSize:12,color:'#999'}},nStr+' · '+(granularity==='day'?'dia a dia':granularity==='week'?'semanal':'mensal')+' · saldo bancário hoje: '+F(saldoBancosHoje))),
 React.createElement('div',{style:{overflowX:'auto',borderRadius:10,border:'1px solid #e2e8f0',boxShadow:'0 1px 6px rgba(0,0,0,0.06)'}},
-React.createElement('table',{style:{width:'100%',borderCollapse:'collapse',minWidth:120+colH.length*(granularity==='month'?48:42)}},
+React.createElement('table',{style:{width:'100%',borderCollapse:'collapse',minWidth:130+colH.length*(granularity==='month'?66:60)}},
 React.createElement('thead',null,
 React.createElement('tr',null,
 React.createElement('th',{style:{...thS,textAlign:'left',minWidth:130,...stickyH}},'Fluxo de Caixa'),
-colH.map((c,i)=>React.createElement('th',{key:i,style:{...thS,minWidth:granularity==='month'?48:42}},c.l)))),
+colH.map((c,i)=>React.createElement('th',{key:i,style:{...thS,minWidth:granularity==='month'?66:60}},c.l)))),
 React.createElement('tbody',null,
 mkRow('Saldo Inicial',c=>gsi(c),{bg:BG_SINICIAL,fw:700,labelColor:accent,valColor:accent,icon:'📘',borderTop:accent}),
 
