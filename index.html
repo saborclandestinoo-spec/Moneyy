@@ -1868,18 +1868,24 @@ const codDe=l=>(l.categoria||'').split(' ')[0];
 const getV=(tipo,pref,start,end)=>(lancamentos||[]).filter(l=>{const d=dp(l);return d>=start&&d<=end&&l.pago&&l.tipo===tipo&&(codDe(l)===pref||codDe(l).startsWith(pref+'.'));}).reduce((s,l)=>s+Number(l.valor||0),0);
 const getT=(tipo,start,end)=>(lancamentos||[]).filter(l=>{const d=dp(l);return d>=start&&d<=end&&l.pago&&l.tipo===tipo&&l.tipo!=='transferencia';}).reduce((s,l)=>s+Number(l.valor||0),0);
 
-// Saldo inicial ancorado no saldo REAL somado das contas bancárias hoje
+const fmtYMD=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const ontem=fmtYMD(new Date(new Date().setDate(new Date().getDate()-1)));
+
+// Saldo inicial ancorado no saldo REAL somado das contas bancárias, a partir de ontem
+// (evita projeção pra trás sobre o mês inteiro, que dava valor negativo por lançamentos não-conciliados)
 const saldoBancosHoje=(contas||[]).reduce((s,c)=>s+Number(c.saldo||0),0);
+const fluxoHoje=getT('receita',hoje,hoje)-getT('despesa',hoje,hoje);
+const saldoOntem=saldoBancosHoje-fluxoHoje;
 const getSI=start=>{
-const fluxoDepois=(lancamentos||[]).filter(l=>{const d=dp(l);return d>=start&&l.pago&&l.tipo!=='transferencia';}).reduce((s,l)=>s+(l.tipo==='receita'?Number(l.valor||0):-Number(l.valor||0)),0);
-return saldoBancosHoje-fluxoDepois;
+if(start<=ontem)return saldoOntem;
+const fluxoEntre=(lancamentos||[]).filter(l=>{const d=dp(l);return d>=hoje&&d<start&&l.pago&&l.tipo!=='transferencia';}).reduce((s,l)=>s+(l.tipo==='receita'?Number(l.valor||0):-Number(l.valor||0)),0);
+return saldoOntem+fluxoEntre;
 };
 
 const dtIniN=new Date(dtIni+'T00:00:00');
 const dtFimN=new Date(dtFim+'T23:59:59');
 const diffDays=Math.max(0,Math.round((dtFimN-dtIniN)/86400000));
 const granularity=diffDays<=31?'day':diffDays<=90?'week':'month';
-const fmtYMD=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 
 const colH=[];
 if(granularity==='day'){
