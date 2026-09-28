@@ -1915,11 +1915,13 @@ cur=new Date(y,m+1,1);
 }
 const nStr=granularity==='day'?colH.length+(colH.length===1?' dia':' dias'):granularity==='week'?colH.length+' sem.':colH.length+(colH.length===1?' mês':' meses');
 
+const normFP=s=>(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 const gv=(tipo,pref,col)=>getV(tipo,pref,col.start,col.end);
+const gvForma=(tipo,pref,kw,start,end)=>(lancamentos||[]).filter(l=>{const d=dp(l);if(!(d>=start&&d<=end&&l.pago&&l.tipo===tipo))return false;if(codDe(l)!==pref&&!codDe(l).startsWith(pref+'.'))return false;const fp=normFP(l.forma_pag);if(!kw.length){const outrosKw=['pix','dinheiro','credito','débito','debito'];return!outrosKw.some(k=>fp.includes(k));}return kw.some(k=>fp.includes(normFP(k)));}).reduce((s,l)=>s+Number(l.valor||0),0);
 const gt=(tipo,col)=>getT(tipo,col.start,col.end);
 const gsi=col=>getSI(col.start);
 
-const ENTS=[{l:'Receita de Vendas',p:'3.1',k:'e31',subs:[{l:'Pix',p:'3.1.1'},{l:'Dinheiro',p:'3.1.2'},{l:'Cartão Crédito',p:'3.1.3'},{l:'Cartão Débito',p:'3.1.4'},{l:'iFood',p:'3.1.5'},{l:'Outras',p:'3.1.6'}]},{l:'Receitas Financeiras',p:'3.3',k:'e33',subs:[]},{l:'Outras Receitas',p:'3.4',k:'e34',subs:[]}];
+const ENTS=[{l:'Receita de Vendas',p:'3.1',k:'e31',subs:[{l:'Pix',kw:['pix']},{l:'Dinheiro',kw:['dinheiro']},{l:'Cartão Crédito',kw:['credito','crédito']},{l:'Cartão Débito',kw:['debito','débito']},{l:'iFood',kw:['ifood']},{l:'Outras',kw:[]}]},{l:'Receitas Financeiras',p:'3.3',k:'e33',subs:[]},{l:'Outras Receitas',p:'3.4',k:'e34',subs:[]}];
 const SAIS=[
 {l:'Despesas com Produto',p:'4.1',k:'s41',subs:[{l:'Ingredientes',p:'4.1.1'},{l:'Mão de Obra',p:'4.1.2'},{l:'CIF',p:'4.1.3'}]},
 {l:'Despesas com Vendas',p:'4.2',k:'s42',subs:[{l:'Entregas',p:'4.2.1'},{l:'Marketing',p:'4.2.2'},{l:'Taxas',p:'4.2.4'}]},
@@ -1949,7 +1951,7 @@ icon&&React.createElement('span',{style:{marginRight:4}},icon),label,click&&Reac
 colH.map((c,i)=>{const v=fn(c);const clr=colorFn?colorFn(v):(v<0?redC:(v===0?'#cbd5e1':(valColor||'#111')));return React.createElement('td',{key:i,style:{...tdS,fontWeight:fw||400,color:clr,...bStyle}},format(v));}));};
 
 const sectionRow=(label,icon,borderColor)=>React.createElement('tr',null,
-React.createElement('td',{style:{...tdS,textAlign:'left',fontWeight:700,color:'#111',...sticky,background:BG_SECTION,whiteSpace:'nowrap',borderRight:'2px solid #e2e8f0',borderTop:'2px solid '+borderColor}},icon+' '+label),
+React.createElement('td',{style:{...tdS,textAlign:'left',fontWeight:700,color:'#111',...sticky,background:BG_SECTION,whiteSpace:'nowrap',borderRight:'2px solid #e2e8f0',borderTop:'2px solid '+borderColor}},label),
 colH.map((c,i)=>React.createElement('td',{key:i,style:{...tdS,background:BG_SECTION,borderTop:'2px solid '+borderColor}},'')));
 
 return React.createElement('div',{style:{padding:'24px',animation:'fadeUp 0.2s ease'}},
@@ -1964,25 +1966,25 @@ React.createElement('tr',null,
 React.createElement('th',{style:{...thS,textAlign:'left',minWidth:130,...stickyH}},'Fluxo de Caixa'),
 colH.map((c,i)=>React.createElement('th',{key:i,style:{...thS,minWidth:granularity==='month'?66:60}},c.l)))),
 React.createElement('tbody',null,
-mkRow('Saldo Inicial',c=>gsi(c),{bg:BG_SINICIAL,fw:700,labelColor:accent,valColor:accent,icon:'📘',borderTop:accent}),
+mkRow('Saldo Inicial',c=>gsi(c),{bg:BG_SINICIAL,fw:800,labelColor:'#000',valColor:'#000',borderTop:accent}),
 
-sectionRow('RECEITAS','📈',emerald),
+sectionRow('RECEITAS','',emerald),
 exp.ent&&ENTS.map(g=>[
 mkRow(g.l,c=>gv('receita',g.p,c),{bg:BG_REC,fw:600,labelColor:emerald,indent:1,click:g.subs.length?()=>toggleExp(g.k):null,expKey:g.k}),
-exp[g.k]&&g.subs.map(sub=>mkRow(sub.l,c=>gv('receita',sub.p,c),{bg:'#fff',labelColor:'#555',indent:2}))]),
+exp[g.k]&&g.subs.map(sub=>mkRow(sub.l,c=>gvForma('receita',g.p,sub.kw,c.start,c.end),{bg:'#fff',labelColor:'#555',indent:2}))]),
 mkRow('Total Receitas',c=>gt('receita',c),{bg:BG_REC_TOT,fw:700,labelColor:emerald,valColor:emerald}),
 
-sectionRow('DESPESAS','📉',redC),
+sectionRow('DESPESAS','',redC),
 exp.sai&&SAIS.map(g=>[
 mkRow(g.l,c=>gv('despesa',g.p,c),{bg:BG_DESP,fw:600,labelColor:redC,indent:1,click:g.subs.length?()=>toggleExp(g.k):null,expKey:g.k}),
 exp[g.k]&&g.subs.map(sub=>mkRow(sub.l,c=>gv('despesa',sub.p,c),{bg:'#fff',labelColor:'#555',indent:2}))]),
 mkRow('Total Despesas',c=>gt('despesa',c),{bg:BG_DESP_TOT,fw:700,labelColor:redC,valColor:redC}),
 
-mkRow('SALDO DO MÊS',c=>gt('receita',c)-gt('despesa',c),{bg:BG_SALDO,fw:800,labelColor:'#111',icon:'💼',borderTop:accent}),
+mkRow('SALDO DO MÊS',c=>gt('receita',c)-gt('despesa',c),{bg:BG_SALDO,fw:800,labelColor:'#111',borderTop:accent}),
 mkRow('Saldo Acumulado',(()=>{let acc=0;const vals={};colH.forEach(c=>{acc+=gt('receita',c)-gt('despesa',c);vals[c.start]=acc;});return c=>vals[c.start];})(),{bg:BG_SALDO,fw:600,labelColor:'#333'}),
 mkRow('Taxa de Poupança',c=>{const rec=gt('receita',c);const ger=gt('receita',c)-gt('despesa',c);return rec>0?Math.round(ger/rec*1000)/10:0;},{bg:BG_SALDO,fw:600,labelColor:'#333',fmt:FZPct,colorFn:v=>v>=20?emerald:v>=0?'#D97706':redC}),
 
-mkRow('Disponibilidade',c=>gsi(c)+gt('receita',c)-gt('despesa',c),{bg:BG_DISP,fw:800,labelColor:'#7C3AED',valColor:'#7C3AED',icon:'🪙',borderTop:'#7C3AED'})
+mkRow('Disponibilidade',c=>gsi(c)+gt('receita',c)-gt('despesa',c),{bg:BG_DISP,fw:800,labelColor:'#7C3AED',valColor:'#7C3AED',borderTop:'#7C3AED'})
 ))));}function MovForm({uid,db,reload,close}){const{contas}=db;const[tipo,setTipo]=useState('entrada');const[contaId,setContaId]=useState(contas[0]?.id||'');const[cat,setCat]=useState('Venda');const[desc,setDesc]=useState('');const[val,setVal]=useState('');const[dt,setDt]=useState(TODAY());const[ld,setLd]=useState(false);const catsPor={entrada:['Venda','Outros'],saida:CATS};return React.createElement('div',null,React.createElement('div',{style:{display:'flex',gap:5,marginBottom:13}},['entrada','saida'].map(t=>React.createElement('button',{key:t,onClick:()=>{setTipo(t);setCat(catsPor[t][0]);},style:{flex:1,padding:'8px',borderRadius:10,fontSize:12,fontWeight:600,background:tipo===t?'#dc2626':'#181818',color:tipo===t?'#fff':'#555',border:tipo===t?'1px solid #e8293a':'1px solid #252525'}},{entrada:'Entrada',saida:'Saída'}[t]))),React.createElement(G2,null,React.createElement(Sel,{label:'Conta',v:contaId,set:setContaId,opts:contas.map(c=>({v:c.id,l:c.nome}))}),React.createElement(Sel,{label:'Categoria',v:cat,set:setCat,opts:catsPor[tipo]})),React.createElement(G2,null,React.createElement(Inp,{label:'Valor (R$)',v:val,set:setVal,type:'number'}),React.createElement(MiniDatePicker,{label:'Data',value:dt,onChange:setDt})),React.createElement(Inp,{label:'Descrição',v:desc,set:setDesc,ph:'Descrição'}),React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},React.createElement('button',{style:C.ghost,onClick:close},'Cancelar'),React.createElement('button',{style:C.btn,onClick:async()=>{if(!val||!desc){toast('Preencha os campos',true);return;}setLd(true);const v=parseFloat(val);await sb.from('movimentacoes').insert({user_id:uid,conta_id:contaId,tipo,categoria:cat,descricao:desc,valor:v,data_movimentacao:dt,origem:'Manual'});const conta=contas.find(c=>c.id===contaId);if(conta)await sb.from('contas_bancarias').update({saldo:tipo==='entrada'?Number(conta.saldo)+v:Number(conta.saldo)-v}).eq('id',contaId);toast('Registrado!',false,true);reload();close();setLd(false);}},ld?React.createElement(Spin):'Salvar')));}function advanceDate(base,freq,i){const[yr0,mo0,dy0]=base.split('-').map(Number);let yr=yr0,mo=mo0-1,dy=dy0;if(freq==='semanal'){const t=new Date(yr,mo,dy+i*7);yr=t.getFullYear();mo=t.getMonth();dy=t.getDate();}else if(freq==='quinzenal'){const t=new Date(yr,mo,dy+i*15);yr=t.getFullYear();mo=t.getMonth();dy=t.getDate();}else if(freq==='mensal'){mo+=i;}else if(freq==='bimestral'){mo+=i*2;}else if(freq==='trimestral'){mo+=i*3;}else if(freq==='semestral'){mo+=i*6;}else if(freq==='anual'){yr+=i;}const n=new Date(yr,mo,dy);return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0');}const isPedCancelado=p=>{const s=(p.status||'').toLowerCase();return s==='canceled'||s==='cancelled'||s==='cancel';};const isCancelledItem=it=>{const s=(it.status||'').toLowerCase();return it.cancelled||s==='cancelled'||s==='canceled'||s==='excluded';};const uid_gen=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);function exportarLancamentos(list,contas,dtIni,dtFim){const rows=list.map(l=>({'Data':l.data||'','Vencimento':l.venc||'','Tipo':l.tipo||'','Descricao':l.descricao||'','Categoria':l.categoria||'','Conta':(contas||[]).find(c=>c.id===l.conta_id)&&(contas||[]).find(c=>c.id===l.conta_id).nome||'','Forma Pagto':l.forma_pag||'','Valor':Number(l.valor||0),'Pago':l.pago?'Sim':'Nao','Data Pagto':l.data_pag||'','Parcela':l.parcela||'','Obs':l.obs||''}));const ws=XLSX.utils.json_to_sheet(rows);// Larguras das colunas
 ws['!cols']=[{wch:12},{wch:12},{wch:10},{wch:40},{wch:25},{wch:20},{wch:16},{wch:14},{wch:6},{wch:12},{wch:8},{wch:30}];const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Lancamentos');const periodo=dtIni.replace(/-/g,'')+'_'+dtFim.replace(/-/g,'');XLSX.writeFile(wb,'lancamentos_'+periodo+'.xlsx');toast('Exportado! '+rows.length+' lancamentos',false,true);}function gerarModeloImport(){const rows=[{'Data':'2026-06-01','Vencimento':'2026-06-01','Tipo':'despesa','Descricao':'Aluguel Junho','Categoria':'3.2 Aluguel','Conta':'','Forma Pagto':'Transferencia','Valor':1500,'Pago':'Sim','Obs':''},{'Data':'2026-06-05','Vencimento':'2026-06-10','Tipo':'receita','Descricao':'Venda cookies','Categoria':'1.1 Vendas de Produtos','Conta':'','Forma Pagto':'PIX','Valor':350,'Pago':'Nao','Obs':'Pedido 123'}];const ws=XLSX.utils.json_to_sheet(rows);ws['!cols']=[{wch:12},{wch:12},{wch:10},{wch:40},{wch:25},{wch:20},{wch:16},{wch:10},{wch:6},{wch:30}];const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Lancamentos');XLSX.writeFile(wb,'modelo_importacao.xlsx');toast('Modelo baixado!',false,true);}async function importarLancamentos(uid,arquivo,contas,reload,onDone){const reader=new FileReader();reader.onload=async e=>{try{const wb=XLSX.read(e.target.result,{type:'array'});const ws=wb.Sheets[wb.SheetNames[0]];const rows=XLSX.utils.sheet_to_json(ws,{defval:''});if(!rows.length){toast('Arquivo vazio',true);return;}const mapeiaData=v=>{if(!v)return null;const s=String(v).trim();// formato YYYY-MM-DD
 if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;// formato DD/MM/YYYY
