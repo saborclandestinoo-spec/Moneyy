@@ -1495,10 +1495,10 @@ const[tick,setTick]=React.useState(0);
 React.useEffect(()=>{let ok=true;setMovs(null);sb.from('estoque_movimentos').select('*').eq('user_id',uid).gte('criado_em',dtIni+'T00:00:00').lte('criado_em',dtFim+'T23:59:59').order('criado_em',{ascending:false}).limit(5000).then(({data})=>{if(ok){setMovs(data||[]);setPg(0);}});return()=>{ok=false;};},[uid,dtIni,dtFim,tick]);
 const recarregar=async()=>{await reload();setTick(t=>t+1);};
 const abrir=t=>setM({title:t==='entrada'?'Entrada de estoque':t==='saida'?'Saída de estoque':'Ajuste de inventário',wide:true,body:h(MovEst,{uid,db,reload:recarregar,close:()=>setM(null),tipoInicial:t})});
-const norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+const norm=s=>normNomeEst(s);
 const byId={};(estoque||[]).forEach(e=>{byId[String(e.id)]=e;});
 const itemDe=m=>byId[String(m.estoque_id)]||(estoque||[]).find(e=>norm(e.nome)===norm(m.nome_item));
-const secDe=e=>!e?'Outros':e.almoxarifado===true||e.categoria==='Material de Produção'||e.categoria==='Material de Limpeza'?'Uso e Consumo':e.categoria==='Matéria-Prima'?'Matérias-Primas':e.categoria==='Recheio'?'Semi-acabados':e.categoria==='Cookie'?'Produto Acabado':e.categoria==='Embalagem'?'Embalagens':'Outros';
+const secDe=e=>!e?'Item excluído':e.almoxarifado===true||e.categoria==='Material de Produção'||e.categoria==='Material de Limpeza'?'Uso e Consumo':e.categoria==='Matéria-Prima'?'Matérias-Primas':e.categoria==='Recheio'?'Semi-acabados':e.categoria==='Cookie'?'Produto Acabado':e.categoria==='Embalagem'?'Embalagens':'Outros';
 const linhas=(movs||[]).map(m=>{const it=itemDe(m);const d=estMovDelta(m);const cu=Number(m.custo_unit)||Number(it?.custo||0);const cls=String(m.tipo||'').startsWith('ajuste')||String(m.motivo||'').startsWith('ajuste')||m.motivo==='estorno'?'ajuste':d>=0?'entrada':'saida';return{...m,_it:it,_d:d,_cu:cu,_v:Math.abs(d)*cu,_cls:cls,_sec:secDe(it),_lab:estMovLabel(m)};});
 const motivosPresentes=[...new Set(linhas.map(l=>l.motivo).filter(Boolean))].map(k=>({v:k,l:EST_MOTIVOS[k]||k})).sort((a,b)=>a.l.localeCompare(b.l));
 const filtradas=linhas.filter(l=>(fTipo==='todos'||l._cls===fTipo)&&(!fMot||l.motivo===fMot)&&(!fSec||l._sec===fSec)&&(!busca||norm(l.nome_item||l._it?.nome).includes(norm(busca))||norm(l.descricao).includes(norm(busca))));
@@ -1529,13 +1529,14 @@ h('div',{style:{display:'flex',gap:4,background:'#f5f5f5',padding:3,borderRadius
 h('select',{value:fMot,onChange:e=>{setFMot(e.target.value);setPg(0);},style:selS},h('option',{value:''},'Todos os motivos'),motivosPresentes.map(m=>h('option',{key:m.v,value:m.v},m.l))),
 h('select',{value:fSec,onChange:e=>{setFSec(e.target.value);setPg(0);},style:selS},h('option',{value:''},'Todas as seções'),['Matérias-Primas','Semi-acabados','Produto Acabado','Embalagens','Uso e Consumo','Outros'].map(s=>h('option',{key:s,value:s},s))),
 h('div',{style:{position:'relative',marginLeft:'auto'}},h('span',{style:{position:'absolute',left:11,top:'50%',transform:'translateY(-50%)',color:'#bbb',fontSize:13,pointerEvents:'none'}},'⌕'),h('input',{placeholder:'Buscar item ou descrição...',value:busca,onChange:e=>{setBusca(e.target.value);setPg(0);},style:{background:'#f5f5f5',border:'none',borderRadius:9,padding:'8px 12px 8px 28px',fontSize:12.5,outline:'none',width:220}}))),
+(()=>{const orf=linhas.filter(l=>!l._it);if(!orf.length)return null;const nomes=[...new Set(orf.map(l=>l.nome_item||'?'))];return h('div',{style:{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:12,padding:'10px 14px',marginBottom:12,fontSize:12.5,color:'#991b1b',lineHeight:1.5}},h('b',null,orf.length+' movimento(s) de item que não existe mais no estoque: '),nomes.slice(0,8).join(', ')+(nomes.length>8?'…':''),h('div',{style:{color:'#b91c1c',fontSize:11.5,marginTop:2}},'Esses movimentos não somam no saldo — o registro do item foi excluído. Para recheio: abra a ficha em Estoque > Semi-acabados, informe a quantidade e salve que o item é recriado.'));})(),
 h('div',{style:{background:'#fff',borderRadius:14,boxShadow:'0 1px 6px rgba(0,0,0,0.06)',overflow:'hidden'}},
 movs===null?h('div',{style:{padding:40,textAlign:'center',color:'#ccc'}},'Carregando...'):filtradas.length===0?h('div',{style:{padding:'50px 20px',textAlign:'center',color:'#bbb',fontSize:13}},'Nenhuma movimentação no período/filtros'):
 h('div',{style:{overflowX:'auto'}},h('table',{style:{width:'100%',borderCollapse:'collapse',minWidth:920}},
 h('thead',null,h('tr',null,['Data','Item','Tipo','Motivo','Qtd','Saldo','Custo un.','Valor','Descrição'].map((c,i)=>h('th',{key:i,style:{...th,textAlign:i>=4&&i<=7?'right':'left'}},c)))),
 h('tbody',null,pagina.map(l=>{const un=l._it?.unidade||'';return h('tr',{key:l.id,onClick:()=>l._it&&setM({title:'Histórico — '+l._it.nome,wide:true,body:h(EstoqueHistoricoModal,{uid,estoqueId:l._it.id,nomeItem:l._it.nome,close:()=>setM(null),setM,dataInicial:l._it.data_estoque_inicial})}),style:{cursor:l._it?'pointer':'default'}},
 h('td',{style:{...td,whiteSpace:'nowrap',color:'#777',fontSize:12}},dtHr(l.criado_em)),
-h('td',{style:td},h('div',{style:{fontWeight:700,color:'#111'}},l.nome_item||l._it?.nome||'—'),h('div',{style:{fontSize:10.5,color:'#aaa'}},l._sec)),
+h('td',{style:td},h('div',{style:{fontWeight:700,color:'#111'}},l.nome_item||l._it?.nome||'—'),h('div',{style:{fontSize:10.5,color:l._it?'#aaa':'#dc2626',fontWeight:l._it?400:700}},l._sec)),
 h('td',{style:td},badge(l._cls)),
 h('td',{style:{...td,fontSize:12}},l._lab),
 h('td',{style:{...td,textAlign:'right',fontWeight:800,whiteSpace:'nowrap',color:l._d>=0?'#16a34a':'#dc2626',fontVariantNumeric:'tabular-nums'}},(l._d>=0?'+':'')+fq(l._d)+' '+un),
