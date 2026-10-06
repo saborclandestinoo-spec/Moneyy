@@ -2137,7 +2137,8 @@ else{const si=n(saldoIni)||0;const{data:novo,error}=await sb.from('estoque').ins
 if(error||!novo){toast('Erro ao criar: '+(error?.message||'sem retorno (permissão)'),true);setLd(false);return;}
 if(si!==0)await registrarMovEstoque(uid,{estoqueId:novo.id,nomeItem:novo.nome,tipo:'entrada',quantidade:si,saldoAntes:0,saldoDepois:si,motivo:'estoque_inicial',descricao:'Saldo inicial do cadastro',custoUnit:payload.custo||null,dataRef:dataIni!==TODAY()?dataIni:null});
 const rel=await estReligarFichas(novo,db);
-toast('Item criado'+(rel?' · '+rel+' ingrediente(s) de fichas religado(s)':''),false,true);}
+let fichaMsg='';if(categoria==='Cookie'){const jaTem=(db.fichas||[]).some(f=>f.categoria!=='Recheio'&&normNomeEst(f.nome)===normNomeEst(nome));if(!jaTem){const{error:eF}=await sb.from('fichas_tecnicas').insert({user_id:uid,nome:nome.trim(),categoria:'Cookie',rendimento:1,unidade_rendimento:'un',preco_venda:0,tempo_preparo:0});fichaMsg=eF?' · erro ao criar ficha: '+eF.message:' · ficha técnica criada (adicione ingredientes e preço)';}}
+toast('Item criado'+(rel?' · '+rel+' ingrediente(s) de fichas religado(s)':'')+fichaMsg,!!fichaMsg&&fichaMsg.includes('erro'),true);}
 await reload();if(onSaved)onSaved();close();
 }catch(err){toast('Erro: '+(err.message||err),true);}
 setLd(false);};
