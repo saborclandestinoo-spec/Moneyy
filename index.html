@@ -733,28 +733,29 @@ const disponiveisParaAdd=(estoque||[]).filter(e=>e.id&&!String(e.id).startsWith(
 
 const unidadesN=parseFloat(unidades)||0;
 // Peso total = soma do que foi realmente usado dos ingredientes (conservação de massa) — peso por unidade sai sozinho
-const pesoTotal=ings.reduce((s,i)=>s+(parseFloat(i.quantidade)||0),0);
+const pesoTotal=ings.reduce((s,i)=>{const b=calcBase(parseFloat(i.quantidade)||0,i.unidade);return s+(b.u==='un'?0:b.q);},0);
 const pesoPorUnidade=unidadesN>0?pesoTotal/unidadesN:0;
 const custoTotal=ings.reduce((s,i)=>s+parseFloat(i.quantidade||0)*custoIngUnit(i),0);
 const custoPorUnidade=unidadesN>0?custoTotal/unidadesN:0;
 const custoPorGrama=pesoTotal>0?custoTotal/pesoTotal:0;
-const rendTeoricoLote=Number(ficha?.rendimento||0);
+const rendTeoricoLote=Number(ficha?.rendimento||0);const porPeso=rendTeoricoLote>0&&rendTeoricoLote!==1;const unQ=porPeso?unidRend:'un';
+React.useEffect(()=>{if(porPeso){const L=parseFloat(String(rpLotes).replace(',','.'))||1;setUnidades(String(Math.round(rendTeoricoLote*L*10)/10));}},[ficha?.id,rpLotes]);
 
 const checagem=ings.map(i=>{const item=i.estoque_id?(estoque||[]).find(e=>String(e.id)===String(i.estoque_id)):(estoque||[]).find(e=>e.categoria!=="Recheio"&&e.nome&&i.nome&&e.nome.toLowerCase()===i.nome.toLowerCase());const necessario=parseFloat(i.quantidade||0);const disponivel=item?Number(item.qtd||0):null;const suficiente=item?disponivel>=necessario:true;return{...i,item,necessario,disponivel,suficiente};});
 const faltando=checagem.filter(c=>c.item&&c.necessario>0&&!c.suficiente);
 
 const produzir=async()=>{
 if(!ficha?.id){toast('Selecione o recheio',true);return;}
-if(unidadesN<=0){toast('Informe quantas unidades foram produzidas',true);return;}
+if(unidadesN<=0){toast(porPeso?'Informe quanto rendeu ('+unidRend+')':'Informe quantas unidades foram produzidas',true);return;}
 if(ings.filter(i=>parseFloat(i.quantidade)>0).length===0){toast('Informe quanto foi usado de cada ingrediente',true);return;}
 setLd(true);
 for(const c of checagem){if(!c.item||c.necessario<=0)continue;const qtdAnt=Number(c.item.qtd||0);const novaQtd=qtdAnt-c.necessario;const emb=Number(c.item.qtd_embalagem||1);await sb.from('estoque').update({qtd:novaQtd,qtd_estoque:emb>0?novaQtd/emb:0}).eq('id',c.item.id);await registrarMovEstoque(uid,{estoqueId:String(c.item.id),nomeItem:c.item.nome,tipo:'saida',quantidade:c.necessario,saldoAntes:qtdAnt,saldoDepois:novaQtd,motivo:'producao_recheio',descricao:'Produção de '+ficha.nome+' em '+FD(data)});}
 const novoQtd=Number(estoqueItem?.qtd||0)+unidadesN;
-if(estoqueItem){await sb.from('estoque').update({qtd:novoQtd,custo:custoPorUnidade}).eq('id',estoqueItem.id);await registrarMovEstoque(uid,{estoqueId:String(estoqueItem.id),nomeItem:ficha.nome,tipo:'entrada',quantidade:unidadesN,saldoAntes:Number(estoqueItem.qtd||0),saldoDepois:novoQtd,motivo:'producao_recheio',descricao:'Produzido: '+unidadesN+' un ('+pesoPorUnidade.toFixed(1)+unidRend+' cada, '+pesoTotal+unidRend+' total)',custoUnit:custoPorUnidade});}
-else{const{data:newEst}=await sb.from('estoque').insert({user_id:uid,nome:ficha.nome,categoria:'Recheio',unidade:'un',qtd:unidadesN,minimo:0,custo:custoPorUnidade,fornecedor:''}).select().single();if(newEst)await registrarMovEstoque(uid,{estoqueId:String(newEst.id),nomeItem:ficha.nome,tipo:'entrada',quantidade:unidadesN,saldoAntes:0,saldoDepois:unidadesN,motivo:'producao_recheio',descricao:'Produzido: '+unidadesN+' un ('+pesoPorUnidade.toFixed(1)+unidRend+' cada, '+pesoTotal+unidRend+' total)',custoUnit:custoPorUnidade});}
-const{data:lancData}=await sb.from('lancamentos').insert({user_id:uid,tipo:'despesa',descricao:'Produção: '+unidadesN+'x '+ficha.nome,valor:parseFloat(custoTotal.toFixed(2)),data,venc:data,data_pag:data,pago:true,categoria:'4.1.1.1 Ingredientes Consumidos',forma_pag:'',obs:'producao_interna'}).select().single();
+if(estoqueItem){await sb.from('estoque').update({qtd:novoQtd,custo:custoPorUnidade,...(porPeso&&estoqueItem.unidade!==unidRend?{unidade:unidRend}:{})}).eq('id',estoqueItem.id);await registrarMovEstoque(uid,{estoqueId:String(estoqueItem.id),nomeItem:ficha.nome,tipo:'entrada',quantidade:unidadesN,saldoAntes:Number(estoqueItem.qtd||0),saldoDepois:novoQtd,motivo:'producao_recheio',descricao:porPeso?'Produzido: '+unidadesN+' '+unidRend+' ('+(lotesN||1)+' lote(s))':'Produzido: '+unidadesN+' un ('+pesoPorUnidade.toFixed(1)+unidRend+' cada, '+pesoTotal+unidRend+' total)',custoUnit:custoPorUnidade});}
+else{const{data:newEst}=await sb.from('estoque').insert({user_id:uid,nome:ficha.nome,categoria:'Recheio',unidade:unQ,qtd:unidadesN,minimo:0,custo:custoPorUnidade,fornecedor:''}).select().single();if(newEst)await registrarMovEstoque(uid,{estoqueId:String(newEst.id),nomeItem:ficha.nome,tipo:'entrada',quantidade:unidadesN,saldoAntes:0,saldoDepois:unidadesN,motivo:'producao_recheio',descricao:porPeso?'Produzido: '+unidadesN+' '+unidRend+' ('+(lotesN||1)+' lote(s))':'Produzido: '+unidadesN+' un ('+pesoPorUnidade.toFixed(1)+unidRend+' cada, '+pesoTotal+unidRend+' total)',custoUnit:custoPorUnidade});}
+const{data:lancData}=await sb.from('lancamentos').insert({user_id:uid,tipo:'despesa',descricao:'Produção: '+(porPeso?estFq(unidadesN)+' '+unidRend+' de ':unidadesN+'x ')+ficha.nome,valor:parseFloat(custoTotal.toFixed(2)),data,venc:data,data_pag:data,pago:true,categoria:'4.1.1.1 Ingredientes Consumidos',forma_pag:'',obs:'producao_interna'}).select().single();
 await sb.from('producoes').insert({user_id:uid,ficha_id:ficha.id,ficha_nome:ficha.nome,quantidade:unidadesN,custo_total:parseFloat(custoTotal.toFixed(2)),data,hora,lancamento_id:lancData&&lancData.id||null,ingredientes_usados:ings});
-toast('Produção registrada! +'+pesoTotal+unidRend+' de '+ficha.nome,false,true);reload();close();setLd(false);
+toast('Produção registrada! +'+estFq(porPeso?unidadesN:pesoTotal)+unidRend+' de '+ficha.nome,false,true);reload();close();setLd(false);
 };
 
 const h=React.createElement;const C='#7c3aed';
@@ -774,7 +775,7 @@ h('style',null,'.pf-grid{display:grid;grid-template-columns:minmax(0,1fr) 310px;
 h('div',{className:'pf-grid'},
 h('div',{style:{minWidth:0}},
 sec(1,'Recheio',fichaInicial?null:'Escolha o recheio produzido',
-fichaInicial?h('div',{style:{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:EST_UI.soft,borderRadius:10}},estDot(C,9),h('b',{style:{fontSize:14}},ficha?ficha.nome:fichaInicial.nome),h('span',{style:{marginLeft:'auto',fontSize:12,color:EST_UI.mut}},'estoque '+estFq(saldoAntes)+' un')):
+fichaInicial?h('div',{style:{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:EST_UI.soft,borderRadius:10}},estDot(C,9),h('b',{style:{fontSize:14}},ficha?ficha.nome:fichaInicial.nome),h('span',{style:{marginLeft:'auto',fontSize:12,color:EST_UI.mut}},'estoque '+estFq(saldoAntes)+' '+(estoqueItem&&estoqueItem.unidade||unQ))):
 h('div',null,
 h('input',{value:rpBusca,onChange:e=>setRpBusca(e.target.value),placeholder:'Buscar recheio…',style:{...inp,marginBottom:10}}),
 recFichas.length===0?h('div',{style:{padding:18,textAlign:'center',color:EST_UI.sub,fontSize:13}},'Nenhum recheio cadastrado em Fichas Técnicas'):
@@ -793,22 +794,22 @@ h('div',{style:{marginTop:10}},h('button',{onClick:()=>setBulkOpen(p=>!p),style:
 bulkOpen&&h('div',{style:{border:'1px solid '+EST_UI.line,borderRadius:10,padding:10,marginTop:8}},h('input',{autoFocus:true,value:bulkBusca,onChange:e=>setBulkBusca(e.target.value),placeholder:'Buscar item do estoque…',style:inp}),h('div',{style:{maxHeight:170,overflowY:'auto',marginTop:6}},disponiveisParaAdd.length===0?h('div',{style:{color:EST_UI.sub,fontSize:12.5,padding:10,textAlign:'center'}},'Nenhum item encontrado'):disponiveisParaAdd.map(e=>h('div',{key:e.id,className:'pf-row',onClick:()=>adicionarIng(e),style:{display:'flex',justifyContent:'space-between',padding:'8px 10px',borderRadius:7,cursor:'pointer',fontSize:13}},h('span',{style:{fontWeight:600}},e.nome),h('span',{style:{color:EST_UI.sub,fontSize:12}},estFq(e.qtd)+' '+(e.unidade||''))))))),
 temReceita&&h('div',{style:{display:'flex',alignItems:'center',gap:6}},h('input',{type:'number',value:rpLotes,onChange:e=>setRpLotes(e.target.value),title:'Lotes',style:{...inp,width:56,padding:'6px 7px',fontSize:12.5,textAlign:'center'}}),h('span',{style:{fontSize:12,color:EST_UI.mut}},'lote(s)'),h('button',{onClick:usarReceita,style:{background:'#f5f3ff',color:C,border:'1px solid #ddd6fe',borderRadius:8,padding:'6px 10px',fontSize:12,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}},'Preencher pela receita'))),
 ficha&&sec(3,'Resultado',null,h('div',{style:{display:'grid',gridTemplateColumns:'130px 1fr 110px',gap:10}},
-h('div',null,lbl('Unidades produzidas'),h('input',{type:'number',value:unidades,placeholder:'0',onChange:e=>setUnidades(e.target.value),style:{...inp,fontSize:16,fontWeight:800,textAlign:'center'}})),
+h('div',null,lbl(porPeso?'Rendeu ('+unidRend+')':'Unidades produzidas'),h('input',{type:'number',value:unidades,placeholder:'0',onChange:e=>setUnidades(e.target.value),style:{...inp,fontSize:16,fontWeight:800,textAlign:'center'}})),
 h(MiniDatePicker,{label:'Data',value:data,onChange:setData,acent:C}),
 h('div',null,lbl('Hora'),h('input',{type:'time',value:hora,onChange:e=>setHora(e.target.value),style:inp}))))),
 h('div',{style:{position:'sticky',top:0}},
 h('div',{style:{background:'#fff',border:'1px solid '+EST_UI.line,borderRadius:14,padding:'16px 18px'}},
 h('div',{style:{fontSize:11.5,fontWeight:700,color:EST_UI.sub,textTransform:'uppercase',letterSpacing:'.4px'}},'Resumo'),
 h('div',{style:{fontSize:16,fontWeight:800,marginTop:6,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},ficha?ficha.nome:'Selecione um recheio'),
-h('div',{style:{fontSize:30,fontWeight:800,letterSpacing:'-1px',color:C,margin:'4px 0 10px',fontVariantNumeric:'tabular-nums'}},'+'+estFq(unidadesN)+' un'),
+h('div',{style:{fontSize:30,fontWeight:800,letterSpacing:'-1px',color:C,margin:'4px 0 10px',fontVariantNumeric:'tabular-nums'}},'+'+estFq(unidadesN)+' '+unQ),
 linhaR('Peso total usado',pesoTotal>0?estFq(Math.round(pesoTotal*10)/10)+' '+unidRend:'—'),
-linhaR('Peso por unidade',unidadesN>0&&pesoTotal>0?estFq(Math.round(pesoPorUnidade*10)/10)+' '+unidRend:'—'),
+!porPeso&&linhaR('Peso por unidade',unidadesN>0&&pesoTotal>0?estFq(Math.round(pesoPorUnidade*10)/10)+' '+unidRend:'—'),
 linhaR('Custo por '+unidRend,pesoTotal>0?fmt4(custoPorGrama):'—'),
-linhaR('Custo por unidade',F(custoPorUnidade),{top:true}),
+!porPeso&&linhaR('Custo por unidade',F(custoPorUnidade),{top:true}),porPeso&&linhaR('Custo por '+unidRend+' (rendimento)',unidadesN>0?fmt4(custoPorUnidade):'—',{top:true}),
 linhaR('Custo total',F(custoTotal),{b:true}),
-ficha&&linhaR('Estoque do recheio',estFq(saldoAntes)+' → '+estFq(saldoDepois)+' un',{top:true,c:'#16a34a'}),
-rendTeoricoLote>0&&pesoTotal>0&&h('div',{style:{fontSize:11.5,color:EST_UI.sub,marginTop:6}},'Receita prevê '+estFq(rendTeoricoLote)+' '+unidRend+' por lote'),
-faltando.length>0&&h('div',{style:{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:10,padding:'10px 12px',marginTop:12,fontSize:12.5,color:'#b91c1c',lineHeight:1.5}},h('b',null,'Estoque insuficiente: '),faltando.map(f=>f.item.nome).join(', '),'. A produção deixa o saldo negativo.'),
+ficha&&linhaR('Estoque do recheio',estFq(saldoAntes)+' → '+estFq(saldoDepois)+' '+unQ,{top:true,c:'#16a34a'}),
+rendTeoricoLote>0&&pesoTotal>0&&h('div',{style:{fontSize:11.5,color:EST_UI.sub,marginTop:6}},'Receita prevê '+estFq(rendTeoricoLote)+' '+unidRend+' por lote'+(porPeso&&lotesN>0?' · '+estFq(lotesN)+' lote(s) = '+estFq(Math.round(rendTeoricoLote*lotesN*10)/10)+' '+unidRend:'')),
+porPeso&&estoqueItem&&estoqueItem.unidade&&estoqueItem.unidade!==unidRend&&saldoAntes!==0&&h('div',{style:{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:10,padding:'10px 12px',marginTop:12,fontSize:12.5,color:'#92400e',lineHeight:1.5}},'O estoque deste recheio está em '+estoqueItem.unidade+' ('+estFq(saldoAntes)+'). A partir de agora fica em '+unidRend+' — faça uma contagem para acertar o saldo antigo.'),faltando.length>0&&h('div',{style:{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:10,padding:'10px 12px',marginTop:12,fontSize:12.5,color:'#b91c1c',lineHeight:1.5}},h('b',null,'Estoque insuficiente: '),faltando.map(f=>f.item.nome).join(', '),'. A produção deixa o saldo negativo.'),
 h('button',{onClick:produzir,disabled:!ficha||ld,style:{width:'100%',marginTop:14,background:!ficha||ld?'#94a3b8':C,color:'#fff',border:'none',borderRadius:11,padding:'12px',fontSize:14,fontWeight:700,cursor:!ficha||ld?'default':'pointer'}},ld?'Produzindo…':'Registrar produção'),
 h('button',{onClick:close,style:{width:'100%',marginTop:8,background:'#fff',color:EST_UI.mut,border:'1px solid #e2e8f0',borderRadius:11,padding:'10px',fontSize:13,fontWeight:600,cursor:'pointer'}},'Cancelar')))));}
 
