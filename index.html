@@ -4337,10 +4337,10 @@ return{qtd,custo:invR2(custo),pm:qtd>0?custo/qtd:0,valor:invR2(merc),contabil:in
 // valor contábil (Balanço): renda fixa pelo saldo, moeda/cripto pelo custo
 const invValorEm=(db,D)=>{if(db.invest_ok===false)return 0;return(db.investimentos||[]).reduce((s,i)=>s+invPos(i,db.invest_movs||[],D).contabil,0);};
 const invBuscarCotacoes=async invs=>{const out={},erros=[];
-const moedas=[...new Set(invs.filter(i=>i.tipo==='moeda'&&i.codigo).map(i=>String(i.codigo).toUpperCase().trim()))];
+const todasM=[...new Set(invs.filter(i=>i.tipo==='moeda'&&i.codigo).map(i=>String(i.codigo).toUpperCase().trim()))];const moedas=todasM.filter(m=>!INV_CG[m]);const moedasCripto=todasM.filter(m=>INV_CG[m]);
 if(moedas.length){try{const r=await fetch('https://economia.awesomeapi.com.br/json/last/'+moedas.map(m=>m+'-BRL').join(','));const j=await r.json();moedas.forEach(m=>{const x=j[m+'BRL'];if(x&&x.bid)out['m:'+m]=Number(x.bid);else erros.push(m);});}catch(e){erros.push('moedas');}}
-const cr=[...new Set(invs.filter(i=>i.tipo==='cripto').map(i=>String(i.cotacao_id||INV_CG[String(i.codigo||'').toUpperCase()]||'').toLowerCase().trim()).filter(Boolean))];
-if(cr.length){try{const r=await fetch('https://api.coingecko.com/api/v3/simple/price?ids='+cr.join(',')+'&vs_currencies=brl');const j=await r.json();cr.forEach(id=>{if(j[id]&&j[id].brl)out['c:'+id]=Number(j[id].brl);else erros.push(id);});}catch(e){erros.push('cripto');}}
+const cr=[...new Set([...invs.filter(i=>i.tipo==='cripto').map(i=>String(i.cotacao_id||INV_CG[String(i.codigo||'').toUpperCase()]||'').toLowerCase().trim()),...moedasCripto.map(m=>INV_CG[m])].filter(Boolean))];
+if(cr.length){try{const r=await fetch('https://api.coingecko.com/api/v3/simple/price?ids='+cr.join(',')+'&vs_currencies=brl');const j=await r.json();cr.forEach(id=>{if(j[id]&&j[id].brl)out['c:'+id]=Number(j[id].brl);else erros.push(id);});moedasCripto.forEach(m=>{const v=out['c:'+INV_CG[m]];if(v)out['m:'+m]=v;});}catch(e){erros.push('cripto');}}
 return{out,erros};};
 const invCotKey=i=>i.tipo==='moeda'?'m:'+String(i.codigo||'').toUpperCase().trim():'c:'+String(i.cotacao_id||INV_CG[String(i.codigo||'').toUpperCase()]||'').toLowerCase().trim();
 // grava movimento + lançamentos ligados; desfaz os lançamentos se o movimento falhar
